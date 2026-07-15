@@ -132,29 +132,44 @@ func main() {
 		offsetPx := int(topBar.Size().Height*w.Canvas().Scale()) + 4
 
 		go func() {
-			e, err := newSessionEmbedder()
-			if err != nil {
-				fyne.Do(func() { setStatus("embedder init failed: " + err.Error()) })
-				_ = cmd.Process.Kill()
-				return
-			}
-			e.setTopOffset(offsetPx)
-			if err := e.embedSession(parent, uint32(cmd.Process.Pid), *mode, 20*time.Second, exited); err != nil {
-				fyne.Do(func() { setStatus("embed failed: " + err.Error()) })
-				e.close()
-				_ = cmd.Process.Kill()
-				return
-			}
-			emb = e
-			fyne.Do(func() { setStatus("Session embedded (mode " + *mode + "). Validate: resize, focus in/out, exit.") })
+			// Embed loop: some clients (mstsc between credential dialog and
+			// session, AnyDesk) destroy and re-create their window. When the
+			// adopted child dies but the process lives on, search again and
+			// re-embed instead of giving up.
+			for {
+				e, err := newSessionEmbedder()
+				if err != nil {
+					fyne.Do(func() { setStatus("embedder init failed: " + err.Error()) })
+					_ = cmd.Process.Kill()
+					return
+				}
+				e.setTopOffset(offsetPx)
+				if err := e.embedSession(parent, uint32(cmd.Process.Pid), *mode, 30*time.Second, exited); err != nil {
+					fyne.Do(func() { setStatus("embed failed: " + err.Error()) })
+					e.close()
+					_ = cmd.Process.Kill()
+					return
+				}
+				emb = e
+				fyne.Do(func() { setStatus("Session embedded (mode " + *mode + "). Validate: resize, focus in/out, exit.") })
 
-			// Keep the child sized to the Fyne window; report when it dies.
-			go e.watchAndResize(func() {
-				fyne.Do(func() {
-					setStatus("Session window gone (process exit detected). Panel cleaned up.")
-				})
+				// Keep the child sized to the Fyne window; unblock when it dies.
+				gone := make(chan struct{})
+				go e.watchAndResize(func() { close(gone) })
+				<-gone
 				emb = nil
-			})
+
+				// Child window destroyed: process exit, or window re-creation?
+				select {
+				case <-exited:
+					fyne.Do(func() {
+						setStatus("Session window gone (process exit detected). Panel cleaned up.")
+					})
+					return
+				case <-time.After(1500 * time.Millisecond):
+					fyne.Do(func() { setStatus("Session window re-created, re-embedding…") })
+				}
+			}
 		}()
 	})
 

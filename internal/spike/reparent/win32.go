@@ -33,6 +33,7 @@ var (
 	procGetClientRect            = user32.NewProc("GetClientRect")
 	procIsWindow                 = user32.NewProc("IsWindow")
 	procPostMessageW             = user32.NewProc("PostMessageW")
+	procGetClassNameW            = user32.NewProc("GetClassNameW")
 )
 
 const (
@@ -115,6 +116,14 @@ func findTopLevelByPID(pid uint32, timeout time.Duration, exited <-chan error) (
 			procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&wpid)))
 			if wpid == pid {
 				if vis, _, _ := procIsWindowVisible.Call(hwnd); vis != 0 {
+					// Skip standard dialogs (class #32770): mstsc shows
+					// trust/credential prompts before the session window
+					// exists; adopting one leaves the real session outside.
+					var cls [64]uint16
+					n, _, _ := procGetClassNameW.Call(hwnd, uintptr(unsafe.Pointer(&cls[0])), 64)
+					if windows.UTF16ToString(cls[:n]) == "#32770" {
+						return 1
+					}
 					found = windows.HWND(hwnd)
 					return 0 // stop enumeration
 				}

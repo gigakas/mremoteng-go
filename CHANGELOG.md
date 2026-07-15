@@ -158,3 +158,7 @@
 - Stage 0.2 closing audit: per-OS refactor, x/sys dependency, mstsc substitution justified, pending wfreerdp validation for 2.5/4.4
   - `auditory/phase0-stage2-20260716-claude-code.md`
   - _2026-07-15 22:03:56 UTC — claude-code_
+- Stage 0.2: skip #32770 dialog windows when locating the session window and re-embed on window re-creation while the process is alive
+  - `internal/spike/reparent/main.go`
+  - `internal/spike/reparent/win32.go`
+  - _2026-07-15 22:07:44 UTC — claude-code_
