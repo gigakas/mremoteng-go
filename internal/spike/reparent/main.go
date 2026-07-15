@@ -51,7 +51,7 @@ type sessionEmbedder interface {
 // clients share one syntax; mstsc (the built-in Windows client, useful as a
 // zero-install embedding target for stage 0.2) prompts for credentials
 // itself and only honors smart sizing via a .rdp file, so one is generated.
-func clientArgs(client, host, user, pass, mode string, parent uintptr) []string {
+func clientArgs(client, host, user, pass, mode, resize string, parent uintptr) []string {
 	if strings.Contains(strings.ToLower(filepath.Base(client)), "mstsc") {
 		rdp := filepath.Join(os.TempDir(), "mremoteng-spike.rdp")
 		content := "full address:s:" + host + "\r\n" +
@@ -67,11 +67,17 @@ func clientArgs(client, host, user, pass, mode string, parent uintptr) []string 
 		return []string{rdp}
 	}
 	args := []string{"/v:" + host, "/u:" + user, "/p:" + pass,
-		"/cert:ignore", "/size:1024x768",
-		// client-side scaling on resize: unlike /dynamic-resolution it
-		// needs no server support (xrdp in the test container chokes on
-		// the disp channel and drops the connection)
-		"/smart-sizing"}
+		"/cert:ignore", "/size:1024x768"}
+	if resize == "dynamic" {
+		// true resolution renegotiation on resize (needs server disp
+		// channel support; xfreerdp 3.24 vs the xrdp container dropped the
+		// connection — retest per client/server pair)
+		args = append(args, "/dynamic-resolution")
+	} else {
+		// client-side scaling: no server support needed, but scales a
+		// fixed framebuffer (blurry at non-native sizes)
+		args = append(args, "/smart-sizing")
+	}
 	if mode == "parent-window" {
 		// the client creates its window as a child of ours from the
 		// start: no WM involvement, no race with window re-creation.
@@ -87,6 +93,8 @@ func main() {
 	client := flag.String("client", defaultClient, "FreeRDP client executable (name in PATH or full path)")
 	mode := flag.String("mode", defaultMode,
 		"embedding mode: parent-window (FreeRDP /parent-window flag) or reparent (adopt the client's top-level window, the AnyDesk-style fallback)")
+	resize := flag.String("resize", "smart",
+		"session resize strategy: smart (client-side scaling) or dynamic (resolution renegotiation, needs server disp support)")
 	flag.Parse()
 
 	// Windows: enable mixed DPI hosting on the main thread BEFORE the Fyne
@@ -117,7 +125,7 @@ func main() {
 			return
 		}
 
-		args := clientArgs(*client, *host, *user, *pass, *mode, parent)
+		args := clientArgs(*client, *host, *user, *pass, *mode, *resize, parent)
 		cmd := exec.Command(*client, args...)
 		cmd.Stdout = os.Stdout // client output goes to the spike's own log
 		cmd.Stderr = os.Stderr

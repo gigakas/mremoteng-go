@@ -187,3 +187,6 @@
 - Stage 0.2: retry the find-and-adopt cycle until deadline — sdl-freerdp re-creates its window during renderer init, invalidating the first handle
   - `internal/spike/reparent/win32.go`
   - _2026-07-15 22:38:52 UTC — claude-code_
+- Stage 0.2: add -resize flag (smart/dynamic) to compare client-side scaling with disp-channel resolution renegotiation
+  - `internal/spike/reparent/main.go`
+  - _2026-07-15 22:42:38 UTC — claude-code_
