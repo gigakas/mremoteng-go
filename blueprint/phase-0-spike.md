@@ -9,12 +9,18 @@ phase closes), `docs/spike-*.md` (findings).
 
 ## Stages
 
-| # | Stage | Status |
-|---|---|---|
-| 0.1 | X11 reparenting on Linux | pending |
-| 0.2 | Win32 reparenting on Windows | pending |
-| 0.3 | Wayland assessment | pending |
-| 0.4 | Documented go/no-go decision | pending |
+| # | Stage | Status | Agent |
+|---|---|---|---|
+| 0.1 | X11 reparenting on Linux | in progress (claude-code) | claude-code |
+| 0.2 | Win32 reparenting on Windows | pending | claude-code |
+| 0.3 | Wayland assessment | pending | claude-code |
+| 0.4 | Documented go/no-go decision | pending | human + claude-code |
+
+### Parallelism & collision notes
+
+No parallelism: the spike is sequential (0.2/0.3 reuse the 0.1 prototype,
+0.4 needs all findings) and every stage requires a desktop session and
+visual validation — one agent at a time on the whole phase.
 
 ### 0.1 X11 reparenting on Linux
 - Fyne window with an empty container panel.

@@ -9,13 +9,23 @@ data, with a coexistence period.
 
 ## Stages
 
-| # | Stage | Status |
-|---|---|---|
-| 5.1 | Direct import of existing connection files | pending |
-| 5.2 | Settings migration guide (registry → config file) | pending |
-| 5.3 | Preview channel release in parallel with the C# app | pending |
-| 5.4 | Feedback cycle and parity gaps triage | pending |
-| 5.5 | Deprecation plan for the C#/WinForms version | pending |
+| # | Stage | Status | Agent |
+|---|---|---|---|
+| 5.1 | Direct import of existing connection files | pending | claude-code |
+| 5.2 | Settings migration guide (registry → config file) | pending | opencode |
+| 5.3 | Preview channel release in parallel with the C# app | pending | human + claude-code |
+| 5.4 | Feedback cycle and parity gaps triage | pending | human + claude-code |
+| 5.5 | Deprecation plan for the C#/WinForms version | pending | human |
+
+### Parallelism & collision notes
+
+- 5.1 touches `cmd/mremoteng` flags plus the Phase 1 serializers
+  (read-only imports); 5.2 owns `docs/migration-guide.md` — disjoint, so
+  5.1 and 5.2 can run in parallel.
+- 5.2 is documentation against a known source (`Config/Settings/Registry/`
+  in the C# repo) — a good OpenCode candidate.
+- 5.3–5.5 are release/governance work driven by the human with agent
+  support; sequential by nature.
 
 ### Notes
 

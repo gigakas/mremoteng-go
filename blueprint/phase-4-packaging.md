@@ -7,13 +7,26 @@
 
 ## Stages
 
-| # | Stage | Status |
-|---|---|---|
-| 4.1 | Cross-compilation matrix (linux/windows × amd64/arm64) | pending |
-| 4.2 | CI: build + check + smoke on every PR | pending |
-| 4.3 | Linux packaging (.deb/.rpm/Flatpak) with xfreerdp dependency | pending |
-| 4.4 | Windows packaging (portable zip + FreeRDP binary alongside) | pending |
-| 4.5 | Release channels (stable/preview/nightly) | pending |
+| # | Stage | Status | Agent |
+|---|---|---|---|
+| 4.1 | Cross-compilation matrix (linux/windows × amd64/arm64) | pending | opencode |
+| 4.2 | CI: build + check + smoke on every PR | pending | opencode |
+| 4.3 | Linux packaging (.deb/.rpm/Flatpak) with xfreerdp dependency | pending | claude-code |
+| 4.4 | Windows packaging (portable zip + FreeRDP binary alongside) | pending | claude-code |
+| 4.5 | Release channels (stable/preview/nightly) | pending | human + claude-code |
+
+### Parallelism & collision notes
+
+- File ownership per stage: 4.1 → `Makefile` (build targets), 4.2 →
+  `.github/workflows/`, 4.3 → `packaging/linux/`, 4.4 →
+  `packaging/windows/`, 4.5 → `.github/workflows/release*` + `packaging/`
+  glue.
+- 4.1 and 4.2 are declarative and verifiable in CI — good OpenCode
+  candidates; 4.2 depends on 4.1's make targets. 4.3/4.4 need install
+  testing on real systems, so they stay with claude-code. 4.5 needs the
+  human to define channel policy.
+- 4.3 and 4.4 can run in parallel (disjoint `packaging/` subtrees) but not
+  with 4.5, which touches both.
 
 ### Notes
 

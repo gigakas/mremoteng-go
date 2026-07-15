@@ -9,15 +9,28 @@ land.
 
 ## Stages
 
-| # | Stage | Status |
-|---|---|---|
-| 3.1 | Application shell (window, menu, layout) | pending |
-| 3.2 | Connection tree panel | pending |
-| 3.3 | Session tabs hosting protocol views | pending |
-| 3.4 | Connection properties panel (with inheritance UI) | pending |
-| 3.5 | Options dialog + settings persistence | pending |
-| 3.6 | Theming | pending |
-| 3.7 | External credential repositories | pending |
+| # | Stage | Status | Agent |
+|---|---|---|---|
+| 3.1 | Application shell (window, menu, layout) | pending | claude-code |
+| 3.2 | Connection tree panel | pending | claude-code |
+| 3.3 | Session tabs hosting protocol views | pending | claude-code |
+| 3.4 | Connection properties panel (with inheritance UI) | pending | claude-code |
+| 3.5 | Options dialog + settings persistence | pending | any |
+| 3.6 | Theming | pending | claude-code |
+| 3.7 | External credential repositories | pending | opencode |
+
+### Parallelism & collision notes
+
+- 3.1–3.6 all live in `internal/ui/` and need visual iteration on a
+  desktop: they stay with claude-code, one stage at a time (3.1 first; then
+  3.2/3.3 in either order; 3.4–3.6 after the shell is stable).
+- 3.7 owns `internal/credential/` — REST/CLI clients with no UI, fully
+  disjoint from `internal/ui/`: the one stage of this phase that can run in
+  parallel on OpenCode at any point. Its UI wiring (picker in the
+  properties panel) happens inside 3.4, not in 3.7.
+- 3.5's settings persistence backend (config file load/save) is separable
+  from its dialog; if delegated, OpenCode does the backend package and
+  claude-code wires the dialog.
 
 ### Notes
 

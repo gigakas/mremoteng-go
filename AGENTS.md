@@ -39,6 +39,11 @@ if `go` is not found: `export PATH="$HOME/.local/go/bin:$PATH"`.
   changelog fragment and do it as a separate, minimal change.
 - Never two agents on the same stage simultaneously; stages are claimed by
   marking them `in progress (<agent>)` in the phase's status table.
+- Stage tables carry a suggested **Agent** column (see "Agent roster and
+  task distribution" in `blueprint/README.md`). Delegating a stage to an
+  OpenCode agent always requires asking the user first; parallel work is
+  only allowed on stages with disjoint packages ("Parallelism & collision
+  notes" in each phase file).
 
 ## Stage closing (mandatory)
 

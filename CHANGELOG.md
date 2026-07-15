@@ -6,7 +6,74 @@
 
 ## 2026-07-15
 
-- 19:03:32Z — **claude-code** — Set up multi-agent tooling: shared changelog system, Claude Code skills and hooks, OpenCode commands, blueprint phases, audit templates, unit and smoke tests
-  - files: `.claude/settings.json`, `.claude/skills/audit/SKILL.md`, `.claude/skills/changelog/SKILL.md`, `.claude/skills/check/SKILL.md`, `.claude/skills/smoke/SKILL.md`, `.opencode/command/audit.md`, `.opencode/command/changelog.md`, `.opencode/command/check.md`, `.opencode/command/smoke.md`, `AGENTS.md`, `CLAUDE.md`, `Makefile`, `README.md`, `auditory/README.md`, `auditory/TEMPLATE.md`, `blueprint/README.md`, `blueprint/phase-0-spike.md`, `blueprint/phase-1-core.md`, `blueprint/phase-2-protocols.md`, `blueprint/phase-3-ui.md`, `blueprint/phase-4-packaging.md`, `blueprint/phase-5-cutover.md`, `cmd/changelog/main.go`, `docs/MIGRATION_PLAN.md`, `internal/changelog/changelog.go`, `internal/changelog/changelog_test.go`, `opencode.json`, `scripts/check.sh`, `scripts/hooks/format-go.sh`, `scripts/hooks/require-changelog.sh`, `scripts/smoke.sh`
-- 19:12:08Z — **claude-code** — Phase 2: make serial explicit in stage 2.2 and document PuTTY external-process fallback as contingency for the terminal emulator widget
-  - files: `blueprint/phase-2-protocols.md`
+- Set up multi-agent tooling: shared changelog system, Claude Code skills and hooks, OpenCode commands, blueprint phases, audit templates, unit and smoke tests
+  - `.claude/settings.json`
+  - `.claude/skills/audit/SKILL.md`
+  - `.claude/skills/changelog/SKILL.md`
+  - `.claude/skills/check/SKILL.md`
+  - `.claude/skills/smoke/SKILL.md`
+  - `.opencode/command/audit.md`
+  - `.opencode/command/changelog.md`
+  - `.opencode/command/check.md`
+  - `.opencode/command/smoke.md`
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `Makefile`
+  - `README.md`
+  - `auditory/README.md`
+  - `auditory/TEMPLATE.md`
+  - `blueprint/README.md`
+  - `blueprint/phase-0-spike.md`
+  - `blueprint/phase-1-core.md`
+  - `blueprint/phase-2-protocols.md`
+  - `blueprint/phase-3-ui.md`
+  - `blueprint/phase-4-packaging.md`
+  - `blueprint/phase-5-cutover.md`
+  - `cmd/changelog/main.go`
+  - `docs/MIGRATION_PLAN.md`
+  - `internal/changelog/changelog.go`
+  - `internal/changelog/changelog_test.go`
+  - `opencode.json`
+  - `scripts/check.sh`
+  - `scripts/hooks/format-go.sh`
+  - `scripts/hooks/require-changelog.sh`
+  - `scripts/smoke.sh`
+  - _2026-07-15 19:03:32 UTC — claude-code_
+- Phase 2: make serial explicit in stage 2.2 and document PuTTY external-process fallback as contingency for the terminal emulator widget
+  - `blueprint/phase-2-protocols.md`
+  - _2026-07-15 19:12:08 UTC — claude-code_
+- Reorganize CHANGELOG.md entry layout: explanation first, one file per line, closing metadata line with UTC date/time and agent
+  - `internal/changelog/changelog.go`
+  - `internal/changelog/changelog_test.go`
+  - _2026-07-15 19:19:21 UTC — claude-code_
+- Load blueprint/README.md as OpenCode instructions so the blueprint coordination rules are always in context
+  - `internal/changelog/changelog.go`
+  - `internal/changelog/changelog_test.go`
+  - `opencode.json`
+  - _2026-07-15 19:22:43 UTC — claude-code_
+- Blueprint: add per-stage Agent column, agent roster with OpenCode delegation rules (user confirmation required) and per-phase parallelism/collision notes
+  - `AGENTS.md`
+  - `blueprint/README.md`
+  - `blueprint/phase-0-spike.md`
+  - `blueprint/phase-1-core.md`
+  - `blueprint/phase-2-protocols.md`
+  - `blueprint/phase-3-ui.md`
+  - `blueprint/phase-4-packaging.md`
+  - `blueprint/phase-5-cutover.md`
+  - `internal/changelog/changelog.go`
+  - `internal/changelog/changelog_test.go`
+  - `opencode.json`
+  - _2026-07-15 19:29:11 UTC — claude-code_
+- Claim stage 0.1 (X11 reparenting spike) for claude-code and reserve stage 1.3 (encryption) for opencode as confirmed by the user
+  - `AGENTS.md`
+  - `blueprint/README.md`
+  - `blueprint/phase-0-spike.md`
+  - `blueprint/phase-1-core.md`
+  - `blueprint/phase-2-protocols.md`
+  - `blueprint/phase-3-ui.md`
+  - `blueprint/phase-4-packaging.md`
+  - `blueprint/phase-5-cutover.md`
+  - `internal/changelog/changelog.go`
+  - `internal/changelog/changelog_test.go`
+  - `opencode.json`
+  - _2026-07-15 19:30:51 UTC — claude-code_

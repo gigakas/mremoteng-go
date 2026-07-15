@@ -9,15 +9,34 @@ stages 2.5 and 2.7.
 
 ## Stages
 
-| # | Stage | Status |
-|---|---|---|
-| 2.1 | Protocol interface + factory | pending |
-| 2.2 | SSH, Telnet, rlogin, raw socket, serial | pending |
-| 2.3 | HTTP/HTTPS (native webview) | pending |
-| 2.4 | VNC | pending |
-| 2.5 | RDP (external xfreerdp + reparent) | pending |
-| 2.6 | PowerShell remoting (WinRM) | pending |
-| 2.7 | AnyDesk (external process) | pending |
+| # | Stage | Status | Agent |
+|---|---|---|---|
+| 2.1 | Protocol interface + factory | pending | claude-code |
+| 2.2 | SSH, Telnet, rlogin, raw socket, serial | pending | claude-code |
+| 2.3 | HTTP/HTTPS (native webview) | pending | any |
+| 2.4 | VNC | pending | opencode |
+| 2.5 | RDP (external xfreerdp + reparent) | pending | claude-code |
+| 2.6 | PowerShell remoting (WinRM) | pending | opencode |
+| 2.7 | AnyDesk (external process) | pending | claude-code |
+
+### Parallelism & collision notes
+
+- 2.1 blocks everything else: it owns `internal/protocol/` (interface,
+  factory, shared lifecycle types). No other stage starts before it closes.
+- After 2.1, each protocol stage owns its own subpackage —
+  `internal/protocol/ssh/`, `internal/protocol/web/`,
+  `internal/protocol/vnc/`, `internal/protocol/rdp/`,
+  `internal/protocol/winrm/`, `internal/protocol/anydesk/` — disjoint, so
+  protocol stages can run in parallel across agents.
+- **Factory registration is the only shared touch point**: the factory file
+  belongs to 2.1. A protocol stage wires itself in via a separate, minimal
+  commit that only adds its registration, justified in its changelog
+  fragment (rule 3 in `blueprint/README.md`).
+- 2.2 stays in claude-code because the terminal emulator widget needs
+  visual iteration; 2.5/2.7 reuse the Phase 0 reparenting findings and need
+  a desktop. 2.4 and 2.6 are library-driven and test-first — good OpenCode
+  candidates. 2.3 involves a cgo webview wrapper on two platforms — either
+  agent, decided at claim time.
 
 ### 2.1 Protocol interface + factory
 - `Protocol` interface: Connect/Disconnect/Focus/Resize lifecycle + error

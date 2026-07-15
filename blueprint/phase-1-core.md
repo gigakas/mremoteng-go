@@ -9,15 +9,31 @@ serialization and encryption, validated against real files.
 
 ## Stages
 
-| # | Stage | Status |
-|---|---|---|
-| 1.1 | Connection model and tree | pending |
-| 1.2 | Inheritance resolution | pending |
-| 1.3 | Encryption (AES-GCM + PBKDF2 + legacy Rijndael) | pending |
-| 1.4 | XML deserialization v26/v27/v28 | pending |
-| 1.5 | XML serialization (v28 writer) | pending |
-| 1.6 | CSV serialization | pending |
-| 1.7 | Compatibility corpus | pending |
+| # | Stage | Status | Agent |
+|---|---|---|---|
+| 1.1 | Connection model and tree | pending | claude-code |
+| 1.2 | Inheritance resolution | pending | claude-code |
+| 1.3 | Encryption (AES-GCM + PBKDF2 + legacy Rijndael) | in progress (opencode) | opencode |
+| 1.4 | XML deserialization v26/v27/v28 | pending | any |
+| 1.5 | XML serialization (v28 writer) | pending | any |
+| 1.6 | CSV serialization | pending | opencode |
+| 1.7 | Compatibility corpus | pending | human + claude-code |
+
+### Parallelism & collision notes
+
+Per-stage package ownership (disjoint — safe for parallel agents):
+
+- 1.1–1.2 → `internal/connection/` (sequential between themselves: 1.2
+  builds on 1.1).
+- 1.3 → `internal/security/` — no dependency on 1.1; delegable from day one.
+- 1.4–1.5 → `internal/serialize/xml/` — need 1.1 (model) and 1.3 (encrypted
+  attributes); read-only imports of those packages, never edits.
+- 1.6 → `internal/serialize/csv/` — needs 1.1; read-only import.
+- 1.7 → `testdata/corpus/` + integration tests — needs every other stage
+  green plus the human generating files with the C# app.
+
+Maximum useful parallelism: 1.1 (claude-code) + 1.3 (opencode) from the
+start; 1.6 (opencode) once 1.1 lands; 1.4–1.5 once 1.1 and 1.3 land.
 
 ### 1.1 Connection model and tree
 - `ConnectionInfo` (flat struct, superset of every protocol's fields, same
