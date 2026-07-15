@@ -13,7 +13,7 @@ phase closes), `docs/spike-*.md` (findings).
 |---|---|---|---|
 | 0.1 | X11 reparenting on Linux | done | claude-code |
 | 0.2 | Win32 reparenting on Windows | pending | claude-code |
-| 0.3 | Wayland assessment | pending | claude-code |
+| 0.3 | Wayland assessment | done | claude-code |
 | 0.4 | Documented go/no-go decision | pending | human + claude-code |
 
 ### Parallelism & collision notes

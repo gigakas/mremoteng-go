@@ -130,3 +130,10 @@
 - Stage 0.1 closing audit: quality/performance/architecture, fyne and xgb dependency justification, pending actions for stages 0.3, 2.5, 2.7 and 4.2
   - `auditory/phase0-stage1-20260715-claude-code.md`
   - _2026-07-15 20:27:12 UTC — claude-code_
+- Stage 0.3 closed: Wayland assessment in docs/spike-wayland.md — XWayland is the only embedding path and works on GNOME; KDE pending, X11-client constraint recorded
+  - `docs/spike-wayland.md`
+  - `blueprint/phase-0-spike.md`
+  - _2026-07-15 20:31:12 UTC — claude-code_
+- Stage 0.3 closing audit: documentation-only stage, X11/XWayland constraint for phases 2 and 4, KDE validation pending
+  - `auditory/phase0-stage3-20260715-claude-code.md`
+  - _2026-07-15 20:31:12 UTC — claude-code_
