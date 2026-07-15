@@ -184,3 +184,6 @@
 - Stage 0.2: log chosen child window class and retry SetParent once with re-verification for diagnosis
   - `internal/spike/reparent/win32.go`
   - _2026-07-15 22:27:09 UTC — claude-code_
+- Stage 0.2: retry the find-and-adopt cycle until deadline — sdl-freerdp re-creates its window during renderer init, invalidating the first handle
+  - `internal/spike/reparent/win32.go`
+  - _2026-07-15 22:38:52 UTC — claude-code_

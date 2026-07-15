@@ -129,70 +129,76 @@ func (e *winEmbedder) setTopOffset(px int) { e.topOffset = px }
 
 func (e *winEmbedder) embedSession(parent uintptr, pid uint32, mode string, timeout time.Duration, exited <-chan error) error {
 	e.parent = windows.HWND(parent)
-	child, err := findTopLevelByPID(pid, timeout, exited)
-	if err != nil {
-		return err
-	}
-	e.child = child
 
-	if mode != "parent-window" {
-		// SetThreadDpiHostingBehavior is per-OS-thread and must cover the
-		// SetParent call: pin the goroutine to this thread.
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-		if procSetThreadDpiHostingBehavior.Find() == nil {
-			prev, _, _ := procSetThreadDpiHostingBehavior.Call(dpiHostingBehaviorMixed)
-			log.Printf("dpi: embed-thread hosting(MIXED) prev=%d (-1 = call failed)", int32(prev))
-		}
-		dpiAwarenessOf("parent", parent)
-		dpiAwarenessOf("child", uintptr(child))
-		log.Printf("child class=%q", className(uintptr(child)))
-
-		// Adopt first, restyle after — the original mRemoteNG order for
-		// PuTTY embedding; some windows refuse SetParent once WS_CHILD is
-		// applied while still top-level. SetParent legitimately returns
-		// NULL when the previous parent was NULL; only a set last-error
-		// means failure (clear it first).
-		procSetLastError.Call(0)
-		ret, _, errno := procSetParent.Call(uintptr(child), uintptr(parent))
-		log.Printf("SetParent ret=0x%x errno=%v", ret, errno)
-		if ret == 0 && errno != windows.ERROR_SUCCESS {
-			return fmt.Errorf("SetParent: %v", errno)
-		}
-		// Trust nothing: verify the child actually hangs under us now
-		// (SetParent can no-op without an error, e.g. DPI-context refusal).
-		// One retry after a beat: some clients re-assert their window right
-		// after startup.
-		verified := false
-		for attempt := 1; attempt <= 2; attempt++ {
-			got, _, _ := procGetAncestor.Call(uintptr(child), gaParent)
-			if got == uintptr(parent) {
-				verified = true
-				break
+	// Find-and-adopt loop: clients like sdl-freerdp create a provisional
+	// window and re-create it while initializing (renderer setup), so the
+	// handle can die between discovery and SetParent. Retry the whole
+	// cycle until the deadline instead of giving up on a stale handle.
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		child, err := findTopLevelByPID(pid, time.Until(deadline), exited)
+		if err != nil {
+			if lastErr != nil {
+				return fmt.Errorf("%w (last adopt error: %v)", err, lastErr)
 			}
-			log.Printf("verify attempt %d: child parent=0x%x want 0x%x, class now %q", attempt, got, parent, className(uintptr(child)))
-			if attempt == 1 {
-				time.Sleep(300 * time.Millisecond)
-				procSetLastError.Call(0)
-				ret, _, errno := procSetParent.Call(uintptr(child), uintptr(parent))
-				log.Printf("SetParent retry ret=0x%x errno=%v", ret, errno)
-			}
+			return err
 		}
-		if !verified {
-			return fmt.Errorf("SetParent did not take effect after retry (child 0x%x class %q)", uintptr(child), className(uintptr(child)))
+		e.child = child
+		if mode == "parent-window" {
+			return e.resizeToParent()
 		}
-		// Now strip the frame and mark as child: a top-level style keeps WM
-		// behaviors (own taskbar entry, move by caption) that break
-		// embedding. FRAMECHANGED makes the style change take effect.
-		style, _, _ := procGetWindowLongPtrW.Call(uintptr(child), uintptr(gwlStyle))
-		newStyle := style&^uintptr(wsPopup|wsCaption|wsThickframe) | wsChild
-		if ret, _, err := procSetWindowLongPtrW.Call(uintptr(child), uintptr(gwlStyle), newStyle); ret == 0 && err != windows.ERROR_SUCCESS {
-			return fmt.Errorf("SetWindowLongPtr: %v", err)
+		if err := e.adoptChild(parent, child); err != nil {
+			lastErr = err
+			log.Printf("adopt failed (%v) — window likely re-created, retrying", err)
+			time.Sleep(300 * time.Millisecond)
+			continue
 		}
-		procSetWindowPos.Call(uintptr(child), 0, 0, 0, 0, 0,
-			swpNoMove|swpNoSize|swpNoZorder|swpFramechange)
+		return e.resizeToParent()
 	}
-	return e.resizeToParent()
+	return fmt.Errorf("could not adopt a stable window for pid %d: %v", pid, lastErr)
+}
+
+// adoptChild reparents child under parent and restyles it. Adopt first,
+// restyle after — the original mRemoteNG order for PuTTY embedding; some
+// windows refuse SetParent once WS_CHILD is applied while still top-level.
+func (e *winEmbedder) adoptChild(parent uintptr, child windows.HWND) error {
+	// SetThreadDpiHostingBehavior is per-OS-thread and must cover the
+	// SetParent call: pin the goroutine to this thread.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if procSetThreadDpiHostingBehavior.Find() == nil {
+		procSetThreadDpiHostingBehavior.Call(dpiHostingBehaviorMixed)
+	}
+	dpiAwarenessOf("parent", parent)
+	dpiAwarenessOf("child", uintptr(child))
+	log.Printf("child class=%q", className(uintptr(child)))
+
+	// SetParent legitimately returns NULL when the previous parent was
+	// NULL; only a set last-error means failure (clear it first).
+	procSetLastError.Call(0)
+	ret, _, errno := procSetParent.Call(uintptr(child), uintptr(parent))
+	log.Printf("SetParent ret=0x%x errno=%v", ret, errno)
+	if ret == 0 && errno != windows.ERROR_SUCCESS {
+		return fmt.Errorf("SetParent: %v", errno)
+	}
+	// Trust nothing: verify the child actually hangs under us now
+	// (SetParent can no-op without an error: DPI-context refusal, UIPI).
+	if got, _, _ := procGetAncestor.Call(uintptr(child), gaParent); got != uintptr(parent) {
+		return fmt.Errorf("SetParent did not take effect (child 0x%x class %q, parent=0x%x want 0x%x)",
+			uintptr(child), className(uintptr(child)), got, parent)
+	}
+	// Now strip the frame and mark as child: a top-level style keeps WM
+	// behaviors (own taskbar entry, move by caption) that break embedding.
+	// FRAMECHANGED makes the style change take effect.
+	style, _, _ := procGetWindowLongPtrW.Call(uintptr(child), uintptr(gwlStyle))
+	newStyle := style&^uintptr(wsPopup|wsCaption|wsThickframe) | wsChild
+	if ret, _, err := procSetWindowLongPtrW.Call(uintptr(child), uintptr(gwlStyle), newStyle); ret == 0 && err != windows.ERROR_SUCCESS {
+		return fmt.Errorf("SetWindowLongPtr: %v", err)
+	}
+	procSetWindowPos.Call(uintptr(child), 0, 0, 0, 0, 0,
+		swpNoMove|swpNoSize|swpNoZorder|swpFramechange)
+	return nil
 }
 
 // findTopLevelByPID polls visible top-level windows until one belongs to
