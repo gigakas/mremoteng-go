@@ -151,3 +151,10 @@
 - Stage 0.2: generate temp .rdp file with smart sizing for mstsc so the embedded session scales on resize
   - `internal/spike/reparent/main.go`
   - _2026-07-15 21:57:57 UTC — claude-code_
+- Stage 0.2 closed: Win32 SetParent embedding validated on a Windows VM with mstsc; findings in docs/spike-win32.md
+  - `docs/spike-win32.md`
+  - `blueprint/phase-0-spike.md`
+  - _2026-07-15 22:03:56 UTC — claude-code_
+- Stage 0.2 closing audit: per-OS refactor, x/sys dependency, mstsc substitution justified, pending wfreerdp validation for 2.5/4.4
+  - `auditory/phase0-stage2-20260716-claude-code.md`
+  - _2026-07-15 22:03:56 UTC — claude-code_
