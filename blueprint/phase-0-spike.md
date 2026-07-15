@@ -12,7 +12,7 @@ phase closes), `docs/spike-*.md` (findings).
 | # | Stage | Status | Agent |
 |---|---|---|---|
 | 0.1 | X11 reparenting on Linux | done | claude-code |
-| 0.2 | Win32 reparenting on Windows | pending | claude-code |
+| 0.2 | Win32 reparenting on Windows | in progress (claude-code) | claude-code |
 | 0.3 | Wayland assessment | done | claude-code |
 | 0.4 | Documented go/no-go decision | pending | human + claude-code |
 

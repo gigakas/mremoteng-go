@@ -137,3 +137,11 @@
 - Stage 0.3 closing audit: documentation-only stage, X11/XWayland constraint for phases 2 and 4, KDE validation pending
   - `auditory/phase0-stage3-20260715-claude-code.md`
   - _2026-07-15 20:31:12 UTC — claude-code_
+- Stage 0.2: claim stage; refactor spike into per-OS embedders (x11.go xgb, win32.go SetParent) behind a sessionEmbedder interface; Windows cross-build verified with mingw
+  - `blueprint/phase-0-spike.md`
+  - `go.mod`
+  - `internal/spike/README.md`
+  - `internal/spike/reparent/main.go`
+  - `internal/spike/reparent/win32.go`
+  - `internal/spike/reparent/x11.go`
+  - _2026-07-15 21:15:07 UTC — claude-code_

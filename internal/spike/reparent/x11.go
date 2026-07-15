@@ -1,4 +1,4 @@
-//go:build spike
+//go:build spike && linux
 
 package main
 
@@ -6,9 +6,50 @@ import (
 	"fmt"
 	"time"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver"
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
 )
+
+const (
+	defaultClient = "xfreerdp"
+	// parent-window is reliable on X11; naive reparenting races with
+	// xfreerdp's window re-creation (see docs/spike-x11.md).
+	defaultMode = "parent-window"
+)
+
+// parentHandle returns the X11 window id of the Fyne window (only available
+// on the X11/XWayland backend).
+func parentHandle(w fyne.Window) uintptr {
+	var parent uintptr
+	w.(driver.NativeWindow).RunNative(func(ctx any) {
+		if x11, ok := ctx.(driver.X11WindowContext); ok {
+			parent = x11.WindowHandle
+		}
+	})
+	return parent
+}
+
+func newSessionEmbedder() (sessionEmbedder, error) { return newEmbedder() }
+
+func (e *embedder) setTopOffset(px int) { e.topOffset = px }
+
+// embedSession implements the sessionEmbedder strategy switch for X11.
+func (e *embedder) embedSession(parent uintptr, pid uint32, mode string, timeout time.Duration, exited <-chan error) error {
+	if mode == "parent-window" {
+		child, err := e.findChildWindow(xproto.Window(parent), timeout, exited)
+		if err != nil {
+			return err
+		}
+		return e.adopt(child, uint32(parent))
+	}
+	child, err := e.findWindowByPID(pid, timeout, exited)
+	if err != nil {
+		return err
+	}
+	return e.embed(child, uint32(parent))
+}
 
 // embedder owns the xgb connection and the pair of windows involved in the
 // reparenting: parent (the Fyne window) and child (xfreerdp's window).

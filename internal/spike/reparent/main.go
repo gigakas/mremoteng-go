@@ -1,6 +1,7 @@
-// Command x11reparent is the Phase 0 spike: prove that an external
-// xfreerdp process can be embedded into a Fyne window on X11 by
-// reparenting its window with pure-Go xgb (stage 0.1).
+// Command reparent is the Phase 0 spike: prove that an external FreeRDP
+// client process can be embedded into a Fyne window — stage 0.1 on
+// Linux/X11 (xgb reparenting, x11.go) and stage 0.2 on Windows/Win32
+// (SetParent, win32.go).
 //
 // Throwaway code: deleted when Phase 0 closes. Never touches libfreerdp
 // (GPLv2 restriction) — external process only.
@@ -10,7 +11,7 @@
 //
 // Usage:
 //
-//	go run -tags spike ./internal/spike/x11reparent -host 127.0.0.1:3389 -user abc -pass abc
+//	go run -tags spike ./internal/spike/reparent -host 127.0.0.1:3389 -user abc -pass abc
 
 //go:build spike
 
@@ -27,29 +28,42 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/driver"
 	"fyne.io/fyne/v2/widget"
-	"github.com/BurntSushi/xgb/xproto"
 )
+
+// sessionEmbedder is what each OS variant provides: locate the session
+// window, put it under our parent window, follow resizes, detect its death.
+type sessionEmbedder interface {
+	setTopOffset(px int)
+	// embedSession finds the client's window (strategy depends on mode) and
+	// places it inside parent below the toolbar offset.
+	embedSession(parent uintptr, pid uint32, mode string, timeout time.Duration, exited <-chan error) error
+	// watchAndResize blocks, keeping the child sized to the parent, and
+	// calls onChildGone when the session window is destroyed.
+	watchAndResize(onChildGone func())
+	killChild()
+	close()
+}
 
 func main() {
 	host := flag.String("host", "127.0.0.1:3389", "RDP host:port")
 	user := flag.String("user", "abc", "RDP username")
 	pass := flag.String("pass", "abc", "RDP password")
-	mode := flag.String("mode", "parent-window",
-		"embedding mode: parent-window (xfreerdp /parent-window flag) or reparent (generic xgb ReparentWindow, the AnyDesk-style fallback)")
+	client := flag.String("client", defaultClient, "FreeRDP client executable (name in PATH or full path)")
+	mode := flag.String("mode", defaultMode,
+		"embedding mode: parent-window (FreeRDP /parent-window flag) or reparent (adopt the client's top-level window, the AnyDesk-style fallback)")
 	flag.Parse()
 
 	a := app.New()
-	w := a.NewWindow("mremoteng-go spike 0.1 — X11 reparenting")
+	w := a.NewWindow("mremoteng-go spike 0.1/0.2 — window embedding")
 	w.Resize(fyne.NewSize(1024, 768))
 
-	status := widget.NewLabel("Ready. Connect embeds xfreerdp below.")
+	status := widget.NewLabel("Ready. Connect embeds the RDP session below.")
 	setStatus := func(s string) { // log too, so failures are diagnosable
 		log.Println("status:", s)
 		status.SetText(s)
 	}
-	var emb *embedder
+	var emb sessionEmbedder
 	var topBar *fyne.Container
 
 	connect := widget.NewButton("Connect", func() {
@@ -57,14 +71,9 @@ func main() {
 			setStatus("Already connected.")
 			return
 		}
-		var parent uintptr
-		w.(driver.NativeWindow).RunNative(func(ctx any) {
-			if x11, ok := ctx.(driver.X11WindowContext); ok {
-				parent = x11.WindowHandle
-			}
-		})
+		parent := parentHandle(w)
 		if parent == 0 {
-			setStatus("Not running on X11/XWayland — no window handle.")
+			setStatus("No native window handle available on this backend.")
 			return
 		}
 
@@ -75,60 +84,40 @@ func main() {
 			// the disp channel and drops the connection)
 			"/smart-sizing"}
 		if *mode == "parent-window" {
-			// xfreerdp creates its window as a child of ours from the
+			// the client creates its window as a child of ours from the
 			// start: no WM involvement, no race with window re-creation.
 			args = append(args, fmt.Sprintf("/parent-window:%d", parent))
 		}
-		cmd := exec.Command("xfreerdp", args...)
-		cmd.Stdout = os.Stdout // xfreerdp output goes to the spike's own log
+		cmd := exec.Command(*client, args...)
+		cmd.Stdout = os.Stdout // client output goes to the spike's own log
 		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {
-			setStatus("xfreerdp failed to start: " + err.Error())
+			setStatus(*client + " failed to start: " + err.Error())
 			return
 		}
-		setStatus(fmt.Sprintf("xfreerdp started (pid %d, mode %s), waiting for its window…", cmd.Process.Pid, *mode))
+		setStatus(fmt.Sprintf("%s started (pid %d, mode %s), waiting for its window…", *client, cmd.Process.Pid, *mode))
 
 		// Reap exactly once, whatever happens later; the channel lets the
-		// window search abort early if xfreerdp dies first.
+		// window search abort early if the client dies first.
 		exited := make(chan error, 1)
 		go func() { exited <- cmd.Wait() }()
 
-		// X11 geometry is in physical pixels; Fyne sizes are logical points,
-		// so the toolbar height must be scaled (HiDPI displays).
+		// Native geometry is in physical pixels; Fyne sizes are logical
+		// points, so the toolbar height must be scaled (HiDPI displays).
 		offsetPx := int(topBar.Size().Height*w.Canvas().Scale()) + 4
 
 		go func() {
-			e, err := newEmbedder()
+			e, err := newSessionEmbedder()
 			if err != nil {
-				fyne.Do(func() { setStatus("X11 connect failed: " + err.Error()) })
+				fyne.Do(func() { setStatus("embedder init failed: " + err.Error()) })
 				_ = cmd.Process.Kill()
 				return
 			}
-			e.topOffset = offsetPx
-			fail := func(what string, err error) {
-				fyne.Do(func() { setStatus(what + ": " + err.Error()) })
+			e.setTopOffset(offsetPx)
+			if err := e.embedSession(parent, uint32(cmd.Process.Pid), *mode, 20*time.Second, exited); err != nil {
+				fyne.Do(func() { setStatus("embed failed: " + err.Error()) })
 				e.close()
 				_ = cmd.Process.Kill()
-			}
-
-			var child xproto.Window
-			if *mode == "parent-window" {
-				child, err = e.findChildWindow(xproto.Window(parent), 20*time.Second, exited)
-				if err != nil {
-					fail("child window not found", err)
-					return
-				}
-				err = e.adopt(child, uint32(parent))
-			} else {
-				child, err = e.findWindowByPID(uint32(cmd.Process.Pid), 20*time.Second, exited)
-				if err != nil {
-					fail("child window not found", err)
-					return
-				}
-				err = e.embed(child, uint32(parent))
-			}
-			if err != nil {
-				fail("embed failed", err)
 				return
 			}
 			emb = e
@@ -165,6 +154,6 @@ func main() {
 		}
 	})
 
-	log.Println("spike 0.1: validate resize, keyboard focus in/out and process-exit cleanup")
+	log.Println("spike: validate resize, keyboard focus in/out and process-exit cleanup")
 	w.ShowAndRun()
 }
