@@ -87,3 +87,20 @@
   - `go.mod`
   - `go.sum`
   - _2026-07-15 19:45:18 UTC — claude-code_
+- Phase 1 stage 1.3: add AES-256-GCM/PBKDF2 and legacy AES-128-CBC encryption providers matching the mRemoteNG file formats
+  - `internal/security/security.go`
+  - `internal/security/kdf.go`
+  - `internal/security/pkcs7.go`
+  - `internal/security/aead.go`
+  - `internal/security/legacy.go`
+  - `internal/security/kdf_test.go`
+  - `internal/security/aead_test.go`
+  - `internal/security/legacy_test.go`
+  - _2026-07-15 19:49:30 UTC — opencode_
+- Phase 1 stage 1.3: closing audit and mark stage done
+  - `auditory/phase1-stage3-20260715-opencode.md`
+  - `blueprint/phase-1-core.md`
+  - _2026-07-15 19:49:38 UTC — opencode_
+- Stage 0.1: add missing EWMH atom helper to the reparenting spike
+  - `internal/spike/x11reparent/x11.go`
+  - _2026-07-15 19:56:59 UTC — claude-code_

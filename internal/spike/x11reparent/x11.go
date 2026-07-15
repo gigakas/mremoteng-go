@@ -30,6 +30,19 @@ func newEmbedder() (*embedder, error) {
 
 func (e *embedder) close() { e.conn.Close() }
 
+// atom resolves an atom name; the atom must already exist (onlyIfExists),
+// which is always true for the EWMH atoms used here.
+func (e *embedder) atom(name string) (xproto.Atom, error) {
+	reply, err := xproto.InternAtom(e.conn, true, uint16(len(name)), name).Reply()
+	if err != nil {
+		return 0, fmt.Errorf("intern atom %s: %w", name, err)
+	}
+	if reply.Atom == 0 {
+		return 0, fmt.Errorf("atom %s does not exist (no EWMH window manager?)", name)
+	}
+	return reply.Atom, nil
+}
+
 // findWindowByPID polls _NET_CLIENT_LIST until a top-level window whose
 // _NET_WM_PID matches pid appears, or the timeout expires.
 func (e *embedder) findWindowByPID(pid uint32, timeout time.Duration) (xproto.Window, error) {
