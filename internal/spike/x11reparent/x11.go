@@ -153,9 +153,11 @@ func (e *embedder) resizeToParent() error {
 	if h < 1 {
 		h = 1
 	}
+	// Position is set too: in parent-window mode xfreerdp maps itself at
+	// (0,0), which would cover the toolbar row.
 	return xproto.ConfigureWindowChecked(e.conn, e.child,
-		xproto.ConfigWindowWidth|xproto.ConfigWindowHeight,
-		[]uint32{uint32(geo.Width), uint32(h)}).Check()
+		xproto.ConfigWindowX|xproto.ConfigWindowY|xproto.ConfigWindowWidth|xproto.ConfigWindowHeight,
+		[]uint32{0, embedTopOffset, uint32(geo.Width), uint32(h)}).Check()
 }
 
 // watchAndResize loops on X events: parent ConfigureNotify → resize the

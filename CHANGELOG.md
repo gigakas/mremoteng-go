@@ -112,3 +112,7 @@
   - `internal/spike/x11reparent/main.go`
   - `internal/spike/x11reparent/x11.go`
   - _2026-07-15 20:15:23 UTC — claude-code_
+- Stage 0.1: position embedded session below the toolbar and enable dynamic resolution so the remote follows panel resizes
+  - `internal/spike/x11reparent/main.go`
+  - `internal/spike/x11reparent/x11.go`
+  - _2026-07-15 20:17:33 UTC — claude-code_

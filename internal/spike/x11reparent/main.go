@@ -68,7 +68,9 @@ func main() {
 		}
 
 		args := []string{"/v:" + *host, "/u:" + *user, "/p:" + *pass,
-			"/cert:ignore", "/size:1024x768"}
+			"/cert:ignore", "/size:1024x768",
+			// remote resolution follows the panel size on resize
+			"/dynamic-resolution"}
 		if *mode == "parent-window" {
 			// xfreerdp creates its window as a child of ours from the
 			// start: no WM involvement, no race with window re-creation.
