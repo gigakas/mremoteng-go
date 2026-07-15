@@ -1,94 +1,98 @@
-# Plan de migración: mRemoteNG (C#/WinForms) → Go + FreeRDP (proceso externo)
+# Migration plan: mRemoteNG (C#/WinForms) → Go + FreeRDP (external process)
 
-Origen: análisis y planificación realizados sobre el repositorio original en
-`../mRemoteNG`. Este documento es la referencia de fases; no repetir su
-contenido en otros documentos del repo, solo enlazar aquí.
+Source: analysis and planning done against the original repository at
+`../mRemoteNG`. This document is the phase reference; the operational
+per-stage detail lives in `blueprint/`. Do not duplicate its content in
+other documents — link here instead.
 
-## Principio arquitectónico no negociable
+## Non-negotiable architectural principle
 
-RDP y AnyDesk se integran **solo como procesos externos embebidos por
-ventana**, nunca enlazando código (cgo contra `libfreerdp` o similar). mRemoteNG
-original es GPLv2; FreeRDP es Apache-2.0 (incompatibles para *linking* directo
-según la FSF). Para el embedding de ventanas:
+RDP and AnyDesk are integrated **only as external processes embedded by
+window reparenting**, never by linking code (no cgo against `libfreerdp` or
+similar). The original mRemoteNG is GPLv2; FreeRDP is Apache-2.0
+(incompatible for direct linking according to the FSF). For window
+embedding:
 
-- Linux: `github.com/BurntSushi/xgb` (protocolo X11 puro en Go, sin cgo, sin
-  enlazar `libX11`).
-- Windows: `golang.org/x/sys/windows` (`SetParent`/`SetWindowLong` vía
+- Linux: `github.com/BurntSushi/xgb` (pure-Go X11 protocol, no cgo, no
+  libX11 linking).
+- Windows: `golang.org/x/sys/windows` (`SetParent`/`SetWindowLong` via
   syscall).
 
-`xfreerdp` queda como dependencia de *runtime* (como hoy `PuTTYNG.exe` en el
-proyecto original), nunca de *build*.
+`xfreerdp` is a *runtime* dependency (like `PuTTYNG.exe` in the original
+project), never a *build* dependency.
 
-## Fase 0 — Spike de validación (2–3 semanas)
+## Phase 0 — Validation spike (2–3 weeks)
 
-- Prototipo Fyne + reparent de ventana `xfreerdp` en X11.
-- Mismo prototipo en Windows con `SetParent`.
-- Validar comportamiento bajo Wayland (esperado: requiere XWayland).
-- Criterio de salida: si el reparent no es confiable en GNOME/KDE modernos,
-  decidir aquí si se acepta la limitación antes de seguir.
+- Fyne prototype + `xfreerdp` window reparenting on X11.
+- Same prototype on Windows with `SetParent`.
+- Validate behavior under Wayland (expected: requires XWayland).
+- Exit criterion: if reparenting is unreliable on modern GNOME/KDE, decide
+  here whether the limitation is acceptable before continuing.
 
-## Fase 1 — Núcleo de datos (paridad de modelo, sin UI ni protocolos)
+## Phase 1 — Data core (model parity, no UI or protocols)
 
-Mapeo desde el C# original:
+Mapping from the original C#:
 
-| C# original | Go destino |
+| Original C# | Go target |
 |---|---|
 | `Connection/AbstractConnectionRecord.cs`, `ConnectionInfo.cs` | `internal/connection` |
-| `Connection/ConnectionInfoInheritance.cs` | Resolución de herencia sin reflection en runtime; usar `go:generate` o type switch explícito |
-| `Container/ContainerInfo.cs` | `internal/connection` (árbol homogéneo) |
-| `Config/Serializers/ConnectionSerializers/Xml/*` (v26/27/28) | `internal/serialize/xml` (mismo patrón versionado por `ConfVersion`) |
+| `Connection/ConnectionInfoInheritance.cs` | Inheritance resolution without runtime reflection; use `go:generate` or an explicit type switch |
+| `Container/ContainerInfo.cs` | `internal/connection` (homogeneous tree) |
+| `Config/Serializers/ConnectionSerializers/Xml/*` (v26/27/28) | `internal/serialize/xml` (same versioned pattern keyed on `ConfVersion`) |
 | `Config/Serializers/ConnectionSerializers/Csv/*` | `internal/serialize/csv` |
 | `Security/SymmetricEncryption/AeadCryptographyProvider.cs` | `internal/security` (stdlib `crypto/cipher`, AES-GCM) |
 | `Security/KeyDerivation/Pkcs5S2KeyGenerator.cs` | `internal/security` (`golang.org/x/crypto/pbkdf2`) |
-| `LegacyRijndaelCryptographyProvider.cs` | `internal/security` (`crypto/aes` CBC, solo lectura legacy) |
+| `LegacyRijndaelCryptographyProvider.cs` | `internal/security` (`crypto/aes` CBC, legacy read-only) |
 
-**Prueba de aceptación crítica**: generar archivos `.xml` de conexiones con la
-app C# original (distintas versiones de `ConfVersion`, cifrados y sin
-cifrar) y verificar que el port en Go produce resultado idéntico al
-desencriptar/leer. Bloqueante para avanzar a Fase 2.
+**Critical acceptance test**: generate connection `.xml` files with the
+original C# app (several `ConfVersion` values, encrypted and plain) and
+verify the Go port produces identical results when decrypting/reading.
+Blocking for Phase 2.
 
-## Fase 2 — Protocolos (orden de riesgo creciente)
+## Phase 2 — Protocols (increasing risk order)
 
-1. SSH / Telnet / Rlogin / raw socket — nativo en Go (`golang.org/x/crypto/ssh`).
-2. HTTP/HTTPS — webview nativo del SO (`github.com/webview/webview_go`).
-3. VNC — completar sobre librería base existente (trabajo de relleno).
-4. RDP — proceso externo `xfreerdp`/`wlfreerdp` + reparent. V1 sin
-   redirección de discos/impresoras/portapapeles (backlog v2).
-5. PowerShell remoting — WinRM vía librerías Go existentes.
-6. AnyDesk — mismo patrón que RDP (protocolo propietario).
+1. SSH / Telnet / rlogin / raw socket — native Go (`golang.org/x/crypto/ssh`).
+2. HTTP/HTTPS — OS-native webview (`github.com/webview/webview_go`).
+3. VNC — build on an existing base library (gap-filling work).
+4. RDP — external `xfreerdp`/`wlfreerdp` process + reparent. v1 without
+   disk/printer/clipboard redirection (v2 backlog).
+5. PowerShell remoting — WinRM via existing Go libraries.
+6. AnyDesk — same pattern as RDP (proprietary protocol).
 
-## Fase 3 — UI
+## Phase 3 — UI
 
-- Toolkit: Fyne para árbol de conexiones, tabs, diálogos, menús.
-- Docking de paneles: **v1 simplifica a layout fijo** (sin auto-hide/floating
-  equivalente a `PanelBinder.cs`/`DockPanelLayoutLoader.cs` original);
-  reevaluar como v2 según demanda.
-- Theming: reimplementación manual de `Themes/` original como paletas Fyne.
-- Credenciales externas (`ExternalConnectors/` original: AWS, 1Password,
-  Vault/OpenBao, Passwordstate, Delinea) — clientes REST/CLI, portan bien.
+- Toolkit: Fyne for the connection tree, tabs, dialogs, menus.
+- Panel docking: **v1 simplifies to a fixed layout** (no auto-hide/floating
+  equivalent to the original `PanelBinder.cs`/`DockPanelLayoutLoader.cs`);
+  revisit as v2 based on demand.
+- Theming: manual reimplementation of the original `Themes/` as Fyne
+  palettes.
+- External credentials (original `ExternalConnectors/`: AWS, 1Password,
+  Vault/OpenBao, Passwordstate, Delinea) — REST/CLI clients, port well.
 
-## Fase 4 — Empaquetado
+## Phase 4 — Packaging
 
-- Binario único Go por plataforma (`GOOS=linux/windows`, `GOARCH=amd64/arm64`).
-- `xfreerdp` no se vendorea: dependencia de paquete en Linux
-  (`.deb`/`.rpm`/Flatpak), binario oficial distribuido junto al `.zip`
-  portable en Windows.
-- Mantener estructura de canales Stable/Preview/Nightly del proyecto
-  original durante la transición.
+- Single Go binary per platform (`GOOS=linux/windows`, `GOARCH=amd64/arm64`).
+- `xfreerdp` is not vendored: package dependency on Linux
+  (`.deb`/`.rpm`/Flatpak), official binary shipped next to the portable
+  `.zip` on Windows.
+- Keep the original project's Stable/Preview/Nightly channel structure
+  during the transition.
 
-## Fase 5 — Migración y cutover
+## Phase 5 — Migration and cutover
 
-- Import directo de archivos de conexión existentes (cubierto por prueba de
-  Fase 1).
-- Opciones de registro de Windows (`Config/Settings/Registry/` original) no
-  aplican en Linux; documentar equivalente en archivo de config.
-- Convivencia en paralelo como canal "Preview" hasta paridad de RDP + SSH.
-- Deprecar la versión C#/WinForms solo tras ciclo estable con feedback real.
+- Direct import of existing connection files (covered by the Phase 1 test).
+- Windows registry options (original `Config/Settings/Registry/`) do not
+  apply on Linux; document a config-file equivalent for enterprise
+  deployments.
+- Parallel coexistence as a "Preview" channel until RDP + SSH parity.
+- Deprecate the C#/WinForms version only after a stable release cycle with
+  real-user feedback.
 
-## Riesgos abiertos
+## Open risks to decide early
 
-1. Wayland: sin soporte nativo garantizado, depende de XWayland.
-2. Docking de paneles: pérdida de funcionalidad en v1 (decisión de producto).
-3. Herencia por reflection: rediseño necesario, no traducción mecánica.
-4. Alcance: reescritura completa: por eso vive en repo separado, no como
-   rama del original.
+1. Wayland: no guaranteed native support, XWayland dependency.
+2. Panel docking: functionality loss in v1 (product decision).
+3. Reflection-based inheritance: needs redesign, not mechanical translation.
+4. Scope: this is a full rewrite — hence a separate repository, not a
+   branch of the original.
