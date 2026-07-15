@@ -11,13 +11,18 @@ serialization and encryption, validated against real files.
 
 | # | Stage | Status | Agent |
 |---|---|---|---|
-| 1.1 | Connection model and tree | pending | claude-code |
-| 1.2 | Inheritance resolution | pending | claude-code |
+| 1.1 | Connection model and tree | in progress (opencode) | opencode |
+| 1.2 | Inheritance resolution | pending | opencode |
 | 1.3 | Encryption (AES-GCM + PBKDF2 + legacy Rijndael) | done | opencode |
-| 1.4 | XML deserialization v26/v27/v28 | pending | any |
-| 1.5 | XML serialization (v28 writer) | pending | any |
+| 1.4 | XML deserialization v26/v27/v28 | pending | opencode |
+| 1.5 | XML serialization (v28 writer) | pending | opencode |
 | 1.6 | CSV serialization | pending | opencode |
-| 1.7 | Compatibility corpus | pending | human + claude-code |
+| 1.7 | Compatibility corpus | pending | human + opencode |
+
+> Phase 1 delegated to OpenCode by the user (2026-07-16). Order: 1.1
+> first (blocks everything); then 1.2 and, in parallel if using suffixed
+> agents (opencode-2, ...), 1.4–1.5 and 1.6. Parallel agents should use
+> separate git worktrees to keep `git status`-based hooks per-agent.
 
 ### Parallelism & collision notes
 

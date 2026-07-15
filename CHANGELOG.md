@@ -210,3 +210,6 @@
   - `internal/spike/reparent/win32.go`
   - `internal/spike/reparent/x11.go`
   - _2026-07-15 22:50:13 UTC — claude-code_
+- Phase 1 delegated to OpenCode by the user: reassign Agent column, reserve stage 1.1, document execution order and worktree guidance
+  - `blueprint/phase-1-core.md`
+  - _2026-07-15 22:52:33 UTC — claude-code_
