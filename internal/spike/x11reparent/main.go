@@ -69,8 +69,10 @@ func main() {
 
 		args := []string{"/v:" + *host, "/u:" + *user, "/p:" + *pass,
 			"/cert:ignore", "/size:1024x768",
-			// remote resolution follows the panel size on resize
-			"/dynamic-resolution"}
+			// client-side scaling on resize: unlike /dynamic-resolution it
+			// needs no server support (xrdp in the test container chokes on
+			// the disp channel and drops the connection)
+			"/smart-sizing"}
 		if *mode == "parent-window" {
 			// xfreerdp creates its window as a child of ours from the
 			// start: no WM involvement, no race with window re-creation.

@@ -116,3 +116,6 @@
   - `internal/spike/x11reparent/main.go`
   - `internal/spike/x11reparent/x11.go`
   - _2026-07-15 20:17:33 UTC — claude-code_
+- Stage 0.1: replace dynamic-resolution with client-side smart-sizing; the test container xrdp drops connections on the disp channel
+  - `internal/spike/x11reparent/main.go`
+  - _2026-07-15 20:20:51 UTC — claude-code_
