@@ -44,8 +44,11 @@ func (e *embedder) atom(name string) (xproto.Atom, error) {
 }
 
 // findWindowByPID polls _NET_CLIENT_LIST until a top-level window whose
-// _NET_WM_PID matches pid appears, or the timeout expires.
-func (e *embedder) findWindowByPID(pid uint32, timeout time.Duration) (xproto.Window, error) {
+// _NET_WM_PID matches pid appears, the process exits, or the timeout
+// expires. On timeout the error lists the PIDs that were visible, which is
+// the diagnostic that matters (is the window there under another PID, or
+// not there at all?).
+func (e *embedder) findWindowByPID(pid uint32, timeout time.Duration, exited <-chan error) (xproto.Window, error) {
 	clientList, err := e.atom("_NET_CLIENT_LIST")
 	if err != nil {
 		return 0, err
@@ -55,7 +58,13 @@ func (e *embedder) findWindowByPID(pid uint32, timeout time.Duration) (xproto.Wi
 		return 0, err
 	}
 	deadline := time.Now().Add(timeout)
+	seen := map[uint32]bool{}
 	for time.Now().Before(deadline) {
+		select {
+		case werr := <-exited:
+			return 0, fmt.Errorf("xfreerdp exited before mapping a window (%v) — see its output in the spike log", werr)
+		default:
+		}
 		reply, err := xproto.GetProperty(e.conn, false, e.root, clientList,
 			xproto.AtomWindow, 0, 1<<16).Reply()
 		if err == nil {
@@ -63,14 +72,21 @@ func (e *embedder) findWindowByPID(pid uint32, timeout time.Duration) (xproto.Wi
 				win := xproto.Window(xgb.Get32(reply.Value[i:]))
 				p, err := xproto.GetProperty(e.conn, false, win, wmPid,
 					xproto.AtomCardinal, 0, 1).Reply()
-				if err == nil && len(p.Value) >= 4 && xgb.Get32(p.Value) == pid {
-					return win, nil
+				if err == nil && len(p.Value) >= 4 {
+					if xgb.Get32(p.Value) == pid {
+						return win, nil
+					}
+					seen[xgb.Get32(p.Value)] = true
 				}
 			}
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return 0, fmt.Errorf("no window with _NET_WM_PID=%d after %s", pid, timeout)
+	pids := make([]uint32, 0, len(seen))
+	for p := range seen {
+		pids = append(pids, p)
+	}
+	return 0, fmt.Errorf("no window with _NET_WM_PID=%d after %s (client-list PIDs seen: %v)", pid, timeout, pids)
 }
 
 // embed reparents child into parent at the panel origin and sizes it to the

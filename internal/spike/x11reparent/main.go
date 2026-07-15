@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"time"
 
@@ -62,11 +63,18 @@ func main() {
 		cmd := exec.Command("xfreerdp",
 			"/v:"+*host, "/u:"+*user, "/p:"+*pass,
 			"/cert:ignore", "/size:1024x768")
+		cmd.Stdout = os.Stdout // xfreerdp output goes to the spike's own log
+		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {
 			status.SetText("xfreerdp failed to start: " + err.Error())
 			return
 		}
 		status.SetText(fmt.Sprintf("xfreerdp started (pid %d), waiting for its window…", cmd.Process.Pid))
+
+		// Reap exactly once, whatever happens later; the channel lets the
+		// window search abort early if xfreerdp dies first.
+		exited := make(chan error, 1)
+		go func() { exited <- cmd.Wait() }()
 
 		go func() {
 			e, err := newEmbedder()
@@ -75,7 +83,7 @@ func main() {
 				_ = cmd.Process.Kill()
 				return
 			}
-			child, err := e.findWindowByPID(uint32(cmd.Process.Pid), 15*time.Second)
+			child, err := e.findWindowByPID(uint32(cmd.Process.Pid), 20*time.Second, exited)
 			if err != nil {
 				fyne.Do(func() { status.SetText("child window not found: " + err.Error()) })
 				e.close()
@@ -98,7 +106,6 @@ func main() {
 				})
 				emb = nil
 			})
-			_ = cmd.Wait() // reap; window destruction is the UI signal
 		}()
 	})
 

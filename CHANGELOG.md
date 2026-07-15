@@ -104,3 +104,7 @@
 - Stage 0.1: add missing EWMH atom helper to the reparenting spike
   - `internal/spike/x11reparent/x11.go`
   - _2026-07-15 19:56:59 UTC — claude-code_
+- Stage 0.1: instrument spike — capture xfreerdp output, abort window search on early process exit, report seen PIDs on timeout, reap process on every path
+  - `internal/spike/x11reparent/main.go`
+  - `internal/spike/x11reparent/x11.go`
+  - _2026-07-15 20:03:55 UTC — claude-code_
