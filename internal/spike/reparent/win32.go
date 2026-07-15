@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"runtime"
 	"time"
 	"unsafe"
@@ -39,17 +40,25 @@ var (
 	procPostMessageW             = user32.NewProc("PostMessageW")
 	procGetClassNameW            = user32.NewProc("GetClassNameW")
 	procGetAncestor              = user32.NewProc("GetAncestor")
-	// Win10 1803+; probed with Find() before use.
-	procSetThreadDpiHostingBehavior = user32.NewProc("SetThreadDpiHostingBehavior")
+	procSetWindowPos             = user32.NewProc("SetWindowPos")
+	// Win10 1607+/1803+; probed with Find() before use.
+	procSetThreadDpiHostingBehavior     = user32.NewProc("SetThreadDpiHostingBehavior")
+	procSetProcessDpiAwarenessContext   = user32.NewProc("SetProcessDpiAwarenessContext")
+	procGetWindowDpiAwarenessContext    = user32.NewProc("GetWindowDpiAwarenessContext")
+	procGetAwarenessFromDpiAwarenessCtx = user32.NewProc("GetAwarenessFromDpiAwarenessContext")
 )
 
 const (
-	wsChild      = 0x40000000
-	wsPopup      = 0x80000000
-	wsCaption    = 0x00C00000
-	wsThickframe = 0x00040000
-	wmClose      = 0x0010
-	gaParent     = 1
+	wsChild        = 0x40000000
+	wsPopup        = 0x80000000
+	wsCaption      = 0x00C00000
+	wsThickframe   = 0x00040000
+	wmClose        = 0x0010
+	gaParent       = 1
+	swpNoSize      = 0x0001
+	swpNoMove      = 0x0002
+	swpNoZorder    = 0x0004
+	swpFramechange = 0x0020
 	// DPI_HOSTING_BEHAVIOR_MIXED: allows parenting windows with a
 	// different DPI awareness context (mstsc is per-monitor aware, this
 	// app is not — without this, SetParent silently no-ops on Win10+).
@@ -61,13 +70,31 @@ var gwlStyle = -16 // GWL_STYLE; negative index, hence not a untyped const
 type rect struct{ left, top, right, bottom int32 }
 
 // platformInit runs first thing in main, on the main OS thread (Fyne's glfw
-// driver locks the main goroutine to it in init). The MIXED hosting
-// behavior set here is captured by the Fyne window when it is created,
-// which is what allows SetParent with a differently-DPI-aware child.
+// driver locks the main goroutine to it in init). Aligns the process DPI
+// awareness with mstsc (per-monitor v2) and sets MIXED hosting behavior,
+// both captured by the Fyne window at creation time. Everything is logged:
+// remote debugging happens over pasted logs.
 func platformInit() {
-	if procSetThreadDpiHostingBehavior.Find() == nil {
-		procSetThreadDpiHostingBehavior.Call(dpiHostingBehaviorMixed)
+	if procSetProcessDpiAwarenessContext.Find() == nil {
+		// DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 == (handle) -4
+		ret, _, errno := procSetProcessDpiAwarenessContext.Call(^uintptr(3))
+		log.Printf("dpi: SetProcessDpiAwarenessContext(PMv2) ret=%d errno=%v (access-denied = already set, fine)", ret, errno)
 	}
+	if procSetThreadDpiHostingBehavior.Find() == nil {
+		prev, _, _ := procSetThreadDpiHostingBehavior.Call(dpiHostingBehaviorMixed)
+		log.Printf("dpi: SetThreadDpiHostingBehavior(MIXED) prev=%d (-1 = call failed)", int32(prev))
+	}
+}
+
+// dpiAwarenessOf logs a window's DPI awareness (0 unaware, 1 system, 2
+// per-monitor) — the mismatch that makes SetParent refuse silently.
+func dpiAwarenessOf(label string, hwnd uintptr) {
+	if procGetWindowDpiAwarenessContext.Find() != nil {
+		return
+	}
+	ctx, _, _ := procGetWindowDpiAwarenessContext.Call(hwnd)
+	aw, _, _ := procGetAwarenessFromDpiAwarenessCtx.Call(ctx)
+	log.Printf("dpi: %s window 0x%x awareness=%d", label, hwnd, aw)
 }
 
 // winEmbedder implements sessionEmbedder with Win32 user32 calls. Unlike
@@ -107,29 +134,38 @@ func (e *winEmbedder) embedSession(parent uintptr, pid uint32, mode string, time
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
 		if procSetThreadDpiHostingBehavior.Find() == nil {
-			procSetThreadDpiHostingBehavior.Call(dpiHostingBehaviorMixed)
+			prev, _, _ := procSetThreadDpiHostingBehavior.Call(dpiHostingBehaviorMixed)
+			log.Printf("dpi: embed-thread hosting(MIXED) prev=%d (-1 = call failed)", int32(prev))
 		}
-		// Strip the frame and mark as child before adopting: a top-level
-		// window keeps WM behaviors (own taskbar entry, move by caption)
-		// that break embedding.
-		style, _, _ := procGetWindowLongPtrW.Call(uintptr(child), uintptr(gwlStyle))
-		newStyle := style&^uintptr(wsPopup|wsCaption|wsThickframe) | wsChild
-		// ret==0 only signals failure when the last error is set (the
-		// previous style can legitimately be 0).
-		if ret, _, err := procSetWindowLongPtrW.Call(uintptr(child), uintptr(gwlStyle), newStyle); ret == 0 && err != windows.ERROR_SUCCESS {
-			return fmt.Errorf("SetWindowLongPtr: %v", err)
-		}
-		// SetParent legitimately returns NULL when the previous parent was
-		// NULL; only a set last-error means failure (clear it first).
+		dpiAwarenessOf("parent", parent)
+		dpiAwarenessOf("child", uintptr(child))
+
+		// Adopt first, restyle after — the original mRemoteNG order for
+		// PuTTY embedding; some windows refuse SetParent once WS_CHILD is
+		// applied while still top-level. SetParent legitimately returns
+		// NULL when the previous parent was NULL; only a set last-error
+		// means failure (clear it first).
 		procSetLastError.Call(0)
-		if ret, _, err := procSetParent.Call(uintptr(child), uintptr(parent)); ret == 0 && err != windows.ERROR_SUCCESS {
-			return fmt.Errorf("SetParent: %v", err)
+		ret, _, errno := procSetParent.Call(uintptr(child), uintptr(parent))
+		log.Printf("SetParent ret=0x%x errno=%v", ret, errno)
+		if ret == 0 && errno != windows.ERROR_SUCCESS {
+			return fmt.Errorf("SetParent: %v", errno)
 		}
 		// Trust nothing: verify the child actually hangs under us now
 		// (SetParent can no-op without an error, e.g. DPI-context refusal).
 		if got, _, _ := procGetAncestor.Call(uintptr(child), gaParent); got != uintptr(parent) {
 			return fmt.Errorf("SetParent did not take effect (child parent=0x%x, want 0x%x)", got, parent)
 		}
+		// Now strip the frame and mark as child: a top-level style keeps WM
+		// behaviors (own taskbar entry, move by caption) that break
+		// embedding. FRAMECHANGED makes the style change take effect.
+		style, _, _ := procGetWindowLongPtrW.Call(uintptr(child), uintptr(gwlStyle))
+		newStyle := style&^uintptr(wsPopup|wsCaption|wsThickframe) | wsChild
+		if ret, _, err := procSetWindowLongPtrW.Call(uintptr(child), uintptr(gwlStyle), newStyle); ret == 0 && err != windows.ERROR_SUCCESS {
+			return fmt.Errorf("SetWindowLongPtr: %v", err)
+		}
+		procSetWindowPos.Call(uintptr(child), 0, 0, 0, 0, 0,
+			swpNoMove|swpNoSize|swpNoZorder|swpFramechange)
 	}
 	return e.resizeToParent()
 }
