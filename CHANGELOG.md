@@ -162,3 +162,6 @@
   - `internal/spike/reparent/main.go`
   - `internal/spike/reparent/win32.go`
   - _2026-07-15 22:07:44 UTC — claude-code_
+- Stage 0.2: fix SetParent false failure — NULL return with clear last-error is success; clear last-error before the call
+  - `internal/spike/reparent/win32.go`
+  - _2026-07-15 22:10:39 UTC — claude-code_

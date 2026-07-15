@@ -22,6 +22,9 @@ const (
 )
 
 var (
+	kernel32         = windows.NewLazySystemDLL("kernel32.dll")
+	procSetLastError = kernel32.NewProc("SetLastError")
+
 	user32                       = windows.NewLazySystemDLL("user32.dll")
 	procEnumWindows              = user32.NewProc("EnumWindows")
 	procGetWindowThreadProcessId = user32.NewProc("GetWindowThreadProcessId")
@@ -90,7 +93,10 @@ func (e *winEmbedder) embedSession(parent uintptr, pid uint32, mode string, time
 		if ret, _, err := procSetWindowLongPtrW.Call(uintptr(child), uintptr(gwlStyle), newStyle); ret == 0 && err != windows.ERROR_SUCCESS {
 			return fmt.Errorf("SetWindowLongPtr: %v", err)
 		}
-		if ret, _, err := procSetParent.Call(uintptr(child), uintptr(parent)); ret == 0 {
+		// SetParent legitimately returns NULL when the previous parent was
+		// NULL; only a set last-error means failure (clear it first).
+		procSetLastError.Call(0)
+		if ret, _, err := procSetParent.Call(uintptr(child), uintptr(parent)); ret == 0 && err != windows.ERROR_SUCCESS {
 			return fmt.Errorf("SetParent: %v", err)
 		}
 	}
