@@ -89,23 +89,51 @@ func (e *embedder) findWindowByPID(pid uint32, timeout time.Duration, exited <-c
 	return 0, fmt.Errorf("no window with _NET_WM_PID=%d after %s (client-list PIDs seen: %v)", pid, timeout, pids)
 }
 
+// findChildWindow polls QueryTree until parent has a child window (created
+// there by xfreerdp's /parent-window flag), the process exits, or the
+// timeout expires.
+func (e *embedder) findChildWindow(parent xproto.Window, timeout time.Duration, exited <-chan error) (xproto.Window, error) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		select {
+		case werr := <-exited:
+			return 0, fmt.Errorf("xfreerdp exited before mapping a window (%v) — see its output in the spike log", werr)
+		default:
+		}
+		tree, err := xproto.QueryTree(e.conn, parent).Reply()
+		if err == nil && len(tree.Children) > 0 {
+			return tree.Children[len(tree.Children)-1], nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return 0, fmt.Errorf("no child window under parent %d after %s", parent, timeout)
+}
+
 // embed reparents child into parent at the panel origin and sizes it to the
 // parent's current geometry (unmap → reparent → map, so the WM releases it).
+// This is the generic mechanism for processes without a /parent-window
+// equivalent (AnyDesk).
 func (e *embedder) embed(child xproto.Window, parent uint32) error {
-	e.parent = xproto.Window(parent)
-	e.child = child
-
 	if err := xproto.UnmapWindowChecked(e.conn, child).Check(); err != nil {
 		return fmt.Errorf("unmap: %w", err)
 	}
-	if err := xproto.ReparentWindowChecked(e.conn, child, e.parent, 0, embedTopOffset).Check(); err != nil {
+	if err := xproto.ReparentWindowChecked(e.conn, child, xproto.Window(parent), 0, embedTopOffset).Check(); err != nil {
 		return fmt.Errorf("reparent: %w", err)
 	}
 	if err := xproto.MapWindowChecked(e.conn, child).Check(); err != nil {
 		return fmt.Errorf("map: %w", err)
 	}
+	return e.adopt(child, parent)
+}
+
+// adopt registers an already-parented child, subscribes to the events that
+// drive resize-follow and death detection, and does the initial sizing.
+func (e *embedder) adopt(child xproto.Window, parent uint32) error {
+	e.parent = xproto.Window(parent)
+	e.child = child
 	// Our own event mask on the parent (per-client in X11, so this does not
-	// disturb GLFW's mask): we need its ConfigureNotify to follow resizes.
+	// disturb GLFW's mask): we need its ConfigureNotify to follow resizes
+	// and its SubstructureNotify to see the child's destruction.
 	if err := xproto.ChangeWindowAttributesChecked(e.conn, e.parent,
 		xproto.CwEventMask, []uint32{xproto.EventMaskStructureNotify | xproto.EventMaskSubstructureNotify}).Check(); err != nil {
 		return fmt.Errorf("event mask: %w", err)

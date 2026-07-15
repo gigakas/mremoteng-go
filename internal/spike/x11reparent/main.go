@@ -29,12 +29,15 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver"
 	"fyne.io/fyne/v2/widget"
+	"github.com/BurntSushi/xgb/xproto"
 )
 
 func main() {
 	host := flag.String("host", "127.0.0.1:3389", "RDP host:port")
 	user := flag.String("user", "abc", "RDP username")
 	pass := flag.String("pass", "abc", "RDP password")
+	mode := flag.String("mode", "parent-window",
+		"embedding mode: parent-window (xfreerdp /parent-window flag) or reparent (generic xgb ReparentWindow, the AnyDesk-style fallback)")
 	flag.Parse()
 
 	a := app.New()
@@ -42,11 +45,15 @@ func main() {
 	w.Resize(fyne.NewSize(1024, 768))
 
 	status := widget.NewLabel("Ready. Connect embeds xfreerdp below.")
+	setStatus := func(s string) { // log too, so failures are diagnosable
+		log.Println("status:", s)
+		status.SetText(s)
+	}
 	var emb *embedder
 
 	connect := widget.NewButton("Connect", func() {
 		if emb != nil {
-			status.SetText("Already connected.")
+			setStatus("Already connected.")
 			return
 		}
 		var parent uintptr
@@ -56,20 +63,25 @@ func main() {
 			}
 		})
 		if parent == 0 {
-			status.SetText("Not running on X11/XWayland — no window handle.")
+			setStatus("Not running on X11/XWayland — no window handle.")
 			return
 		}
 
-		cmd := exec.Command("xfreerdp",
-			"/v:"+*host, "/u:"+*user, "/p:"+*pass,
-			"/cert:ignore", "/size:1024x768")
+		args := []string{"/v:" + *host, "/u:" + *user, "/p:" + *pass,
+			"/cert:ignore", "/size:1024x768"}
+		if *mode == "parent-window" {
+			// xfreerdp creates its window as a child of ours from the
+			// start: no WM involvement, no race with window re-creation.
+			args = append(args, fmt.Sprintf("/parent-window:%d", parent))
+		}
+		cmd := exec.Command("xfreerdp", args...)
 		cmd.Stdout = os.Stdout // xfreerdp output goes to the spike's own log
 		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {
-			status.SetText("xfreerdp failed to start: " + err.Error())
+			setStatus("xfreerdp failed to start: " + err.Error())
 			return
 		}
-		status.SetText(fmt.Sprintf("xfreerdp started (pid %d), waiting for its window…", cmd.Process.Pid))
+		setStatus(fmt.Sprintf("xfreerdp started (pid %d, mode %s), waiting for its window…", cmd.Process.Pid, *mode))
 
 		// Reap exactly once, whatever happens later; the channel lets the
 		// window search abort early if xfreerdp dies first.
@@ -79,30 +91,43 @@ func main() {
 		go func() {
 			e, err := newEmbedder()
 			if err != nil {
-				fyne.Do(func() { status.SetText("X11 connect failed: " + err.Error()) })
+				fyne.Do(func() { setStatus("X11 connect failed: " + err.Error()) })
 				_ = cmd.Process.Kill()
 				return
 			}
-			child, err := e.findWindowByPID(uint32(cmd.Process.Pid), 20*time.Second, exited)
+			fail := func(what string, err error) {
+				fyne.Do(func() { setStatus(what + ": " + err.Error()) })
+				e.close()
+				_ = cmd.Process.Kill()
+			}
+
+			var child xproto.Window
+			if *mode == "parent-window" {
+				child, err = e.findChildWindow(xproto.Window(parent), 20*time.Second, exited)
+				if err != nil {
+					fail("child window not found", err)
+					return
+				}
+				err = e.adopt(child, uint32(parent))
+			} else {
+				child, err = e.findWindowByPID(uint32(cmd.Process.Pid), 20*time.Second, exited)
+				if err != nil {
+					fail("child window not found", err)
+					return
+				}
+				err = e.embed(child, uint32(parent))
+			}
 			if err != nil {
-				fyne.Do(func() { status.SetText("child window not found: " + err.Error()) })
-				e.close()
-				_ = cmd.Process.Kill()
-				return
-			}
-			if err := e.embed(child, uint32(parent)); err != nil {
-				fyne.Do(func() { status.SetText("reparent failed: " + err.Error()) })
-				e.close()
-				_ = cmd.Process.Kill()
+				fail("embed failed", err)
 				return
 			}
 			emb = e
-			fyne.Do(func() { status.SetText("Session embedded. Validate: resize, focus in/out, exit.") })
+			fyne.Do(func() { setStatus("Session embedded (mode " + *mode + "). Validate: resize, focus in/out, exit.") })
 
 			// Keep the child sized to the Fyne window; report when it dies.
 			go e.watchAndResize(func() {
 				fyne.Do(func() {
-					status.SetText("Session window gone (process exit detected). Panel cleaned up.")
+					setStatus("Session window gone (process exit detected). Panel cleaned up.")
 				})
 				emb = nil
 			})

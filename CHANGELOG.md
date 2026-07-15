@@ -108,3 +108,7 @@
   - `internal/spike/x11reparent/main.go`
   - `internal/spike/x11reparent/x11.go`
   - _2026-07-15 20:03:55 UTC — claude-code_
+- Stage 0.1: add parent-window embedding mode (xfreerdp /parent-window) as primary, keep xgb reparent as AnyDesk-style fallback; log status transitions
+  - `internal/spike/x11reparent/main.go`
+  - `internal/spike/x11reparent/x11.go`
+  - _2026-07-15 20:15:23 UTC — claude-code_
