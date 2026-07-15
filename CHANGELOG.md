@@ -178,3 +178,6 @@
   - `internal/spike/reparent/win32.go`
   - `internal/spike/reparent/x11.go`
   - _2026-07-15 22:21:09 UTC — claude-code_
+- Stage 0.2: fix DPI_HOSTING_BEHAVIOR_MIXED constant (1, not 2) — the enum is INVALID=-1/DEFAULT=0/MIXED=1
+  - `internal/spike/reparent/win32.go`
+  - _2026-07-15 22:25:10 UTC — claude-code_

@@ -60,9 +60,10 @@ const (
 	swpNoZorder    = 0x0004
 	swpFramechange = 0x0020
 	// DPI_HOSTING_BEHAVIOR_MIXED: allows parenting windows with a
-	// different DPI awareness context (mstsc is per-monitor aware, this
-	// app is not — without this, SetParent silently no-ops on Win10+).
-	dpiHostingBehaviorMixed = 2
+	// different DPI awareness context (mstsc is per-monitor v1, this app
+	// v2 — without this, SetParent silently no-ops on Win10+). The enum is
+	// INVALID=-1, DEFAULT=0, MIXED=1.
+	dpiHostingBehaviorMixed = 1
 )
 
 var gwlStyle = -16 // GWL_STYLE; negative index, hence not a untyped const
