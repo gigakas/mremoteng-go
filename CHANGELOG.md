@@ -198,3 +198,15 @@
   - `docs/spike-result.md`
   - `blueprint/phase-0-spike.md`
   - _2026-07-15 22:47:56 UTC — claude-code_
+- Stage 0.4 closed with GO decision (human-approved): phase 0 complete — spike code deleted per charter, module back to zero external deps, README updated with phase outcome
+  - `README.md`
+  - `auditory/phase0-stage4-20260716-claude-code.md`
+  - `blueprint/phase-0-spike.md`
+  - `docs/spike-result.md`
+  - `go.mod`
+  - `go.sum`
+  - `internal/spike/README.md`
+  - `internal/spike/reparent/main.go`
+  - `internal/spike/reparent/win32.go`
+  - `internal/spike/reparent/x11.go`
+  - _2026-07-15 22:50:13 UTC — claude-code_

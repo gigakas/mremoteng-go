@@ -3,7 +3,7 @@
 - **Date**: 2026-07-16 · **Prepared by**: claude-code (stage 0.4).
 - **Decision owner**: the human. This document presents evidence and
   options; the recommendation is argued, not decided.
-- **Decision**: _pending — to be filled in by the human._
+- **Decision**: **GO (option A)** — approved by the human on 2026-07-16.
 
 ## The question Phase 0 had to answer
 

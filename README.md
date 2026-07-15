@@ -4,8 +4,14 @@ Migration of [mRemoteNG](https://github.com/mRemoteNG/mRemoteNG)
 (C#/WinForms, Windows-only) to Go, targeting native Linux support while
 keeping Windows portability.
 
-**Status**: project scaffolding and multi-agent tooling in place; no
-application functionality yet. See [`docs/MIGRATION_PLAN.md`](docs/MIGRATION_PLAN.md)
+**Status**: **Phase 0 (embedding spike) closed — GO decision.** The
+project's core premise is validated on both platforms: external FreeRDP
+clients embedded in a Fyne window (X11/XWayland reparenting on Linux,
+`SetParent` on Windows). Evidence in [`docs/spike-result.md`](docs/spike-result.md)
+and the per-stage findings (`docs/spike-x11.md`, `docs/spike-win32.md`,
+`docs/spike-wayland.md`). Phase 1 (data core) is underway: encryption
+(`internal/security`, AES-256-GCM + PBKDF2 + legacy Rijndael read) is done.
+No end-user functionality yet. See [`docs/MIGRATION_PLAN.md`](docs/MIGRATION_PLAN.md)
 for the master plan and [`blueprint/`](blueprint/) for the per-stage detail.
 
 ## Layout
