@@ -77,3 +77,6 @@
   - `internal/changelog/changelog_test.go`
   - `opencode.json`
   - _2026-07-15 19:30:51 UTC — claude-code_
+- Add commit convention: never sign commits with agent/model trailers; agent authorship lives in changelog fragments
+  - `AGENTS.md`
+  - _2026-07-15 19:35:30 UTC — claude-code_

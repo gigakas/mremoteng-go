@@ -54,6 +54,13 @@ if `go` is not found: `export PATH="$HOME/.local/go/bin:$PATH"`.
 4. If the stage completes a **phase**: update the top-level `README.md`
    (project status and available functionality).
 
+## Commit conventions
+
+- **Never sign commits with the agent or model name**: no `Co-Authored-By`,
+  `Generated with` or similar trailers. Authorship of the change is already
+  recorded per agent in the changelog fragments; commits carry only the
+  configured git user.
+
 ## Code and refactoring conventions
 
 - `gofmt` is mandatory (automatic hook in Claude Code; in OpenCode, run
