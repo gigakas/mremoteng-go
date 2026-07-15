@@ -181,3 +181,6 @@
 - Stage 0.2: fix DPI_HOSTING_BEHAVIOR_MIXED constant (1, not 2) — the enum is INVALID=-1/DEFAULT=0/MIXED=1
   - `internal/spike/reparent/win32.go`
   - _2026-07-15 22:25:10 UTC — claude-code_
+- Stage 0.2: log chosen child window class and retry SetParent once with re-verification for diagnosis
+  - `internal/spike/reparent/win32.go`
+  - _2026-07-15 22:27:09 UTC — claude-code_

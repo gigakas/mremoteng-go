@@ -87,6 +87,12 @@ func platformInit() {
 	}
 }
 
+func className(hwnd uintptr) string {
+	var cls [64]uint16
+	n, _, _ := procGetClassNameW.Call(hwnd, uintptr(unsafe.Pointer(&cls[0])), 64)
+	return windows.UTF16ToString(cls[:n])
+}
+
 // dpiAwarenessOf logs a window's DPI awareness (0 unaware, 1 system, 2
 // per-monitor) — the mismatch that makes SetParent refuse silently.
 func dpiAwarenessOf(label string, hwnd uintptr) {
@@ -140,6 +146,7 @@ func (e *winEmbedder) embedSession(parent uintptr, pid uint32, mode string, time
 		}
 		dpiAwarenessOf("parent", parent)
 		dpiAwarenessOf("child", uintptr(child))
+		log.Printf("child class=%q", className(uintptr(child)))
 
 		// Adopt first, restyle after — the original mRemoteNG order for
 		// PuTTY embedding; some windows refuse SetParent once WS_CHILD is
@@ -154,8 +161,25 @@ func (e *winEmbedder) embedSession(parent uintptr, pid uint32, mode string, time
 		}
 		// Trust nothing: verify the child actually hangs under us now
 		// (SetParent can no-op without an error, e.g. DPI-context refusal).
-		if got, _, _ := procGetAncestor.Call(uintptr(child), gaParent); got != uintptr(parent) {
-			return fmt.Errorf("SetParent did not take effect (child parent=0x%x, want 0x%x)", got, parent)
+		// One retry after a beat: some clients re-assert their window right
+		// after startup.
+		verified := false
+		for attempt := 1; attempt <= 2; attempt++ {
+			got, _, _ := procGetAncestor.Call(uintptr(child), gaParent)
+			if got == uintptr(parent) {
+				verified = true
+				break
+			}
+			log.Printf("verify attempt %d: child parent=0x%x want 0x%x, class now %q", attempt, got, parent, className(uintptr(child)))
+			if attempt == 1 {
+				time.Sleep(300 * time.Millisecond)
+				procSetLastError.Call(0)
+				ret, _, errno := procSetParent.Call(uintptr(child), uintptr(parent))
+				log.Printf("SetParent retry ret=0x%x errno=%v", ret, errno)
+			}
+		}
+		if !verified {
+			return fmt.Errorf("SetParent did not take effect after retry (child 0x%x class %q)", uintptr(child), className(uintptr(child)))
 		}
 		// Now strip the frame and mark as child: a top-level style keeps WM
 		// behaviors (own taskbar entry, move by caption) that break
