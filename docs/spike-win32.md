@@ -1,50 +1,75 @@
 # Spike 0.2 findings — Win32 embedding of an external RDP client (Windows)
 
-- **Date**: 2026-07-16 · **Agent**: claude-code · **Validated by**: human,
-  on a Windows VM (VMware) connecting to the Linux host's xrdp container.
-- **Verdict: the approach works.** External `mstsc.exe` embedded in a Fyne
-  window via `SetParent`, content scaling on resize, keyboard focus in/out,
-  and process-exit cleanup all validated visually. Full checklist in
-  `internal/spike/README.md` passed.
+- **Date**: 2026-07-16 (supersedes the same-day first version of this doc)
+- **Agent**: claude-code · **Validated by**: human, on a Windows 11 VM
+  (VMware) connecting to the Linux host's xrdp container.
+- **Verdict: the approach works.** `sdl-freerdp.exe` (FreeRDP nightly)
+  embedded in a Fyne window via `SetParent`, interactive session (apps
+  opened inside the remote desktop), client-side scaling on resize.
+  Notepad used as the control target for the mechanism.
 
-## What works, and how
+## Validation matrix
 
-1. **Mechanism — `SetParent` + `WS_CHILD`** (`win32.go`): find the client's
-   top-level window by PID (`EnumWindows` + `GetWindowThreadProcessId`),
-   strip `WS_POPUP|WS_CAPTION|WS_THICKFRAME`, set `WS_CHILD`, `SetParent`
-   into the Fyne window, then poll-driven resize-follow (`GetClientRect` +
-   `MoveWindow`) and death detection (`IsWindow`), 200 ms cadence. This is
-   the generic mechanism — works for any external process, which is what
-   stages 2.5 (RDP) and 2.7 (AnyDesk) need on Windows.
-2. **Zero-install test client — `mstsc.exe`**: the built-in Windows client
-   embeds fine. Its credential prompt appears as a separate dialog before
-   the session window exists (expected; the spike waits for the session
-   window by PID).
-3. **Scaling**: mstsc ignores CLI sizing options; **smart sizing only works
-   via a `.rdp` file** (`smart sizing:i:1`) — the spike generates a temp
-   one. Content scales preserving aspect ratio (letterboxing when the
-   window ratio differs — acceptable).
-4. **Fyne native access**: `driver.WindowsWindowContext.HWND` provides the
-   parent handle — same `RunNative` pattern as X11.
+| Client | Result |
+|---|---|
+| Notepad (control) | ✅ embeds, re-embeds on reconnect |
+| `sdl-freerdp.exe` (FreeRDP nightly) | ✅ embeds; needs find-and-adopt retry (window re-created during renderer init) |
+| `mstsc.exe` | ⚠️ unreliable — embedded on first attempt, subsequent attempts refused (`SetParent` returns NULL, no error, no effect) |
 
-## Notes for later phases
+## The hard-won knowledge (Phase 2.5 field manual)
 
-- **FreeRDP GitHub releases no longer ship Windows binaries** (3.29.0
-  assets are source-only); prebuilt `wfreerdp.exe` lives in the nightly CI
-  (ci.freerdp.com). Phase 4.4 (Windows packaging, FreeRDP binary alongside)
-  must account for this: pin/mirror a nightly or build FreeRDP in our CI.
-- `/parent-window` mode remains available in the spike for FreeRDP clients
-  on Windows but was not validated (no wfreerdp binary at hand); SetParent
-  is sufficient and client-agnostic.
-- mstsc argument passing differs from FreeRDP's (`.rdp` file vs slash
-  options) — the Phase 2.5 design needs a per-client argument builder, not
-  a single template (already sketched as `clientArgs` in the spike).
-- Polling (200 ms) was enough for resize-follow; a production version can
-  hook `WM_SIZE` of the parent instead, but it is not required.
+1. **DPI awareness is the gatekeeper of cross-process `SetParent` on
+   Win10+.** If parent and child have different `DPI_AWARENESS_CONTEXT`s
+   (even per-monitor **v1 vs v2**), `SetParent` refuses **silently**
+   (returns NULL, `GetLastError()` = 0, window stays top-level). Required
+   recipe, all pieces mandatory:
+   - `SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)` at startup;
+   - `SetThreadDpiHostingBehavior(MIXED)` on the **main thread before the
+     Fyne window is created** — the hosting behavior is captured per-window
+     at creation time; setting it later does nothing;
+   - the enum is `INVALID=-1, DEFAULT=0, MIXED=1` — passing 2 fails
+     silently (returns -1) and cost this spike several rounds;
+   - **verify with `GetAncestor(child, GA_PARENT)` after `SetParent`** —
+     never trust the return value alone.
+2. **`SetParent` first, restyle after** (strip
+   `WS_POPUP|WS_CAPTION|WS_THICKFRAME`, add `WS_CHILD`, then
+   `SetWindowPos(FRAMECHANGED)`) — the original mRemoteNG order for PuTTY.
+3. **Find-and-adopt must be a retry loop.** sdl-freerdp creates a
+   provisional `SDL_app` window and re-creates it during Direct3D renderer
+   init; the first handle dies between discovery and adoption
+   (`SetParent` → `ERROR_INVALID_PARAMETER`). Retrying the whole
+   find→adopt cycle until a deadline fixes it. The same loop re-embeds
+   when a client re-creates its window later (AnyDesk prep, stage 2.7).
+4. **Skip `#32770` dialogs when hunting the session window by PID** —
+   credential/trust prompts are visible top-levels of the same process.
+5. **mstsc is not a dependable embedding target.** It embedded once, then
+   refused (NULL return, no error, no effect — the silent-refusal
+   signature). Prime suspect: its manifest sets `uiAccess=true`, so UIPI
+   can block adoption by normal-integrity processes. Not worth chasing:
+   the original mRemoteNG never embeds mstsc either (it uses the RDP
+   ActiveX control). mstsc quirks kept for reference: args via a temp
+   `.rdp` file (`smart sizing:i:1`), no CLI password.
+6. **Resize strategies** (`-resize` flag in the spike):
+   - `smart` (`/smart-sizing`): client-side scaling, works everywhere,
+     blurry at non-native sizes (visible when maximizing an app inside
+     the session) — the universal fallback;
+   - `dynamic` (`/dynamic-resolution`): native quality, but **drops the
+     connection against the xrdp test container on both platforms**
+     (Linux/xfreerdp and Windows/sdl-freerdp) — server-dependent, per-host
+     opt-in in 2.5, retest against real Windows RDP hosts.
+
+## Packaging note (Phase 4.4)
+
+FreeRDP **no longer ships `wfreerdp.exe`**: GitHub releases are
+source-only, and the nightly CI publishes `sdl-freerdp.exe` (SDL client,
+window class `SDL_app`) plus proxy/server/tools. Phase 4.4 must pin/mirror
+the nightly or build FreeRDP in our CI, and Phase 2.5's Windows client is
+sdl-freerdp via generic reparenting (no `/parent-window`: SDL creates its
+own window).
 
 ## Impact on Phase 0
 
-With 0.1 (X11) and 0.2 (Win32) both green, the "external process + window
-embedding" premise holds on both target platforms. Remaining for 0.4: weigh
-the documented gaps (KDE Wayland untested, wfreerdp-on-Windows untested)
-and present the go/no-go evidence.
+Both platforms validated with a real FreeRDP client end-to-end. Remaining
+gaps for 0.4 to weigh: KDE Wayland untested (0.3), mstsc unreliability
+(fallback only), dynamic resolution untested against a real Windows RDP
+server.

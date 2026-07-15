@@ -190,3 +190,7 @@
 - Stage 0.2: add -resize flag (smart/dynamic) to compare client-side scaling with disp-channel resolution renegotiation
   - `internal/spike/reparent/main.go`
   - _2026-07-15 22:42:38 UTC — claude-code_
+- Stage 0.2 re-closed: rewrite docs/spike-win32.md with the validated matrix (sdl-freerdp OK, mstsc unreliable, DPI recipe, resize trade-offs) and add re-audit superseding the premature closure
+  - `docs/spike-win32.md`
+  - `auditory/phase0-stage2-20260716-claude-code-reaudit.md`
+  - _2026-07-15 22:46:19 UTC — claude-code_
