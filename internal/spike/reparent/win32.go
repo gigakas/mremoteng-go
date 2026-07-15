@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 	"time"
 	"unsafe"
 
@@ -37,6 +38,9 @@ var (
 	procIsWindow                 = user32.NewProc("IsWindow")
 	procPostMessageW             = user32.NewProc("PostMessageW")
 	procGetClassNameW            = user32.NewProc("GetClassNameW")
+	procGetAncestor              = user32.NewProc("GetAncestor")
+	// Win10 1803+; probed with Find() before use.
+	procSetThreadDpiHostingBehavior = user32.NewProc("SetThreadDpiHostingBehavior")
 )
 
 const (
@@ -45,6 +49,11 @@ const (
 	wsCaption    = 0x00C00000
 	wsThickframe = 0x00040000
 	wmClose      = 0x0010
+	gaParent     = 1
+	// DPI_HOSTING_BEHAVIOR_MIXED: allows parenting windows with a
+	// different DPI awareness context (mstsc is per-monitor aware, this
+	// app is not — without this, SetParent silently no-ops on Win10+).
+	dpiHostingBehaviorMixed = 2
 )
 
 var gwlStyle = -16 // GWL_STYLE; negative index, hence not a untyped const
@@ -83,6 +92,13 @@ func (e *winEmbedder) embedSession(parent uintptr, pid uint32, mode string, time
 	e.child = child
 
 	if mode != "parent-window" {
+		// SetThreadDpiHostingBehavior is per-OS-thread and must cover the
+		// SetParent call: pin the goroutine to this thread.
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		if procSetThreadDpiHostingBehavior.Find() == nil {
+			procSetThreadDpiHostingBehavior.Call(dpiHostingBehaviorMixed)
+		}
 		// Strip the frame and mark as child before adopting: a top-level
 		// window keeps WM behaviors (own taskbar entry, move by caption)
 		// that break embedding.
@@ -98,6 +114,11 @@ func (e *winEmbedder) embedSession(parent uintptr, pid uint32, mode string, time
 		procSetLastError.Call(0)
 		if ret, _, err := procSetParent.Call(uintptr(child), uintptr(parent)); ret == 0 && err != windows.ERROR_SUCCESS {
 			return fmt.Errorf("SetParent: %v", err)
+		}
+		// Trust nothing: verify the child actually hangs under us now
+		// (SetParent can no-op without an error, e.g. DPI-context refusal).
+		if got, _, _ := procGetAncestor.Call(uintptr(child), gaParent); got != uintptr(parent) {
+			return fmt.Errorf("SetParent did not take effect (child parent=0x%x, want 0x%x)", got, parent)
 		}
 	}
 	return e.resizeToParent()

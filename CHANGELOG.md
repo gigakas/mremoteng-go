@@ -165,3 +165,6 @@
 - Stage 0.2: fix SetParent false failure — NULL return with clear last-error is success; clear last-error before the call
   - `internal/spike/reparent/win32.go`
   - _2026-07-15 22:10:39 UTC — claude-code_
+- Stage 0.2: enable mixed DPI hosting behavior before SetParent (silently no-ops across DPI contexts on Win10+) and verify reparent took effect via GetAncestor
+  - `internal/spike/reparent/win32.go`
+  - _2026-07-15 22:14:03 UTC — claude-code_
