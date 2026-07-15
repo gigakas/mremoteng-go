@@ -17,6 +17,9 @@ type embedder struct {
 	root   xproto.Window
 	parent xproto.Window
 	child  xproto.Window
+	// topOffset is the toolbar height in physical pixels; the child is
+	// placed below it. Set by the UI before adopt/embed.
+	topOffset int
 }
 
 func newEmbedder() (*embedder, error) {
@@ -117,7 +120,7 @@ func (e *embedder) embed(child xproto.Window, parent uint32) error {
 	if err := xproto.UnmapWindowChecked(e.conn, child).Check(); err != nil {
 		return fmt.Errorf("unmap: %w", err)
 	}
-	if err := xproto.ReparentWindowChecked(e.conn, child, xproto.Window(parent), 0, embedTopOffset).Check(); err != nil {
+	if err := xproto.ReparentWindowChecked(e.conn, child, xproto.Window(parent), 0, int16(e.topOffset)).Check(); err != nil {
 		return fmt.Errorf("reparent: %w", err)
 	}
 	if err := xproto.MapWindowChecked(e.conn, child).Check(); err != nil {
@@ -141,15 +144,12 @@ func (e *embedder) adopt(child xproto.Window, parent uint32) error {
 	return e.resizeToParent()
 }
 
-// embedTopOffset leaves the Fyne toolbar row visible above the session.
-const embedTopOffset = 40
-
 func (e *embedder) resizeToParent() error {
 	geo, err := xproto.GetGeometry(e.conn, xproto.Drawable(e.parent)).Reply()
 	if err != nil {
 		return fmt.Errorf("parent geometry: %w", err)
 	}
-	h := int(geo.Height) - embedTopOffset
+	h := int(geo.Height) - e.topOffset
 	if h < 1 {
 		h = 1
 	}
@@ -157,7 +157,7 @@ func (e *embedder) resizeToParent() error {
 	// (0,0), which would cover the toolbar row.
 	return xproto.ConfigureWindowChecked(e.conn, e.child,
 		xproto.ConfigWindowX|xproto.ConfigWindowY|xproto.ConfigWindowWidth|xproto.ConfigWindowHeight,
-		[]uint32{0, embedTopOffset, uint32(geo.Width), uint32(h)}).Check()
+		[]uint32{0, uint32(e.topOffset), uint32(geo.Width), uint32(h)}).Check()
 }
 
 // watchAndResize loops on X events: parent ConfigureNotify → resize the

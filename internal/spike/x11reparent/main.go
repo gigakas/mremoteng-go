@@ -50,6 +50,7 @@ func main() {
 		status.SetText(s)
 	}
 	var emb *embedder
+	var topBar *fyne.Container
 
 	connect := widget.NewButton("Connect", func() {
 		if emb != nil {
@@ -92,6 +93,10 @@ func main() {
 		exited := make(chan error, 1)
 		go func() { exited <- cmd.Wait() }()
 
+		// X11 geometry is in physical pixels; Fyne sizes are logical points,
+		// so the toolbar height must be scaled (HiDPI displays).
+		offsetPx := int(topBar.Size().Height*w.Canvas().Scale()) + 4
+
 		go func() {
 			e, err := newEmbedder()
 			if err != nil {
@@ -99,6 +104,7 @@ func main() {
 				_ = cmd.Process.Kill()
 				return
 			}
+			e.topOffset = offsetPx
 			fail := func(what string, err error) {
 				fyne.Do(func() { setStatus(what + ": " + err.Error()) })
 				e.close()
@@ -148,8 +154,9 @@ func main() {
 		status.SetText("Disconnected.")
 	})
 
+	topBar = container.NewHBox(connect, disconnect, status)
 	w.SetContent(container.NewBorder(
-		container.NewHBox(connect, disconnect, status), nil, nil, nil,
+		topBar, nil, nil, nil,
 		widget.NewLabel(""), // embed area: the child covers the window body
 	))
 	w.SetOnClosed(func() {
