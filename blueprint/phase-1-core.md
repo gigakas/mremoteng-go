@@ -13,7 +13,7 @@ serialization and encryption, validated against real files.
 |---|---|---|---|
 | 1.1 | Connection model and tree | pending | claude-code |
 | 1.2 | Inheritance resolution | pending | claude-code |
-| 1.3 | Encryption (AES-GCM + PBKDF2 + legacy Rijndael) | in progress (opencode) | opencode |
+| 1.3 | Encryption (AES-GCM + PBKDF2 + legacy Rijndael) | done | opencode |
 | 1.4 | XML deserialization v26/v27/v28 | pending | any |
 | 1.5 | XML serialization (v28 writer) | pending | any |
 | 1.6 | CSV serialization | pending | opencode |
