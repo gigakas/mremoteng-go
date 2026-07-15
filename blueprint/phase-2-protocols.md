@@ -12,7 +12,7 @@ stages 2.5 and 2.7.
 | # | Stage | Status |
 |---|---|---|
 | 2.1 | Protocol interface + factory | pending |
-| 2.2 | SSH, Telnet, rlogin, raw socket | pending |
+| 2.2 | SSH, Telnet, rlogin, raw socket, serial | pending |
 | 2.3 | HTTP/HTTPS (native webview) | pending |
 | 2.4 | VNC | pending |
 | 2.5 | RDP (external xfreerdp + reparent) | pending |
@@ -25,10 +25,25 @@ stages 2.5 and 2.7.
   (mirrors `ProtocolFactory.cs`).
 - Tests with a fake protocol implementation.
 
-### 2.2 SSH, Telnet, rlogin, raw socket
+### 2.2 SSH, Telnet, rlogin, raw socket, serial
 - SSH via `golang.org/x/crypto/ssh`; Telnet/rlogin/raw as thin custom
-  implementations. Rendering into an embedded terminal emulator widget.
+  implementations; serial via a Go serial-port library. Rendering into an
+  embedded terminal emulator widget.
 - Tests: connection lifecycle against local in-process servers.
+- **The real cost driver is the terminal emulator widget** (VT100/xterm
+  escape-sequence parsing, rendering on Fyne, scrollback, selection/copy),
+  not the protocols themselves. Estimate it separately before starting.
+- **Contingency — PuTTY as external backend**: if the terminal widget proves
+  too costly, fall back to launching PuTTY as an external process embedded
+  via window reparenting — the same mechanism validated in Phase 0 for
+  xfreerdp, and the exact pattern the original mRemoteNG uses with
+  `PuTTYNG.exe` for SSH/Telnet/rlogin/serial. Unlike FreeRDP there is no
+  license barrier (PuTTY is MIT, GPLv2-compatible even for linking).
+  Trade-offs to accept if triggered: credentials passed via CLI/session
+  files instead of in-process API, SSH tunnels need local port coordination
+  with external processes instead of in-process channels, and an external
+  runtime dependency for terminal protocols. Native Go remains the target;
+  invoking this fallback must be justified in the stage audit.
 
 ### 2.3 HTTP/HTTPS
 - OS-native webview (WebView2 on Windows, WebKitGTK on Linux) via a thin
