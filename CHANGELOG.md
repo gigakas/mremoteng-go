@@ -145,3 +145,6 @@
   - `internal/spike/reparent/win32.go`
   - `internal/spike/reparent/x11.go`
   - _2026-07-15 21:15:07 UTC — claude-code_
+- Stage 0.2: support mstsc as zero-install embedding target (client-specific args); refresh Windows spike binary
+  - `internal/spike/reparent/main.go`
+  - _2026-07-15 21:51:44 UTC — claude-code_

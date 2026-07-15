@@ -23,6 +23,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -43,6 +45,28 @@ type sessionEmbedder interface {
 	watchAndResize(onChildGone func())
 	killChild()
 	close()
+}
+
+// clientArgs builds the command line for the session client. FreeRDP
+// clients share one syntax; mstsc (the built-in Windows client, useful as a
+// zero-install embedding target for stage 0.2) only takes /v: and prompts
+// for credentials itself.
+func clientArgs(client, host, user, pass, mode string, parent uintptr) []string {
+	if strings.Contains(strings.ToLower(filepath.Base(client)), "mstsc") {
+		return []string{"/v:" + host}
+	}
+	args := []string{"/v:" + host, "/u:" + user, "/p:" + pass,
+		"/cert:ignore", "/size:1024x768",
+		// client-side scaling on resize: unlike /dynamic-resolution it
+		// needs no server support (xrdp in the test container chokes on
+		// the disp channel and drops the connection)
+		"/smart-sizing"}
+	if mode == "parent-window" {
+		// the client creates its window as a child of ours from the
+		// start: no WM involvement, no race with window re-creation.
+		args = append(args, fmt.Sprintf("/parent-window:%d", parent))
+	}
+	return args
 }
 
 func main() {
@@ -77,17 +101,7 @@ func main() {
 			return
 		}
 
-		args := []string{"/v:" + *host, "/u:" + *user, "/p:" + *pass,
-			"/cert:ignore", "/size:1024x768",
-			// client-side scaling on resize: unlike /dynamic-resolution it
-			// needs no server support (xrdp in the test container chokes on
-			// the disp channel and drops the connection)
-			"/smart-sizing"}
-		if *mode == "parent-window" {
-			// the client creates its window as a child of ours from the
-			// start: no WM involvement, no race with window re-creation.
-			args = append(args, fmt.Sprintf("/parent-window:%d", parent))
-		}
+		args := clientArgs(*client, *host, *user, *pass, *mode, parent)
 		cmd := exec.Command(*client, args...)
 		cmd.Stdout = os.Stdout // client output goes to the spike's own log
 		cmd.Stderr = os.Stderr
