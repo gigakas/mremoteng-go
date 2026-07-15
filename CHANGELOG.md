@@ -123,3 +123,10 @@
   - `internal/spike/x11reparent/main.go`
   - `internal/spike/x11reparent/x11.go`
   - _2026-07-15 20:24:12 UTC — claude-code_
+- Stage 0.1 closed: record spike findings in docs/spike-x11.md, mark stage done
+  - `docs/spike-x11.md`
+  - `blueprint/phase-0-spike.md`
+  - _2026-07-15 20:27:12 UTC — claude-code_
+- Stage 0.1 closing audit: quality/performance/architecture, fyne and xgb dependency justification, pending actions for stages 0.3, 2.5, 2.7 and 4.2
+  - `auditory/phase0-stage1-20260715-claude-code.md`
+  - _2026-07-15 20:27:12 UTC — claude-code_
