@@ -194,3 +194,7 @@
   - `docs/spike-win32.md`
   - `auditory/phase0-stage2-20260716-claude-code-reaudit.md`
   - _2026-07-15 22:46:19 UTC — claude-code_
+- Stage 0.4: claim stage and draft docs/spike-result.md — evidence from stages 0.1-0.3, options A/B/C, recommendation go; decision pending human approval
+  - `docs/spike-result.md`
+  - `blueprint/phase-0-spike.md`
+  - _2026-07-15 22:47:56 UTC — claude-code_
