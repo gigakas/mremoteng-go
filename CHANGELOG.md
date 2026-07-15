@@ -148,3 +148,6 @@
 - Stage 0.2: support mstsc as zero-install embedding target (client-specific args); refresh Windows spike binary
   - `internal/spike/reparent/main.go`
   - _2026-07-15 21:51:44 UTC — claude-code_
+- Stage 0.2: generate temp .rdp file with smart sizing for mstsc so the embedded session scales on resize
+  - `internal/spike/reparent/main.go`
+  - _2026-07-15 21:57:57 UTC — claude-code_

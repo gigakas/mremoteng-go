@@ -49,11 +49,22 @@ type sessionEmbedder interface {
 
 // clientArgs builds the command line for the session client. FreeRDP
 // clients share one syntax; mstsc (the built-in Windows client, useful as a
-// zero-install embedding target for stage 0.2) only takes /v: and prompts
-// for credentials itself.
+// zero-install embedding target for stage 0.2) prompts for credentials
+// itself and only honors smart sizing via a .rdp file, so one is generated.
 func clientArgs(client, host, user, pass, mode string, parent uintptr) []string {
 	if strings.Contains(strings.ToLower(filepath.Base(client)), "mstsc") {
-		return []string{"/v:" + host}
+		rdp := filepath.Join(os.TempDir(), "mremoteng-spike.rdp")
+		content := "full address:s:" + host + "\r\n" +
+			"username:s:" + user + "\r\n" +
+			"screen mode id:i:1\r\n" + // windowed
+			"desktopwidth:i:1024\r\n" +
+			"desktopheight:i:768\r\n" +
+			"smart sizing:i:1\r\n" // scale content to window size
+		if err := os.WriteFile(rdp, []byte(content), 0o600); err != nil {
+			log.Println("could not write temp .rdp file, falling back to /v: only:", err)
+			return []string{"/v:" + host}
+		}
+		return []string{rdp}
 	}
 	args := []string{"/v:" + host, "/u:" + user, "/p:" + pass,
 		"/cert:ignore", "/size:1024x768",
