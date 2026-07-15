@@ -168,3 +168,8 @@
 - Stage 0.2: enable mixed DPI hosting behavior before SetParent (silently no-ops across DPI contexts on Win10+) and verify reparent took effect via GetAncestor
   - `internal/spike/reparent/win32.go`
   - _2026-07-15 22:14:03 UTC — claude-code_
+- Stage 0.2: set mixed DPI hosting on the main thread before window creation — the behavior is captured per-window at creation, fixing the silent SetParent refusal
+  - `internal/spike/reparent/main.go`
+  - `internal/spike/reparent/x11.go`
+  - `internal/spike/reparent/win32.go`
+  - _2026-07-15 22:16:37 UTC — claude-code_

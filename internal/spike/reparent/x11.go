@@ -12,6 +12,8 @@ import (
 	"github.com/BurntSushi/xgb/xproto"
 )
 
+func platformInit() {}
+
 const (
 	defaultClient = "xfreerdp"
 	// parent-window is reliable on X11; naive reparenting races with

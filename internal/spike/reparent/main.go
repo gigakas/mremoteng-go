@@ -89,6 +89,11 @@ func main() {
 		"embedding mode: parent-window (FreeRDP /parent-window flag) or reparent (adopt the client's top-level window, the AnyDesk-style fallback)")
 	flag.Parse()
 
+	// Windows: enable mixed DPI hosting on the main thread BEFORE the Fyne
+	// window is created — the hosting behavior is captured per-window at
+	// creation time; setting it later has no effect (x11: no-op).
+	platformInit()
+
 	a := app.New()
 	w := a.NewWindow("mremoteng-go spike 0.1/0.2 — window embedding")
 	w.Resize(fyne.NewSize(1024, 768))

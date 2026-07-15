@@ -60,6 +60,16 @@ var gwlStyle = -16 // GWL_STYLE; negative index, hence not a untyped const
 
 type rect struct{ left, top, right, bottom int32 }
 
+// platformInit runs first thing in main, on the main OS thread (Fyne's glfw
+// driver locks the main goroutine to it in init). The MIXED hosting
+// behavior set here is captured by the Fyne window when it is created,
+// which is what allows SetParent with a differently-DPI-aware child.
+func platformInit() {
+	if procSetThreadDpiHostingBehavior.Find() == nil {
+		procSetThreadDpiHostingBehavior.Call(dpiHostingBehaviorMixed)
+	}
+}
+
 // winEmbedder implements sessionEmbedder with Win32 user32 calls. Unlike
 // the X11 variant there is no event connection: resize-follow and death
 // detection poll at 200 ms, which is enough for a spike.
