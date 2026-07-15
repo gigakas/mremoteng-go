@@ -80,3 +80,10 @@
 - Add commit convention: never sign commits with agent/model trailers; agent authorship lives in changelog fragments
   - `AGENTS.md`
   - _2026-07-15 19:35:30 UTC — claude-code_
+- Stage 0.1: scaffold X11 reparenting spike (Fyne window + xgb reparent of external xfreerdp) behind the spike build tag; add fyne and xgb dependencies
+  - `internal/spike/README.md`
+  - `internal/spike/x11reparent/main.go`
+  - `internal/spike/x11reparent/x11.go`
+  - `go.mod`
+  - `go.sum`
+  - _2026-07-15 19:45:18 UTC — claude-code_
