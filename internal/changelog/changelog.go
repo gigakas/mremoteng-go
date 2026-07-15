@@ -118,7 +118,8 @@ func LoadDir(dir string) ([]Entry, error) {
 
 // Render produces the full CHANGELOG.md content: one section per date
 // (most recent first) and, within each date, changes in ascending
-// chronological order with time, agent, summary and affected files.
+// chronological order. Each entry starts with the change explanation and
+// ends with a metadata line: UTC date/time, agent and affected files.
 func Render(entries []Entry) string {
 	sorted := make([]Entry, len(entries))
 	copy(sorted, entries)
@@ -140,10 +141,11 @@ func Render(entries []Entry) string {
 		d := dates[i]
 		fmt.Fprintf(&b, "\n## %s\n\n", d)
 		for _, e := range byDate[d] {
-			fmt.Fprintf(&b, "- %s — **%s** — %s\n", e.Timestamp.Format("15:04:05Z"), e.Agent, e.Summary)
-			if len(e.Files) > 0 {
-				fmt.Fprintf(&b, "  - files: `%s`\n", strings.Join(e.Files, "`, `"))
+			fmt.Fprintf(&b, "- %s\n", e.Summary)
+			for _, f := range e.Files {
+				fmt.Fprintf(&b, "  - `%s`\n", f)
 			}
+			fmt.Fprintf(&b, "  - _%s — %s_\n", e.Timestamp.Format("2006-01-02 15:04:05 UTC"), e.Agent)
 		}
 	}
 	return b.String()

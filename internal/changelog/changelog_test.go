@@ -75,8 +75,14 @@ func TestRender_ChronologicalOrder(t *testing.T) {
 	if posA == -1 || posB == -1 || posA > posB {
 		t.Errorf("wrong intra-day order:\n%s", out)
 	}
-	if !strings.Contains(out, "files: `a.go`") {
+	if !strings.Contains(out, "  - `a.go`\n") {
 		t.Errorf("affected files missing:\n%s", out)
+	}
+	// The explanation comes first and the metadata line (date/time + agent)
+	// closes the entry, after the file list.
+	entryA := "- Change A.\n  - `a.go`\n  - _2026-07-15 08:00:00 UTC — claude-code_\n"
+	if !strings.Contains(out, entryA) {
+		t.Errorf("entry layout is wrong, want explanation first and metadata last:\n%s", out)
 	}
 	if !strings.HasPrefix(out, Header) {
 		t.Errorf("generated header missing")
