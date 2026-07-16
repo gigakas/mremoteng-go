@@ -15,6 +15,9 @@
   - `internal/connection/tree.go`
   - `internal/connection/tree_test.go`
   - _2026-07-16 05:21:46 UTC — opencode_
+- Phase 1: claim stage 1.2 inheritance resolution
+  - `blueprint/phase-1-core.md`
+  - _2026-07-16 05:23:14 UTC — opencode_
 
 ## 2026-07-15
 
