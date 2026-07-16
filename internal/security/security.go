@@ -37,6 +37,10 @@ type Provider interface {
 // with an empty password.
 var ErrEmptyPassword = errors.New("security: empty password")
 
+// ErrInvalidIterations is returned when PBKDF2 is configured below the
+// minimum accepted by mRemoteNG's Pkcs5S2KeyGenerator.
+var ErrInvalidIterations = errors.New("security: PBKDF2 iterations must be at least 1000")
+
 // compile-time interface checks.
 var (
 	_ Provider = (*AEAD)(nil)

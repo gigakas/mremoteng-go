@@ -30,6 +30,12 @@
 - Phase 1: claim stage 1.4 XML deserialization
   - `blueprint/phase-1-core.md`
   - _2026-07-16 05:32:06 UTC — opencode_
+- Phase 1: honor XML-defined PBKDF2 iteration counts
+  - `internal/security/aead.go`
+  - `internal/security/aead_test.go`
+  - `internal/security/kdf.go`
+  - `internal/security/security.go`
+  - _2026-07-16 05:37:52 UTC — opencode_
 
 ## 2026-07-15
 

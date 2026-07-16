@@ -22,10 +22,21 @@ import (
 // byte nonces, so cipher.NewGCMWithNonceSize is used instead; that path derives
 // the initial counter from the nonce via GHASH (NIST SP 800-38D §8.1), the same
 // construction BouncyCastle's GcmBlockCipher applies to the 16-byte nonce.
-type AEAD struct{}
+type AEAD struct {
+	keyDerivationIterations int
+}
 
 // NewAEAD returns the modern AEAD provider.
-func NewAEAD() *AEAD { return &AEAD{} }
+func NewAEAD() *AEAD { return &AEAD{keyDerivationIterations: pbkdf2Iterations} }
+
+// NewAEADWithIterations returns a provider configured from connection-file
+// metadata. mRemoteNG persists this value as the KdfIterations root attribute.
+func NewAEADWithIterations(iterations int) (*AEAD, error) {
+	if iterations < pbkdf2Iterations {
+		return nil, ErrInvalidIterations
+	}
+	return &AEAD{keyDerivationIterations: iterations}, nil
+}
 
 const (
 	aeadSaltBytes  = 16 // SaltBitSize  = 128
@@ -33,7 +44,7 @@ const (
 )
 
 // Encrypt encrypts plaintext under password, returning the Base64 ciphertext.
-func (AEAD) Encrypt(plaintext string, password []byte) (string, error) {
+func (a AEAD) Encrypt(plaintext string, password []byte) (string, error) {
 	if len(password) == 0 {
 		return "", ErrEmptyPassword
 	}
@@ -48,7 +59,7 @@ func (AEAD) Encrypt(plaintext string, password []byte) (string, error) {
 	if _, err := rand.Read(nonce); err != nil {
 		return "", fmt.Errorf("security: generate nonce: %w", err)
 	}
-	gcm, err := newAEADCipher(password, salt)
+	gcm, err := newAEADCipher(password, salt, a.iterations())
 	if err != nil {
 		return "", err
 	}
@@ -62,7 +73,7 @@ func (AEAD) Encrypt(plaintext string, password []byte) (string, error) {
 
 // Decrypt reverses Encrypt. It returns an error if password is wrong or the
 // ciphertext has been tampered with.
-func (AEAD) Decrypt(ciphertext string, password []byte) (string, error) {
+func (a AEAD) Decrypt(ciphertext string, password []byte) (string, error) {
 	if len(password) == 0 {
 		return "", ErrEmptyPassword
 	}
@@ -79,7 +90,7 @@ func (AEAD) Decrypt(ciphertext string, password []byte) (string, error) {
 	salt := blob[:aeadSaltBytes]
 	nonce := blob[aeadSaltBytes : aeadSaltBytes+aeadNonceBytes]
 	sealed := blob[aeadSaltBytes+aeadNonceBytes:]
-	gcm, err := newAEADCipher(password, salt)
+	gcm, err := newAEADCipher(password, salt, a.iterations())
 	if err != nil {
 		return "", err
 	}
@@ -92,8 +103,8 @@ func (AEAD) Decrypt(ciphertext string, password []byte) (string, error) {
 
 // newAEADCipher derives the key from password and salt and returns the GCM
 // AEAD configured for a 16-byte nonce.
-func newAEADCipher(password, salt []byte) (cipher.AEAD, error) {
-	block, err := aes.NewCipher(deriveAEADKey(password, salt))
+func newAEADCipher(password, salt []byte, iterations int) (cipher.AEAD, error) {
+	block, err := aes.NewCipher(deriveAEADKeyWithIterations(password, salt, iterations))
 	if err != nil {
 		return nil, fmt.Errorf("security: aes cipher: %w", err)
 	}
@@ -102,4 +113,11 @@ func newAEADCipher(password, salt []byte) (cipher.AEAD, error) {
 		return nil, fmt.Errorf("security: gcm: %w", err)
 	}
 	return gcm, nil
+}
+
+func (a AEAD) iterations() int {
+	if a.keyDerivationIterations < pbkdf2Iterations {
+		return pbkdf2Iterations
+	}
+	return a.keyDerivationIterations
 }

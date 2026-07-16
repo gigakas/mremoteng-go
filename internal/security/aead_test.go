@@ -124,3 +124,30 @@ func TestAEAD_MalformedInput_ReturnsError(t *testing.T) {
 		t.Error("expected error for truncated ciphertext, got none")
 	}
 }
+
+func TestAEAD_CustomIterations_RoundTripAndRejectsDefaultProvider(t *testing.T) {
+	provider, err := NewAEADWithIterations(5000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ciphertext, err := provider.Encrypt("custom iterations", []byte("password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plaintext, err := provider.Decrypt(ciphertext, []byte("password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plaintext != "custom iterations" {
+		t.Errorf("plaintext = %q, want custom iterations", plaintext)
+	}
+	if _, err := NewAEAD().Decrypt(ciphertext, []byte("password")); err == nil {
+		t.Error("default provider decrypted ciphertext derived with 5000 iterations")
+	}
+}
+
+func TestNewAEADWithIterations_BelowMinimum_ReturnsError(t *testing.T) {
+	if _, err := NewAEADWithIterations(999); !errors.Is(err, ErrInvalidIterations) {
+		t.Errorf("error = %v, want ErrInvalidIterations", err)
+	}
+}

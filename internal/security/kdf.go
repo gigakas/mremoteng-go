@@ -24,10 +24,14 @@ const (
 // the UTF-8 bytes of the password; it is re-encoded the way the C# provider
 // does (see pkcs5PasswordToBytes).
 func deriveAEADKey(password, salt []byte) []byte {
+	return deriveAEADKeyWithIterations(password, salt, pbkdf2Iterations)
+}
+
+func deriveAEADKeyWithIterations(password, salt []byte, iterations int) []byte {
 	return pbkdf2.Key(
 		pkcs5PasswordToBytes(string(password)),
 		salt,
-		pbkdf2Iterations,
+		iterations,
 		aeadKeyBytes,
 		sha1.New,
 	)
