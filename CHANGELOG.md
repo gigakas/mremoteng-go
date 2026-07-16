@@ -50,6 +50,14 @@
 - Phase 1: claim stage 1.5 XML serialization
   - `blueprint/phase-1-core.md`
   - _2026-07-16 21:02:58 UTC — opencode_
+- Phase 1 stage 1.5: add encrypted XML v28 serialization
+  - `auditory/phase1-stage5-20260716-opencode.md`
+  - `blueprint/phase-1-core.md`
+  - `internal/serialize/xml/serialize.go`
+  - `internal/serialize/xml/serialize_inheritance.go`
+  - `internal/serialize/xml/serialize_node.go`
+  - `internal/serialize/xml/serialize_test.go`
+  - _2026-07-16 21:15:29 UTC — opencode_
 
 ## 2026-07-15
 
