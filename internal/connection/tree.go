@@ -11,6 +11,7 @@ var (
 	ErrInvalidIndex = errors.New("connection: child index out of range")
 	ErrCycle        = errors.New("connection: operation would create a tree cycle")
 	ErrNodeAlias    = errors.New("connection: container base cannot be used as a leaf node")
+	ErrRootChild    = errors.New("connection: root cannot be added as a child")
 )
 
 // Node is a connection or container in the homogeneous connection tree.
@@ -31,6 +32,7 @@ func (c *ConnectionInfo) isNode()               {}
 // lets containers act as inheritance templates in stage 1.2.
 type ContainerInfo struct {
 	info     *ConnectionInfo
+	root     bool
 	expanded bool
 	children []Node
 }
@@ -54,11 +56,37 @@ func NewContainerInfoWithID(id string) (*ContainerInfo, error) {
 	return newContainer(base), nil
 }
 
+// NewRootInfo creates the connection-tree root. Inheritance is disabled for
+// the root and its direct children, matching mRemoteNG's RootNodeInfo rules.
+func NewRootInfo() (*ContainerInfo, error) {
+	base, err := NewConnectionInfo()
+	if err != nil {
+		return nil, err
+	}
+	return newRoot(base), nil
+}
+
+// NewRootInfoWithID creates a root preserving an existing ID.
+func NewRootInfoWithID(id string) (*ContainerInfo, error) {
+	base, err := NewConnectionInfoWithID(id)
+	if err != nil {
+		return nil, err
+	}
+	return newRoot(base), nil
+}
+
 func newContainer(base *ConnectionInfo) *ContainerInfo {
 	base.Raw.Name = "New Folder"
 	container := &ContainerInfo{info: base, expanded: true}
 	base.containerOwner = container
 	return container
+}
+
+func newRoot(base *ConnectionInfo) *ContainerInfo {
+	root := newContainer(base)
+	root.root = true
+	root.info.Raw.Name = "Connections"
+	return root
 }
 
 func (c *ContainerInfo) Base() *ConnectionInfo {
@@ -68,8 +96,16 @@ func (c *ContainerInfo) Base() *ConnectionInfo {
 	return c.info
 }
 
-func (c *ContainerInfo) Kind() NodeKind { return NodeKindContainer }
-func (c *ContainerInfo) isNode()        {}
+func (c *ContainerInfo) Kind() NodeKind {
+	if c != nil && c.root {
+		return NodeKindRoot
+	}
+	return NodeKindContainer
+}
+func (c *ContainerInfo) isNode() {}
+
+// IsRoot reports whether c is the tree root.
+func (c *ContainerInfo) IsRoot() bool { return c != nil && c.root }
 
 // ID returns the stable ID of the container's connection record.
 func (c *ContainerInfo) ID() string { return c.Base().ID() }
@@ -286,6 +322,9 @@ func validatedNodeBase(node Node) (*ConnectionInfo, error) {
 		container, ok := node.(*ContainerInfo)
 		if !ok || container != base.containerOwner {
 			return nil, ErrNodeAlias
+		}
+		if container.root {
+			return nil, ErrRootChild
 		}
 	}
 	return base, nil

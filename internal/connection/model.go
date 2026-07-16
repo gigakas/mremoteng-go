@@ -26,6 +26,9 @@ type ConnectionInfo struct {
 	// reads ambiguous to serializers and protocol consumers.
 	Raw ConnectionValues
 
+	// Inheritance selects which effective values resolve through Parent.
+	Inheritance InheritanceFlags
+
 	// Runtime-only state, excluded from connection attributes.
 	IsDefault      bool
 	IsQuickConnect bool

@@ -4,6 +4,7 @@ package connection
 type NodeKind string
 
 const (
+	NodeKindRoot       NodeKind = "Root"
 	NodeKindConnection NodeKind = "Connection"
 	NodeKindContainer  NodeKind = "Container"
 )
