@@ -11,7 +11,7 @@ serialization and encryption, validated against real files.
 
 | # | Stage | Status | Agent |
 |---|---|---|---|
-| 1.1 | Connection model and tree | in progress (opencode) | opencode |
+| 1.1 | Connection model and tree | done | opencode |
 | 1.2 | Inheritance resolution | pending | opencode |
 | 1.3 | Encryption (AES-GCM + PBKDF2 + legacy Rijndael) | done | opencode |
 | 1.4 | XML deserialization v26/v27/v28 | pending | opencode |
