@@ -27,6 +27,9 @@
   - `internal/connection/model.go`
   - `internal/connection/tree.go`
   - _2026-07-16 05:30:35 UTC — opencode_
+- Phase 1: claim stage 1.4 XML deserialization
+  - `blueprint/phase-1-core.md`
+  - _2026-07-16 05:32:06 UTC — opencode_
 
 ## 2026-07-15
 
