@@ -15,7 +15,7 @@ serialization and encryption, validated against real files.
 | 1.2 | Inheritance resolution | done | opencode |
 | 1.3 | Encryption (AES-GCM + PBKDF2 + legacy Rijndael) | done | opencode |
 | 1.4 | XML deserialization v26/v27/v28 | done | opencode |
-| 1.5 | XML serialization (v28 writer) | pending | opencode |
+| 1.5 | XML serialization (v28 writer) | in progress (opencode) | opencode |
 | 1.6 | CSV serialization | pending | opencode |
 | 1.7 | Compatibility corpus | pending | human + opencode |
 

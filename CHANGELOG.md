@@ -47,6 +47,9 @@
   - `internal/serialize/xml/node27.go`
   - `internal/serialize/xml/node28.go`
   - _2026-07-16 21:01:44 UTC — opencode_
+- Phase 1: claim stage 1.5 XML serialization
+  - `blueprint/phase-1-core.md`
+  - _2026-07-16 21:02:58 UTC — opencode_
 
 ## 2026-07-15
 
