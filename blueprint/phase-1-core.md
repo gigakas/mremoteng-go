@@ -17,7 +17,7 @@ serialization and encryption, validated against real files.
 | 1.4 | XML deserialization v26/v27/v28 | done | opencode |
 | 1.5 | XML serialization (v28 writer) | done | opencode |
 | 1.6 | CSV serialization | done | opencode |
-| 1.7 | Compatibility corpus | pending | human + opencode |
+| 1.7 | Compatibility corpus | in progress (opencode; awaiting human corpus) | human + opencode |
 
 > Phase 1 delegated to OpenCode by the user (2026-07-16). Order: 1.1
 > first (blocks everything); then 1.2 and, in parallel if using suffixed

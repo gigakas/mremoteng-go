@@ -68,6 +68,9 @@
   - `internal/serialize/csv/csv.go`
   - `internal/serialize/csv/csv_test.go`
   - _2026-07-16 21:43:01 UTC — opencode_
+- Phase 1: claim stage 1.7 compatibility corpus
+  - `blueprint/phase-1-core.md`
+  - _2026-07-16 21:52:47 UTC — opencode_
 
 ## 2026-07-15
 
