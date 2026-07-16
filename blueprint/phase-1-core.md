@@ -16,7 +16,7 @@ serialization and encryption, validated against real files.
 | 1.3 | Encryption (AES-GCM + PBKDF2 + legacy Rijndael) | done | opencode |
 | 1.4 | XML deserialization v26/v27/v28 | done | opencode |
 | 1.5 | XML serialization (v28 writer) | done | opencode |
-| 1.6 | CSV serialization | in progress (opencode) | opencode |
+| 1.6 | CSV serialization | done | opencode |
 | 1.7 | Compatibility corpus | pending | human + opencode |
 
 > Phase 1 delegated to OpenCode by the user (2026-07-16). Order: 1.1

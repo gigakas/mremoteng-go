@@ -61,6 +61,13 @@
 - Phase 1: claim stage 1.6 CSV serialization
   - `blueprint/phase-1-core.md`
   - _2026-07-16 21:16:35 UTC — opencode_
+- Phase 1 stage 1.6: add C#-compatible CSV serialization
+  - `auditory/phase1-stage6-20260716-opencode.md`
+  - `blueprint/phase-1-core.md`
+  - `internal/serialize/csv/columns.go`
+  - `internal/serialize/csv/csv.go`
+  - `internal/serialize/csv/csv_test.go`
+  - _2026-07-16 21:43:01 UTC — opencode_
 
 ## 2026-07-15
 
