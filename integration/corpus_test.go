@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,8 @@ import (
 	connectionxml "github.com/mRemoteNG/mremoteng-go/internal/serialize/xml"
 )
 
+const minimumCorpusSize = 20
+
 type corpusManifest struct {
 	MinimumRequired int                       `json:"minimum_required"`
 	Complete        bool                      `json:"complete"`
@@ -26,6 +29,7 @@ type corpusManifest struct {
 type corpusFixture struct {
 	File               string `json:"file"`
 	Source             string `json:"source"`
+	FileSHA256         string `json:"file_sha256"`
 	Password           string `json:"password"`
 	Profile            string `json:"profile"`
 	SourceIDs          bool   `json:"source_ids"`
@@ -64,12 +68,7 @@ type modelSnapshot struct {
 
 func TestCSharpCorpus_DeserializeAndRoundTrip_MatchesManifest(t *testing.T) {
 	manifest := readCorpusManifest(t)
-	if len(manifest.Fixtures) == 0 {
-		t.Fatal("corpus manifest contains no fixtures")
-	}
-	if manifest.Complete && len(manifest.Fixtures) < manifest.MinimumRequired {
-		t.Fatalf("complete corpus has %d fixtures, want at least %d", len(manifest.Fixtures), manifest.MinimumRequired)
-	}
+	validateManifest(t, manifest)
 	if !manifest.Complete {
 		t.Logf("corpus is incomplete: %d/%d C# fixtures", len(manifest.Fixtures), manifest.MinimumRequired)
 	}
@@ -79,7 +78,11 @@ func TestCSharpCorpus_DeserializeAndRoundTrip_MatchesManifest(t *testing.T) {
 		t.Run(fixture.File, func(t *testing.T) {
 			t.Parallel()
 			data := readFixture(t, fixture.File)
+			validateFixtureDigest(t, data, fixture.FileSHA256)
 			document := deserializeFixture(t, data, fixture.Password)
+			if _, err := connectionxml.Deserialize(data, connectionxml.Options{Password: []byte(fixture.Password + "-wrong")}); !errors.Is(err, connectionxml.ErrAuthentication) {
+				t.Errorf("wrong password error = %v, want ErrAuthentication", err)
+			}
 			validateMetadata(t, document.Metadata, fixture)
 			validateExpectedNodes(t, document.Root, manifest.Profiles[fixture.Profile])
 			validateIDs(t, document.Root, fixture.SourceIDs, fixture.IDSHA256)
@@ -105,6 +108,68 @@ func TestCSharpCorpus_DeserializeAndRoundTrip_MatchesManifest(t *testing.T) {
 				t.Errorf("round-trip model differs\nbefore: %#v\nafter:  %#v", before, after)
 			}
 		})
+	}
+}
+
+func validateManifest(t *testing.T, manifest corpusManifest) {
+	t.Helper()
+	if len(manifest.Fixtures) == 0 {
+		t.Fatal("corpus manifest contains no fixtures")
+	}
+	if manifest.MinimumRequired < minimumCorpusSize {
+		t.Errorf("minimum_required = %d, must not be below %d", manifest.MinimumRequired, minimumCorpusSize)
+	}
+	files := make(map[string]bool)
+	digests := make(map[string]bool)
+	for _, fixture := range manifest.Fixtures {
+		if fixture.File == "" || fixture.Source == "" || fixture.FileSHA256 == "" || fixture.Profile == "" || fixture.Password == "" {
+			t.Errorf("fixture %q has incomplete provenance or options", fixture.File)
+		}
+		decodedDigest, err := hex.DecodeString(fixture.FileSHA256)
+		if err != nil || len(decodedDigest) != sha256.Size {
+			t.Errorf("fixture %q has invalid file_sha256 %q", fixture.File, fixture.FileSHA256)
+		}
+		if files[fixture.File] {
+			t.Errorf("duplicate fixture file %q", fixture.File)
+		}
+		if digests[fixture.FileSHA256] {
+			t.Errorf("fixture %q duplicates another fixture's content digest", fixture.File)
+		}
+		files[fixture.File] = true
+		digests[fixture.FileSHA256] = true
+	}
+	if manifest.Complete {
+		validateCompleteCorpus(t, manifest)
+	}
+}
+
+func validateCompleteCorpus(t *testing.T, manifest corpusManifest) {
+	t.Helper()
+	if len(manifest.Fixtures) < minimumCorpusSize {
+		t.Errorf("complete corpus has %d fixtures, want at least %d", len(manifest.Fixtures), minimumCorpusSize)
+	}
+	versions := make(map[string]bool)
+	var fullFile, normal, defaultPassword, customPassword bool
+	var nested, credentials, inheritance bool
+	for _, fixture := range manifest.Fixtures {
+		versions[fixture.Version] = true
+		fullFile = fullFile || fixture.FullFileEncryption
+		normal = normal || !fixture.FullFileEncryption
+		defaultPassword = defaultPassword || fixture.Password == "mR3m"
+		customPassword = customPassword || fixture.Password != "mR3m"
+		for _, node := range manifest.Profiles[fixture.Profile] {
+			nested = nested || strings.Count(node.Path, "/") >= 2
+			credentials = credentials || node.Username != "" && node.Password != ""
+			inheritance = inheritance || node.InheritUsername || node.InheritDomain || node.InheritPassword
+		}
+	}
+	for _, version := range []string{"2.6", "2.7", "2.8"} {
+		if !versions[version] {
+			t.Errorf("complete corpus does not cover version %s", version)
+		}
+	}
+	if !fullFile || !normal || !defaultPassword || !customPassword || !nested || !credentials || !inheritance {
+		t.Errorf("complete corpus coverage is insufficient: full-file=%v normal=%v default-password=%v custom-password=%v nested=%v credentials=%v inheritance=%v", fullFile, normal, defaultPassword, customPassword, nested, credentials, inheritance)
 	}
 }
 
@@ -138,6 +203,15 @@ func readFixture(t *testing.T, name string) []byte {
 		t.Fatal(err)
 	}
 	return data
+}
+
+func validateFixtureDigest(t *testing.T, data []byte, want string) {
+	t.Helper()
+	digest := sha256.Sum256(data)
+	got := hex.EncodeToString(digest[:])
+	if got != want {
+		t.Fatalf("fixture SHA-256 = %s, want %s", got, want)
+	}
 }
 
 func deserializeFixture(t *testing.T, data []byte, password string) *connectionxml.Document {

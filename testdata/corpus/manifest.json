@@ -27,6 +27,7 @@
     {
       "file": "v26-default.xml",
       "source": "mRemoteNGTests/Resources/confCons_v2_6.xml",
+      "file_sha256": "faad55a38bc6a85df3420e954ea6160b7e329e700dee4c90df0ea6e507b25ec0",
       "password": "mR3m",
       "profile": "standard-v26-tree",
       "source_ids": false,
@@ -37,6 +38,7 @@
     {
       "file": "v26-5000-iterations.xml",
       "source": "mRemoteNGTests/Resources/confCons_v2_6_5k-iterations.xml",
+      "file_sha256": "86ed9dc73105d16eebbfc5c5b544d0dc14a867dc356c0b6ca026fe079d4524f5",
       "password": "mR3m",
       "profile": "standard-v26-tree",
       "source_ids": false,
@@ -47,6 +49,7 @@
     {
       "file": "v26-full-file.xml",
       "source": "mRemoteNGTests/Resources/confCons_v2_6_fullencryption.xml",
+      "file_sha256": "a93d1c46b28197ffd4972c75810edd7071e7f11ebb0a502e9742b6cb8c702cd1",
       "password": "mR3m",
       "profile": "standard-v26-tree",
       "source_ids": false,
@@ -57,6 +60,7 @@
     {
       "file": "v26-custom-password.xml",
       "source": "mRemoteNGTests/Resources/confCons_v2_6_passwordis_Password.xml",
+      "file_sha256": "024c69295ebf665c948b899b640fcaff22c670af2e3ccf0af5c142092c0a954c",
       "password": "Password",
       "profile": "standard-v26-tree",
       "source_ids": false,
@@ -67,6 +71,7 @@
     {
       "file": "v26-custom-password-full-file.xml",
       "source": "mRemoteNGTests/Resources/confCons_v2_6_passwordis_Password_fullencryption.xml",
+      "file_sha256": "f1116ff9e1335a6d371ebac27001388887f5a350f27387cd37a0ec11690b3d56",
       "password": "Password",
       "profile": "standard-v26-tree",
       "source_ids": false,

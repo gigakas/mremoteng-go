@@ -80,6 +80,10 @@
   - `testdata/corpus/v26-default.xml`
   - `testdata/corpus/v26-full-file.xml`
   - _2026-07-16 21:59:14 UTC — opencode_
+- Phase 1: enforce compatibility corpus provenance and coverage
+  - `integration/corpus_test.go`
+  - `testdata/corpus/manifest.json`
+  - _2026-07-16 22:10:21 UTC — opencode_
 
 ## 2026-07-15
 
