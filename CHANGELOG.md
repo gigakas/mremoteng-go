@@ -58,6 +58,9 @@
   - `internal/serialize/xml/serialize_node.go`
   - `internal/serialize/xml/serialize_test.go`
   - _2026-07-16 21:15:29 UTC — opencode_
+- Phase 1: claim stage 1.6 CSV serialization
+  - `blueprint/phase-1-core.md`
+  - _2026-07-16 21:16:35 UTC — opencode_
 
 ## 2026-07-15
 
