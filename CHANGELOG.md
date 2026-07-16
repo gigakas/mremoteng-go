@@ -71,6 +71,15 @@
 - Phase 1: claim stage 1.7 compatibility corpus
   - `blueprint/phase-1-core.md`
   - _2026-07-16 21:52:47 UTC — opencode_
+- Phase 1: add initial C# XML compatibility corpus and harness
+  - `integration/corpus_test.go`
+  - `testdata/corpus/manifest.json`
+  - `testdata/corpus/v26-5000-iterations.xml`
+  - `testdata/corpus/v26-custom-password-full-file.xml`
+  - `testdata/corpus/v26-custom-password.xml`
+  - `testdata/corpus/v26-default.xml`
+  - `testdata/corpus/v26-full-file.xml`
+  - _2026-07-16 21:59:14 UTC — opencode_
 
 ## 2026-07-15
 

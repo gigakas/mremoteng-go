@@ -1,0 +1,78 @@
+{
+  "minimum_required": 20,
+  "complete": false,
+  "profiles": {
+    "standard-v26-tree": [
+      {"path": "Folder1", "kind": "Container", "username": "", "domain": "", "password": "", "protocol": "RDP", "port": 1494},
+      {"path": "Folder1/Connection1.1", "kind": "Connection", "username": "userFolder1", "domain": "domainFolder1", "password": "folder1", "protocol": "RDP", "port": 3389},
+      {"path": "Folder1/Connection1.2", "kind": "Connection", "username": "userFolder1", "domain": "domainFolder1", "password": "folder1", "protocol": "RDP", "port": 3389},
+      {"path": "Folder1/Connection1.3", "kind": "Connection", "username": "userFolder1", "domain": "domainFolder1", "password": "folder1", "protocol": "SSH2", "port": 22},
+      {"path": "Folder2", "kind": "Container", "username": "userFolder2", "domain": "folder2domain", "password": "folder2", "protocol": "RDP", "port": 3389},
+      {"path": "Folder2/Connection2.1", "kind": "Connection", "username": "usernameC21", "domain": "domainC21", "password": "C21", "protocol": "RDP", "port": 3389},
+      {"path": "Folder2/Folder2.1", "kind": "Container", "username": "", "domain": "", "password": "", "protocol": "RDP", "port": 3389},
+      {"path": "Folder2/Folder2.1/Connection2.1.1", "kind": "Connection", "username": "usernameC211", "domain": "domainC2111", "password": "C211", "protocol": "RDP", "port": 3389},
+      {"path": "Folder2/Folder2.1/Folder2.1.1", "kind": "Container", "username": "", "domain": "", "password": "", "protocol": "RDP", "port": 3389},
+      {"path": "Folder2/Folder2.1/Folder2.1.1/Connection2.1.1.1", "kind": "Connection", "username": "usernameforC2111", "domain": "domainC2111", "password": "C2111", "protocol": "RDP", "port": 3389},
+      {"path": "Folder2/Folder2.2", "kind": "Container", "username": "userFolder2", "domain": "folder2domain", "password": "", "protocol": "RDP", "port": 3389, "inherit_username": true, "inherit_domain": true, "inherit_password": true},
+      {"path": "Folder2/Folder2.2/InheritalAllConnection", "kind": "Connection", "username": "userFolder2", "domain": "folder2domain", "password": "", "protocol": "RDP", "port": 3389, "inherit_username": true, "inherit_domain": true, "inherit_password": true},
+      {"path": "Folder2/Folder2.2/Folder2.2.1 InheritAll", "kind": "Container", "username": "userFolder2", "domain": "folder2domain", "password": "", "protocol": "RDP", "port": 3389, "inherit_username": true, "inherit_domain": true, "inherit_password": true},
+      {"path": "Folder2/Folder2.2/Folder2.2.1 InheritAll/Connection2.2.1.1 InheritAll", "kind": "Connection", "username": "userFolder2", "domain": "folder2domain", "password": "", "protocol": "RDP", "port": 3389, "inherit_username": true, "inherit_domain": true, "inherit_password": true},
+      {"path": "Folder2/Folder2.2/InheritUsernameConnection", "kind": "Connection", "username": "userFolder2", "domain": "inheritUsernameDomain", "password": "inheritUsernamePassword", "protocol": "RDP", "port": 3389, "inherit_username": true},
+      {"path": "Folder2/Folder2.2/InheritDomainConnection", "kind": "Connection", "username": "inheritDomainUsername", "domain": "folder2domain", "password": "inheritUsernamePassword", "protocol": "RDP", "port": 3389, "inherit_domain": true},
+      {"path": "Folder2/Folder2.2/InheritPasswordConnection", "kind": "Connection", "username": "inheritDomainUsername", "domain": "inheritUsernameDomain", "password": "", "protocol": "RDP", "port": 3389, "inherit_password": true},
+      {"path": "rootConnection", "kind": "Connection", "username": "root", "domain": "rootdomain", "password": "rootpassword", "protocol": "RDP", "port": 3389}
+    ]
+  },
+  "fixtures": [
+    {
+      "file": "v26-default.xml",
+      "source": "mRemoteNGTests/Resources/confCons_v2_6.xml",
+      "password": "mR3m",
+      "profile": "standard-v26-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 1000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "v26-5000-iterations.xml",
+      "source": "mRemoteNGTests/Resources/confCons_v2_6_5k-iterations.xml",
+      "password": "mR3m",
+      "profile": "standard-v26-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 5000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "v26-full-file.xml",
+      "source": "mRemoteNGTests/Resources/confCons_v2_6_fullencryption.xml",
+      "password": "mR3m",
+      "profile": "standard-v26-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 1000,
+      "full_file_encryption": true
+    },
+    {
+      "file": "v26-custom-password.xml",
+      "source": "mRemoteNGTests/Resources/confCons_v2_6_passwordis_Password.xml",
+      "password": "Password",
+      "profile": "standard-v26-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 1000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "v26-custom-password-full-file.xml",
+      "source": "mRemoteNGTests/Resources/confCons_v2_6_passwordis_Password_fullencryption.xml",
+      "password": "Password",
+      "profile": "standard-v26-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 1000,
+      "full_file_encryption": true
+    }
+  ]
+}
