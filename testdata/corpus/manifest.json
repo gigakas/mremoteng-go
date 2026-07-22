@@ -1,6 +1,6 @@
 {
   "minimum_required": 20,
-  "complete": false,
+  "complete": true,
   "profiles": {
     "standard-v26-tree": [
       {"path": "Folder1", "kind": "Container", "username": "", "domain": "", "password": "", "protocol": "RDP", "port": 1494},
@@ -21,6 +21,12 @@
       {"path": "Folder2/Folder2.2/InheritDomainConnection", "kind": "Connection", "username": "inheritDomainUsername", "domain": "folder2domain", "password": "inheritUsernamePassword", "protocol": "RDP", "port": 3389, "inherit_domain": true},
       {"path": "Folder2/Folder2.2/InheritPasswordConnection", "kind": "Connection", "username": "inheritDomainUsername", "domain": "inheritUsernameDomain", "password": "", "protocol": "RDP", "port": 3389, "inherit_password": true},
       {"path": "rootConnection", "kind": "Connection", "username": "root", "domain": "rootdomain", "password": "rootpassword", "protocol": "RDP", "port": 3389}
+    ],
+    "generated-rich-tree": [
+      {"path": "Production", "kind": "Container", "username": "ops-user", "domain": "CORP", "password": "folder-secret", "protocol": "RDP", "port": 3390},
+      {"path": "Production/Database", "kind": "Connection", "username": "db-user", "domain": "DATABASE", "password": "db-secret", "protocol": "SSH2", "port": 22},
+      {"path": "Production/Inherited", "kind": "Container", "username": "ops-user", "domain": "CORP", "password": "", "protocol": "RDP", "port": 3389, "inherit_username": true, "inherit_domain": true, "inherit_password": true},
+      {"path": "Production/Inherited/Web", "kind": "Connection", "username": "ops-user", "domain": "CORP", "password": "", "protocol": "HTTPS", "port": 443, "inherit_username": true, "inherit_domain": true, "inherit_password": true}
     ]
   },
   "fixtures": [
@@ -77,6 +83,171 @@
       "source_ids": false,
       "version": "2.6",
       "kdf_iterations": 1000,
+      "full_file_encryption": true
+    },
+    {
+      "file": "generated-v26-normal-default-1000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer26",
+      "file_sha256": "dcaf57cc06fb7b5cc61ce628dc2431d926e4d11fcd15e78000087b55b7c99421",
+      "password": "mR3m",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 1000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "generated-v26-full-default-1000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer26",
+      "file_sha256": "d9c57ffcacccead661d35a0dd98e47cb379c8cc7bc24457ea700d74154b015e4",
+      "password": "mR3m",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 1000,
+      "full_file_encryption": true
+    },
+    {
+      "file": "generated-v26-normal-custom-1000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer26",
+      "file_sha256": "010bbccbcc5fad520d4cc328a13f89e199f5398f6e9298cfbee88667d651c37a",
+      "password": "CorpusSecret",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 1000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "generated-v26-normal-custom-5000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer26",
+      "file_sha256": "514d31427c65b75de081896714feb5062704f1222c9d778c3bc4cb6f80bd4344",
+      "password": "CorpusSecret",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 5000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "generated-v26-full-custom-5000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer26",
+      "file_sha256": "1dccbbb2a1e9eea3dd481b2bbd3f6875a00840c48a197cf04042ce206f8e4fa0",
+      "password": "CorpusSecret",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.6",
+      "kdf_iterations": 5000,
+      "full_file_encryption": true
+    },
+    {
+      "file": "generated-v27-normal-default-1000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer27",
+      "file_sha256": "9b80653cf2cbef8d25b56014a1376d8f961abad77da07dd5296fdb04e7fac0b9",
+      "password": "mR3m",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.7",
+      "kdf_iterations": 1000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "generated-v27-full-default-1000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer27",
+      "file_sha256": "8a8b5719c310743fb031d145eb25c98970c8b5ed3ecf6748a62f62402052a2ab",
+      "password": "mR3m",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.7",
+      "kdf_iterations": 1000,
+      "full_file_encryption": true
+    },
+    {
+      "file": "generated-v27-normal-custom-1000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer27",
+      "file_sha256": "09acd2f470675cf54df9a033e43bcf91db94aaa09aff46035ca77c1b3e5f42e6",
+      "password": "CorpusSecret",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.7",
+      "kdf_iterations": 1000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "generated-v27-normal-custom-5000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer27",
+      "file_sha256": "c972600d6d1d4fb1c54c1e1d1774875111277ebb10b12b38afee8759e961fde8",
+      "password": "CorpusSecret",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.7",
+      "kdf_iterations": 5000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "generated-v27-full-custom-5000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer27",
+      "file_sha256": "dbd51623ad97396eec8d2da6d0854bdd5e6cbd5a89ed70ac037911e19f671916",
+      "password": "CorpusSecret",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.7",
+      "kdf_iterations": 5000,
+      "full_file_encryption": true
+    },
+    {
+      "file": "generated-v28-normal-default-1000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer28",
+      "file_sha256": "1130799cc0ed3fbb614a39785e70d35141e367d1dd36c3938be302b62d57f6aa",
+      "password": "mR3m",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.8",
+      "kdf_iterations": 1000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "generated-v28-full-default-1000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer28",
+      "file_sha256": "137e6a5d3b4e27087a844555ef1cbceda8ddb9fd8ac3985fbfd1b5d7f5f53104",
+      "password": "mR3m",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.8",
+      "kdf_iterations": 1000,
+      "full_file_encryption": true
+    },
+    {
+      "file": "generated-v28-normal-custom-1000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer28",
+      "file_sha256": "b607e41afb3288957dabcbe764fd7fa8f16331fa4ed554bbe2cbca2d4380ef92",
+      "password": "CorpusSecret",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.8",
+      "kdf_iterations": 1000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "generated-v28-normal-custom-5000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer28",
+      "file_sha256": "91490c2f64d5d0a2680c3ce27a8857f8ec3fde3632f75c43c4a16fde86124445",
+      "password": "CorpusSecret",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.8",
+      "kdf_iterations": 5000,
+      "full_file_encryption": false
+    },
+    {
+      "file": "generated-v28-full-custom-5000.xml",
+      "source": "mRemoteNG commit 48723ba0 XmlConnectionNodeSerializer28",
+      "file_sha256": "83d8606bc1315597ca01f57974057e06ac81d166f5c3b6803e7e62f608f5883e",
+      "password": "CorpusSecret",
+      "profile": "generated-rich-tree",
+      "source_ids": false,
+      "version": "2.8",
+      "kdf_iterations": 5000,
       "full_file_encryption": true
     }
   ]
