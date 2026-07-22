@@ -15,10 +15,12 @@ type nodeSerializer struct {
 	filter   SaveFilter
 }
 
-func (s nodeSerializer) encodeChildren(container *connection.ContainerInfo) ([]byte, error) {
+func (s nodeSerializer) encodeChildren(container *connection.ContainerInfo, indent bool) ([]byte, error) {
 	var output bytes.Buffer
 	encoder := stdxml.NewEncoder(&output)
-	encoder.Indent("", "  ")
+	if indent {
+		encoder.Indent("", "  ")
+	}
 	for _, child := range container.Children() {
 		if err := s.encodeNode(encoder, child, true); err != nil {
 			return nil, err

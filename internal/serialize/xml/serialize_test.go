@@ -18,6 +18,9 @@ func TestSerialize_NestedTree_RoundTripsLatestValuesAndSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
+	if !strings.HasPrefix(text, `<?xml version="1.0" encoding="utf-8"?>`) {
+		t.Errorf("XML declaration is not C# compatible: %q", text[:min(len(text), 64)])
+	}
 	if !strings.Contains(text, `ConfVersion="2.8"`) || !strings.Contains(text, `KdfIterations="5000"`) || !strings.Contains(text, `Export="true"`) {
 		t.Errorf("root metadata missing:\n%s", text)
 	}
@@ -60,6 +63,26 @@ func TestSerialize_FullFileEncryption_HidesNodesAndRoundTrips(t *testing.T) {
 	}
 	if len(decoded.Root.Descendants()) != 2 {
 		t.Errorf("descendants = %d, want 2", len(decoded.Root.Descendants()))
+	}
+}
+
+func TestNodeSerializer_FullFilePayload_OmitsWhitespaceNodes(t *testing.T) {
+	document := testSerializableDocument(t)
+	provider, err := security.NewAEADWithIterations(1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serializer := nodeSerializer{
+		provider: provider,
+		password: []byte(defaultPassword),
+		filter:   normalizedSaveFilter(nil),
+	}
+	payload, err := serializer.encodeChildren(document.Root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(payload, []byte("\n")) {
+		t.Errorf("full-file payload contains whitespace nodes:\n%s", payload)
 	}
 }
 

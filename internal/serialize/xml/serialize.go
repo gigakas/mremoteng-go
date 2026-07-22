@@ -58,7 +58,7 @@ func Serialize(document *Document, options SerializeOptions) ([]byte, error) {
 	}
 
 	serializer := nodeSerializer{provider: provider, password: password, filter: normalizedSaveFilter(options.SaveFilter)}
-	inner, err := serializer.encodeChildren(document.Root)
+	inner, err := serializer.encodeChildren(document.Root, !options.FullFileEncryption)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func Serialize(document *Document, options SerializeOptions) ([]byte, error) {
 	}
 
 	var output bytes.Buffer
-	output.WriteString(stdxml.Header)
+	output.WriteString("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
 	encoder := stdxml.NewEncoder(&output)
 	encoder.Indent("", "  ")
 	root := stdxml.StartElement{
