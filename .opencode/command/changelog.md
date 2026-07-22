@@ -16,6 +16,9 @@ Rules:
 - Never edit `CHANGELOG.md` by hand (it is generated) and never modify
   existing fragments in `changelog.d/` — every change is a new fragment.
 - One fragment per logical change, not per file.
+- The summary must explain the change, not just name it: what was done and,
+  when not obvious, why — `CHANGELOG.md` is the project's bitácora, so a
+  bare title is not acceptable.
 - The summary is one line, imperative mood, in English, without the `---`
   sequence.
 - Affected files are detected from git automatically; use `-files a.go,b.go`

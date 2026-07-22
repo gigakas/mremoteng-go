@@ -26,6 +26,13 @@ working in parallel cannot collide).
 ## Rules
 
 - One fragment per logical change, not per file.
+- The summary must explain the change, not just name it: say what was done
+  and, when it is not obvious, why — `CHANGELOG.md` is the project's
+  bitácora, so a bare title like "Update security.go" is not acceptable.
+  Compare "Fix SetParent false failure" (what, no why needed) vs. "Fix
+  SetParent false failure — NULL return with clear last-error is success;
+  clear last-error before the call" (what + why, preferred when the cause
+  is not self-evident from the title).
 - The summary must not contain the `---` sequence.
 - Summaries are written in English.
 - When working on a blueprint phase, mention it in the summary

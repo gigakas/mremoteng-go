@@ -36,6 +36,10 @@
   - `blueprint/phase-1-core.md`
   - `README.md`
   - _2026-07-22 20:10:25 UTC — opencode_
+- Require changelog summaries to explain what changed and why (not just name the file), so CHANGELOG.md works as a real bitácora, not a list of bare titles.
+  - `.claude/skills/changelog/SKILL.md`
+  - `.opencode/command/changelog.md`
+  - _2026-07-22 20:50:07 UTC — claude-code_
 - Require detailed descriptions in the changelog bitacora
 
   Added a Description field to the changelog Entry struct, parsed from the fragment body after a blank-line separator (first paragraph = summary, rest = description). Render outputs the description as an indented paragraph between the summary and the file list. The CLI now accepts -description and warns when it is omitted so the bitacora stays complete. Added four unit tests covering parsing with/without description and both render layouts. Created .opencode/skills/changelog/SKILL.md mandating detailed descriptions for all future changes.
