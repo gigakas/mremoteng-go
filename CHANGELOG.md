@@ -51,6 +51,22 @@
   - `internal/changelog/changelog.go`
   - `internal/changelog/changelog_test.go`
   - _2026-07-22 20:51:26 UTC — opencode_
+- Align changelog skill docs with the new -description flag
+
+  OpenCode added a -description flag to cmd/changelog (Entry.Description, parsed as the second paragraph of the fragment body, rendered as an indented block under the summary bullet) in commit f5285d7, landed concurrently with my own doc-only attempt at the same requirement (require explanatory changelog entries). Updated .claude/skills/changelog/SKILL.md to document -description instead of asking for a what+why explanation crammed into the one-line -summary, so the skill matches the actual tool contract and doesn't contradict OpenCode's .opencode/skills/changelog/SKILL.md.
+
+  - `.claude/skills/changelog/SKILL.md`
+  - _2026-07-22 21:04:24 UTC — claude-code_
+- Also require -description in the OpenCode changelog command
+
+  Following up on the earlier skill fix: .opencode/command/changelog.md (the older command file, distinct from OpenCode's own new .opencode/skills/changelog/SKILL.md) still told agents to write a single-line summary explaining what+why, contradicting the tool's actual -description flag. Rewrote its example command and rules to require -description explicitly, mirroring both .claude/skills/changelog/SKILL.md and .opencode/skills/changelog/SKILL.md, and added a note that $ARGUMENTS (the raw slash-command input) should be turned into -summary/-description rather than passed through verbatim.
+
+  - `.claude/skills/changelog/SKILL.md`
+  - `.opencode/command/changelog.md`
+  - `internal/protocol/factory.go`
+  - `internal/protocol/protocol.go`
+  - `internal/protocol/protocol_test.go`
+  - _2026-07-22 21:22:48 UTC — claude-code_
 
 ## 2026-07-16
 
