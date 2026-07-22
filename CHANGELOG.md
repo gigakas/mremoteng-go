@@ -4,6 +4,39 @@
 <!-- Source: fragments in changelog.d/*.md -->
 <!-- Regenerate: make changelog  (or: go run ./cmd/changelog compile) -->
 
+## 2026-07-22
+
+- Phase 1 stage 1.7: complete the C# compatibility corpus
+  - `.gitattributes`
+  - `integration/corpus_test.go`
+  - `testdata/corpus/manifest.json`
+  - `testdata/corpus/generated-v26-normal-default-1000.xml`
+  - `testdata/corpus/generated-v26-full-default-1000.xml`
+  - `testdata/corpus/generated-v26-normal-custom-1000.xml`
+  - `testdata/corpus/generated-v26-normal-custom-5000.xml`
+  - `testdata/corpus/generated-v26-full-custom-5000.xml`
+  - `testdata/corpus/generated-v27-normal-default-1000.xml`
+  - `testdata/corpus/generated-v27-full-default-1000.xml`
+  - `testdata/corpus/generated-v27-normal-custom-1000.xml`
+  - `testdata/corpus/generated-v27-normal-custom-5000.xml`
+  - `testdata/corpus/generated-v27-full-custom-5000.xml`
+  - `testdata/corpus/generated-v28-normal-default-1000.xml`
+  - `testdata/corpus/generated-v28-full-default-1000.xml`
+  - `testdata/corpus/generated-v28-normal-custom-1000.xml`
+  - `testdata/corpus/generated-v28-normal-custom-5000.xml`
+  - `testdata/corpus/generated-v28-full-custom-5000.xml`
+  - _2026-07-22 20:10:00 UTC — opencode_
+- Phase 1 stage 1.7: make Go XML output readable by C#
+  - `internal/serialize/xml/serialize.go`
+  - `internal/serialize/xml/serialize_node.go`
+  - `internal/serialize/xml/serialize_test.go`
+  - _2026-07-22 20:10:11 UTC — opencode_
+- Phase 1 stage 1.7: close the stage and Phase 1
+  - `auditory/phase1-stage7-20260722-opencode.md`
+  - `blueprint/phase-1-core.md`
+  - `README.md`
+  - _2026-07-22 20:10:25 UTC — opencode_
+
 ## 2026-07-16
 
 - Phase 1 stage 1.1: add the connection model and invariant-safe tree
