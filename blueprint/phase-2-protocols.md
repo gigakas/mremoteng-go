@@ -13,7 +13,7 @@ stages 2.5 and 2.7.
 |---|---|---|---|
 | 2.1 | Protocol interface + factory | done | claude-code |
 | 2.2 | SSH, Telnet, rlogin, raw socket, serial | done | claude-code |
-| 2.3 | HTTP/HTTPS (native webview) | blocked: no C compiler in the current dev environment (cgo required, see stage note) | any |
+| 2.3 | HTTP/HTTPS (native webview) | done | claude-code |
 | 2.4 | VNC | done | claude-code |
 | 2.5 | RDP (external xfreerdp + reparent) | pending | claude-code |
 | 2.6 | PowerShell remoting (WinRM) | pending | opencode |
@@ -68,17 +68,28 @@ stages 2.5 and 2.7.
 - OS-native webview (WebView2 on Windows, WebKitGTK on Linux) via a thin
   wrapper. This is the only place where cgo is acceptable, and only through
   the wrapper library.
-- **2026-07-23 (claude-code)**: attempted from the current Windows dev
-  session; blocked before any code was written. This is the only Phase 2
-  stage that requires cgo, and this environment has no C compiler
-  (`gcc`/`cc`/`clang` all absent, `CGO_ENABLED=0` by default) and no admin
-  rights to install one (`choco install mingw` fails with an access-denied
-  error on the chocolatey lib directory). Writing a webview wrapper here
-  would be unbuildable and untestable, so nothing was written rather than
-  claim a false close. Needs an agent/session with a working C toolchain
-  (mingw-w64 on Windows, or a Linux box with WebKitGTK dev headers) —
-  picking it up there should be a normal stage claim, no other blocker
-  identified.
+- **2026-07-23 (claude-code)**: first attempt blocked — this dev
+  environment had no C compiler and no admin rights to install one via
+  chocolatey. Unblocked in the same session by downloading a portable,
+  no-installer mingw-w64 build (winlibs.com/GitHub releases, plain zip
+  extract, no admin needed) to a session-scratch directory and prepending
+  its `bin/` to `PATH`. **This is not a permanent fixture of the dev
+  environment** — it lives outside the repo and outside any durable
+  machine state, so a future session/agent on a machine without a C
+  compiler will hit the same block and needs to repeat this (or have a
+  proper mingw-w64 install with admin rights, or work from Linux with
+  WebKitGTK dev headers instead).
+- Implemented on `github.com/webview/webview_go`. Found and fixed a real
+  cross-thread bug in that library while writing the first integration
+  test: its Windows backend's `Terminate()` is a bare `PostQuitMessage(0)`,
+  which is thread-local in Win32 and silently does nothing when called
+  from a goroutine other than the one running the message loop — despite
+  the library's own doc comment claiming `Terminate` is safe to call from
+  another thread (true for its GTK backend, which internally dispatches;
+  not true for Win32). Worked around by routing `Terminate` through
+  `Dispatch` (which correctly marshals via `PostMessageW` to the
+  webview's message-only window) instead of calling it directly. See the
+  stage audit for the full account.
 
 ### 2.4 VNC
 - Build on the most complete existing Go VNC client library; fill gaps
