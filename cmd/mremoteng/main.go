@@ -45,6 +45,7 @@ func main() {
 	if cfg.WindowWidth > 0 && cfg.WindowHeight > 0 {
 		shell.Window.Resize(fyne.NewSize(cfg.WindowWidth, cfg.WindowHeight))
 	}
+	ui.ApplyTheme(a, cfg.Theme)
 	saveSettings := func() {
 		if err := cfg.Save(settingsPath); err != nil {
 			log.Printf("mremoteng: save settings: %v", err)
@@ -135,6 +136,7 @@ func main() {
 	shell.OnOptions = func() {
 		ui.ShowOptionsDialog(shell.Window, cfg, func(updated *settings.Settings) {
 			cfg = updated
+			ui.ApplyTheme(a, cfg.Theme)
 			saveSettings()
 		})
 	}
