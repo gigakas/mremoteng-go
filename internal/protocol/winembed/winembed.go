@@ -190,3 +190,20 @@ func SetProcessMixedDpiAwareness() error {
 	}
 	return nil
 }
+
+// SetWindowPosition moves and resizes an already-embedded child window
+// within its parent's client area (x/y/width/height are parent-client-
+// relative pixels, matching what SetParent establishes). Intended to be
+// called on every layout change of whatever host widget owns child, to
+// keep it tracking a resizable/movable UI region — EmbedChild itself only
+// places the window once, at embed time.
+func SetWindowPosition(child windows.HWND, x, y, width, height int) error {
+	if r, _, err := procSetWindowPos.Call(
+		uintptr(child), 0,
+		uintptr(x), uintptr(y), uintptr(width), uintptr(height),
+		swpNoZOrder|swpNoActivate,
+	); r == 0 {
+		return fmt.Errorf("winembed: SetWindowPos (reposition): %w", err)
+	}
+	return nil
+}

@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/app"
 
 	"github.com/mRemoteNG/mremoteng-go/internal/connection"
+	"github.com/mRemoteNG/mremoteng-go/internal/protocol"
 	"github.com/mRemoteNG/mremoteng-go/internal/ui"
 
 	// Blank-imported so each protocol backend's init() registers itself
@@ -38,7 +39,27 @@ func main() {
 	if err != nil {
 		log.Fatalf("mremoteng: create connection tree root: %v", err)
 	}
-	shell.SetTree(ui.NewConnectionTree(root).Widget)
+	tree := ui.NewConnectionTree(root)
+	shell.SetTree(tree.Widget)
+
+	tabs := ui.NewSessionTabs(shell.Window)
+	shell.SetTabs(tabs.Widget)
+
+	// Selecting a connection (leaf) opens a session tab for it;
+	// selecting a folder is a no-op here (the tree widget itself already
+	// handles expand/collapse on click).
+	tree.OnSelect = func(node connection.Node) {
+		conn, ok := node.(*connection.ConnectionInfo)
+		if !ok {
+			return
+		}
+		p, err := protocol.Create(conn)
+		if err != nil {
+			log.Printf("mremoteng: create protocol session: %v", err)
+			return
+		}
+		tabs.Open(conn.Effective().Name, p)
+	}
 
 	shell.Window.ShowAndRun()
 }
