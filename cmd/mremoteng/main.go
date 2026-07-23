@@ -1,7 +1,9 @@
 package main
 
 import (
-	"fmt"
+	"fyne.io/fyne/v2/app"
+
+	"github.com/mRemoteNG/mremoteng-go/internal/ui"
 
 	// Blank-imported so each protocol backend's init() registers itself
 	// with internal/protocol's factory (see internal/protocol/factory.go's
@@ -21,5 +23,7 @@ import (
 )
 
 func main() {
-	fmt.Println("mremoteng-go: skeleton, not yet functional")
+	a := app.NewWithID(ui.AppID)
+	shell := ui.NewShell(a)
+	shell.Window.ShowAndRun()
 }

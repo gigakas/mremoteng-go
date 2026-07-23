@@ -10,11 +10,22 @@ trap 'rm -rf "$out_dir"' EXIT
 
 go build -o "$out_dir/" ./...
 
-output=$("$out_dir/mremoteng")
-if ! echo "$output" | grep -q "mremoteng-go"; then
-    echo "smoke FAILED: unexpected output from main binary: $output" >&2
+# mremoteng is a real GUI app since Phase 3 stage 3.1 (ShowAndRun blocks
+# until the window closes), so "starts and responds" means: launch it,
+# give it a moment to initialize, confirm the process is still alive
+# (didn't crash on startup), then terminate it. This replaced an earlier
+# version that captured stdout output, which no longer applies now that
+# there's nothing printed to a terminal.
+"$out_dir/mremoteng" &
+mremoteng_pid=$!
+sleep 2
+if ! kill -0 "$mremoteng_pid" 2>/dev/null; then
+    wait "$mremoteng_pid" 2>/dev/null
+    echo "smoke FAILED: mremoteng exited immediately (crashed on startup?)" >&2
     exit 1
 fi
+kill "$mremoteng_pid" 2>/dev/null
+wait "$mremoteng_pid" 2>/dev/null || true
 
 "$out_dir/changelog" compile >/dev/null
 if ! git diff --quiet -- CHANGELOG.md; then
