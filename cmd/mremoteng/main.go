@@ -16,6 +16,7 @@ import (
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/telnet"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/vnc"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/web"
+	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/winrm"
 )
 
 func main() {

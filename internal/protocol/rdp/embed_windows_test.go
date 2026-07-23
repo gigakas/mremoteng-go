@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 	"unicode/utf16"
@@ -14,6 +15,27 @@ import (
 
 	"golang.org/x/sys/windows"
 )
+
+// Win32 allows SetProcessDpiAwarenessContext to succeed only once per
+// process (a second call fails with "Access is denied") — guarded here so
+// running this test function more than once in the same test binary
+// (e.g. `go test -count=2`) doesn't fail on the second pass. Real
+// production code has the same one-call-per-process constraint
+// naturally, since cmd/mremoteng only calls it once at startup.
+var (
+	setProcessDpiOnce sync.Once
+	setProcessDpiErr  error
+)
+
+func ensureProcessMixedDpiAwareness(t *testing.T) {
+	t.Helper()
+	setProcessDpiOnce.Do(func() {
+		setProcessDpiErr = SetProcessMixedDpiAwareness()
+	})
+	if setProcessDpiErr != nil {
+		t.Fatalf("SetProcessMixedDpiAwareness: %v", setProcessDpiErr)
+	}
+}
 
 // Real Win32 bindings needed only to build a throwaway parent window for
 // TestEmbedChild_ReparentsARealExternalWindow — verified against mingw's
@@ -152,32 +174,53 @@ func TestFindTopLevelForPID_ExternalProcess(t *testing.T) {
 // Windows 10+ per the spike's finding #1 — EmbedChild's own GetAncestor
 // verification is what would catch that, and this test asserts on the
 // error it returns rather than only on SetParent's return value.
+//
+// Retries the whole find+embed sequence a few times: running this
+// repeatedly (go test -count=N) occasionally hit "SetWindowPos: Invalid
+// window handle" — externalTestTarget recreating its own window shortly
+// after creation, the same class of race the spike documented for
+// sdl-freerdp (window recreated during renderer init) and which
+// findAndAdopt's own retry loop exists to absorb for the *discovery* step;
+// this is that same race showing up between discovery and the (separate,
+// not itself retried) embed step. A real caller would see this as
+// EmbedChild returning an error and could retry the whole sequence the
+// same way; doing that here keeps the test meaningful instead of flaky.
 func TestEmbedChild_ReparentsARealExternalWindow(t *testing.T) {
-	if err := SetProcessMixedDpiAwareness(); err != nil {
-		t.Fatalf("SetProcessMixedDpiAwareness: %v", err)
-	}
+	ensureProcessMixedDpiAwareness(t)
 
 	parent := createTestWindow(t, fmt.Sprintf("mremoteng-go-test-parent-%d", time.Now().UnixNano()))
 
-	cmd := exec.Command(externalTestTarget)
-	if err := cmd.Start(); err != nil {
-		t.Skipf("%s not available in this environment: %v", externalTestTarget, err)
-	}
-	t.Cleanup(func() { cmd.Process.Kill() })
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		cmd := exec.Command(externalTestTarget)
+		if err := cmd.Start(); err != nil {
+			t.Skipf("%s not available in this environment: %v", externalTestTarget, err)
+		}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	childHWND, err := findAndAdopt(ctx, uint32(cmd.Process.Pid))
-	if err != nil {
-		t.Fatalf("findAndAdopt: %v", err)
-	}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		childHWND, err := findAndAdopt(ctx, uint32(cmd.Process.Pid))
+		if err != nil {
+			cancel()
+			cmd.Process.Kill()
+			t.Fatalf("findAndAdopt: %v", err)
+		}
 
-	if err := EmbedChild(parent, windows.HWND(childHWND)); err != nil {
-		t.Fatalf("EmbedChild: %v", err)
-	}
+		lastErr = EmbedChild(parent, windows.HWND(childHWND))
+		if lastErr == nil {
+			actualParent, _, _ := procGetAncestor.Call(childHWND, gaParent)
+			if windows.HWND(actualParent) != parent {
+				lastErr = fmt.Errorf("GetAncestor after EmbedChild = %x, want parent %x", actualParent, parent)
+			}
+		}
 
-	actualParent, _, _ := procGetAncestor.Call(childHWND, gaParent)
-	if windows.HWND(actualParent) != parent {
-		t.Errorf("GetAncestor after EmbedChild = %x, want parent %x", actualParent, parent)
+		cancel()
+		cmd.Process.Kill()
+		cmd.Wait()
+
+		if lastErr == nil {
+			return
+		}
+		t.Logf("attempt %d: %v (retrying)", attempt+1, lastErr)
 	}
+	t.Fatalf("EmbedChild: %v (after retries)", lastErr)
 }
