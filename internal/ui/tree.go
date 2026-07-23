@@ -76,6 +76,21 @@ func (t *ConnectionTree) indexSubtree(n connection.Node) {
 	}
 }
 
+// Root returns the tree's current root container, e.g. for a caller that
+// needs to serialize the whole tree (SaveConnectionsFile).
+func (t *ConnectionTree) Root() *connection.ContainerInfo {
+	return t.root
+}
+
+// SetRoot replaces the tree's root container and reindexes, e.g. after
+// loading a different connections file. Unlike an in-place mutation under
+// the existing root, this always needs a Reload: the old index is for a
+// different root entirely.
+func (t *ConnectionTree) SetRoot(root *connection.ContainerInfo) {
+	t.root = root
+	t.Reload()
+}
+
 func (t *ConnectionTree) containerFor(uid widget.TreeNodeID) *connection.ContainerInfo {
 	if uid == "" {
 		return t.root

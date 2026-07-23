@@ -172,3 +172,38 @@ func TestConnectionTree_Reload_IndexesNewlyReachableContainers(t *testing.T) {
 		t.Errorf("ChildUIDs(newFolder) after Reload = %v, want [%s]", children, newLeaf.ID())
 	}
 }
+
+func TestConnectionTree_SetRoot_SwapsRootAndReindexes(t *testing.T) {
+	root, serversID, _, _ := testTree(t)
+	tree := ui.NewConnectionTree(root)
+
+	newRoot, err := connection.NewRootInfo()
+	if err != nil {
+		t.Fatalf("NewRootInfo: %v", err)
+	}
+	other, err := connection.NewConnectionInfo()
+	if err != nil {
+		t.Fatalf("NewConnectionInfo: %v", err)
+	}
+	other.Raw.Name = "other"
+	if err := newRoot.AddChild(other); err != nil {
+		t.Fatalf("AddChild(other): %v", err)
+	}
+
+	tree.SetRoot(newRoot)
+
+	if got := tree.Root(); got != newRoot {
+		t.Fatalf("Root() = %p, want %p", got, newRoot)
+	}
+	top := tree.Widget.ChildUIDs("")
+	if len(top) != 1 || top[0] != other.ID() {
+		t.Fatalf("ChildUIDs(\"\") after SetRoot = %v, want [%s]", top, other.ID())
+	}
+	// The old root's nodes must no longer be reachable through the tree.
+	if children := tree.Widget.ChildUIDs(serversID); len(children) != 0 {
+		t.Errorf("ChildUIDs(old servers) after SetRoot = %v, want empty", children)
+	}
+	if tree.Widget.IsBranch(serversID) {
+		t.Error("IsBranch(old servers) after SetRoot = true, want false (no longer indexed)")
+	}
+}

@@ -88,6 +88,59 @@ func TestNewShell_FileMenuHasQuitItem(t *testing.T) {
 	}
 }
 
+func TestNewShell_FileMenuItemsCallTheirCallbacks(t *testing.T) {
+	a := test.NewApp()
+	defer a.Quit()
+
+	s := NewShell(a)
+	fileMenu := s.Window.MainMenu().Items[0]
+
+	var openCalled, saveCalled, optionsCalled bool
+	s.OnOpenConnectionsFile = func() { openCalled = true }
+	s.OnSaveConnectionsFile = func() { saveCalled = true }
+	s.OnOptions = func() { optionsCalled = true }
+
+	byLabel := func(label string) *fyne.MenuItem {
+		for _, item := range fileMenu.Items {
+			if item.Label == label {
+				return item
+			}
+		}
+		t.Fatalf("File menu has no item labeled %q", label)
+		return nil
+	}
+
+	byLabel("Open Connections File...").Action()
+	byLabel("Save Connections File As...").Action()
+	byLabel("Options...").Action()
+
+	if !openCalled {
+		t.Error("Open Connections File... did not call OnOpenConnectionsFile")
+	}
+	if !saveCalled {
+		t.Error("Save Connections File As... did not call OnSaveConnectionsFile")
+	}
+	if !optionsCalled {
+		t.Error("Options... did not call OnOptions")
+	}
+}
+
+func TestNewShell_FileMenuItemsAreNoOpsWhenCallbacksUnset(t *testing.T) {
+	a := test.NewApp()
+	defer a.Quit()
+
+	s := NewShell(a)
+	fileMenu := s.Window.MainMenu().Items[0]
+
+	for _, label := range []string{"Open Connections File...", "Save Connections File As...", "Options..."} {
+		for _, item := range fileMenu.Items {
+			if item.Label == label {
+				item.Action() // must not panic with nil callbacks
+			}
+		}
+	}
+}
+
 func TestShell_SetTree_ReplacesPlaceholder(t *testing.T) {
 	a := test.NewApp()
 	defer a.Quit()

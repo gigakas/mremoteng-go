@@ -3,10 +3,14 @@ package main
 import (
 	"log"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/mRemoteNG/mremoteng-go/internal/connection"
 	"github.com/mRemoteNG/mremoteng-go/internal/protocol"
+	"github.com/mRemoteNG/mremoteng-go/internal/settings"
 	"github.com/mRemoteNG/mremoteng-go/internal/ui"
 
 	// Blank-imported so each protocol backend's init() registers itself
@@ -30,11 +34,23 @@ func main() {
 	a := app.NewWithID(ui.AppID)
 	shell := ui.NewShell(a)
 
-	// No persistence yet (stage 3.5) and no "open file" flow yet (stage
-	// 3.4/3.5), so the tree starts empty — an empty real connection.Node
-	// tree, not the placeholder label NewShell defaults to. Loading a
-	// real .xml connections file into this tree is what will actually
-	// satisfy Phase 2/3's shared "demo config file" exit criterion.
+	settingsPath, err := settings.DefaultPath()
+	if err != nil {
+		log.Fatalf("mremoteng: resolve settings path: %v", err)
+	}
+	cfg, err := settings.Load(settingsPath)
+	if err != nil {
+		log.Fatalf("mremoteng: load settings: %v", err)
+	}
+	if cfg.WindowWidth > 0 && cfg.WindowHeight > 0 {
+		shell.Window.Resize(fyne.NewSize(cfg.WindowWidth, cfg.WindowHeight))
+	}
+	saveSettings := func() {
+		if err := cfg.Save(settingsPath); err != nil {
+			log.Printf("mremoteng: save settings: %v", err)
+		}
+	}
+
 	root, err := connection.NewRootInfo()
 	if err != nil {
 		log.Fatalf("mremoteng: create connection tree root: %v", err)
@@ -68,5 +84,85 @@ func main() {
 		tabs.Open(conn.Effective().Name, p)
 	}
 
+	shell.OnOpenConnectionsFile = func() {
+		dialog.ShowFileOpen(func(reader fyne.URIReadCloser, ferr error) {
+			if ferr != nil {
+				dialog.ShowError(ferr, shell.Window)
+				return
+			}
+			if reader == nil {
+				return // user cancelled
+			}
+			path := reader.URI().Path()
+			reader.Close()
+
+			promptConnectionsFilePassword(shell.Window, "Open Connections File", func(password []byte) {
+				loaded, err := ui.LoadConnectionsFile(path, password)
+				if err != nil {
+					dialog.ShowError(err, shell.Window)
+					return
+				}
+				tree.SetRoot(loaded)
+				cfg.LastConnectionsFile = path
+				saveSettings()
+			})
+		}, shell.Window)
+	}
+
+	shell.OnSaveConnectionsFile = func() {
+		dialog.ShowFileSave(func(writer fyne.URIWriteCloser, ferr error) {
+			if ferr != nil {
+				dialog.ShowError(ferr, shell.Window)
+				return
+			}
+			if writer == nil {
+				return // user cancelled
+			}
+			path := writer.URI().Path()
+			writer.Close()
+
+			promptConnectionsFilePassword(shell.Window, "Save Connections File", func(password []byte) {
+				if err := ui.SaveConnectionsFile(path, tree.Root(), password); err != nil {
+					dialog.ShowError(err, shell.Window)
+					return
+				}
+				cfg.LastConnectionsFile = path
+				saveSettings()
+			})
+		}, shell.Window)
+	}
+
+	shell.OnOptions = func() {
+		ui.ShowOptionsDialog(shell.Window, cfg, func(updated *settings.Settings) {
+			cfg = updated
+			saveSettings()
+		})
+	}
+
+	shell.Window.SetOnClosed(func() {
+		size := shell.Window.Canvas().Size()
+		cfg.WindowWidth = size.Width
+		cfg.WindowHeight = size.Height
+		saveSettings()
+	})
+
 	shell.Window.ShowAndRun()
+}
+
+// promptConnectionsFilePassword asks for the password protecting a
+// connections file (blank uses mRemoteNG's own default connection-file
+// password, same as internal/serialize/xml.Options.Password) before
+// calling onConfirm. Cancelling the form calls neither onConfirm nor the
+// load/save it guards.
+func promptConnectionsFilePassword(win fyne.Window, title string, onConfirm func(password []byte)) {
+	entry := widget.NewPasswordEntry()
+	entry.PlaceHolder = "(leave blank for the default connections-file password)"
+	items := []*widget.FormItem{widget.NewFormItem("Password", entry)}
+
+	dialog.ShowForm(title, "OK", "Cancel", items, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		onConfirm([]byte(entry.Text))
+	}, win)
 }

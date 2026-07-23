@@ -39,6 +39,17 @@ type Shell struct {
 	properties fyne.CanvasObject
 
 	content *fyne.Container
+
+	// OnOpenConnectionsFile, OnSaveConnectionsFile and OnOptions are called
+	// by the File menu's corresponding items, if set. Left nil by default
+	// (the items are then no-ops): the actual load/save/settings logic
+	// needs internal/connection and internal/settings, which this package
+	// deliberately doesn't import for its own sake — main() wires these
+	// once the tree and settings exist, the same pattern
+	// ConnectionTree.OnSelect already uses.
+	OnOpenConnectionsFile func()
+	OnSaveConnectionsFile func()
+	OnOptions             func()
 }
 
 // NewShell builds the main window: menu, layout, and default (placeholder)
@@ -101,8 +112,23 @@ func (s *Shell) rebuildContent() {
 
 func (s *Shell) buildMenu() *fyne.MainMenu {
 	fileMenu := fyne.NewMenu("File",
-		fyne.NewMenuItem("New Connection", func() {}),       // wired in stage 3.2/3.4
-		fyne.NewMenuItem("New Connections File", func() {}), // wired once internal/serialize save paths are reachable from the UI
+		fyne.NewMenuItem("New Connection", func() {}), // still unwired: no UI yet for adding a node to the tree
+		fyne.NewMenuItem("Open Connections File...", func() {
+			if s.OnOpenConnectionsFile != nil {
+				s.OnOpenConnectionsFile()
+			}
+		}),
+		fyne.NewMenuItem("Save Connections File As...", func() {
+			if s.OnSaveConnectionsFile != nil {
+				s.OnSaveConnectionsFile()
+			}
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Options...", func() {
+			if s.OnOptions != nil {
+				s.OnOptions()
+			}
+		}),
 		fyne.NewMenuItemSeparator(),
 		&fyne.MenuItem{Label: "Quit", IsQuit: true, Action: s.App.Quit},
 	)
