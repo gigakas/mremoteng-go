@@ -61,6 +61,9 @@ func TestNewShell_BuildsWindowWithMenuAndPlaceholders(t *testing.T) {
 	if _, ok := s.tabs.(*widget.Label); !ok {
 		t.Errorf("tabs placeholder = %T, want *widget.Label (stage 3.3 replaces this)", s.tabs)
 	}
+	if _, ok := s.properties.(*widget.Label); !ok {
+		t.Errorf("properties placeholder = %T, want *widget.Label (stage 3.4 replaces this)", s.properties)
+	}
 }
 
 func TestNewShell_FileMenuHasQuitItem(t *testing.T) {
@@ -108,5 +111,18 @@ func TestShell_SetTabs_ReplacesPlaceholder(t *testing.T) {
 
 	if s.tabs != fyne.CanvasObject(marker) {
 		t.Error("SetTabs did not update the tabs pane")
+	}
+}
+
+func TestShell_SetProperties_ReplacesPlaceholder(t *testing.T) {
+	a := test.NewApp()
+	defer a.Quit()
+
+	s := NewShell(a)
+	marker := widget.NewLabel("real properties (stage 3.4)")
+	s.SetProperties(marker)
+
+	if s.properties != fyne.CanvasObject(marker) {
+		t.Error("SetProperties did not update the properties pane")
 	}
 }

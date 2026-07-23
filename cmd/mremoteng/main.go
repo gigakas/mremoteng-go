@@ -45,10 +45,17 @@ func main() {
 	tabs := ui.NewSessionTabs(shell.Window)
 	shell.SetTabs(tabs.Widget)
 
-	// Selecting a connection (leaf) opens a session tab for it;
-	// selecting a folder is a no-op here (the tree widget itself already
-	// handles expand/collapse on click).
+	properties := ui.NewPropertiesPanel()
+	shell.SetProperties(properties)
+
+	// Selecting anything (connection or folder) shows its properties —
+	// both are connection.Node with the same ConnectionValues/
+	// InheritanceFlags shape. Only a connection (leaf) also opens a
+	// session tab; a folder selection just expands/collapses (handled by
+	// the tree widget itself).
 	tree.OnSelect = func(node connection.Node) {
+		properties.SetTarget(node)
+
 		conn, ok := node.(*connection.ConnectionInfo)
 		if !ok {
 			return
