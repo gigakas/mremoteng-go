@@ -315,6 +315,13 @@
   - `internal/ui/theme.go`
   - `internal/ui/theme_test.go`
   - _2026-07-23 22:33:18 UTC — claude-code_
+- Phase 3 stage 3.6 closing audit
+
+  auditory/phase3-stage6-20260724-claude-code.md: code quality, architecture, evidence (check.sh/smoke.sh green, headless tests proving forcedVariantTheme genuinely ignores the caller's requested variant), and pending actions (no visual confirmation, no custom palette beyond Fyne's built-in light/dark, ANSI terminal palette intentionally independent of the app theme). blueprint/phase-3-ui.md stage 3.6 marked done.
+
+  - `auditory/phase3-stage6-20260724-claude-code.md`
+  - `blueprint/phase-3-ui.md`
+  - _2026-07-23 22:33:57 UTC — claude-code_
 
 ## 2026-07-22
 

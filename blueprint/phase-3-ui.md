@@ -16,7 +16,7 @@ land.
 | 3.3 | Session tabs hosting protocol views | done | claude-code |
 | 3.4 | Connection properties panel (with inheritance UI) | done | claude-code |
 | 3.5 | Options dialog + settings persistence | done | claude-code |
-| 3.6 | Theming | pending | claude-code |
+| 3.6 | Theming | done | claude-code |
 | 3.7 | External credential repositories | pending | opencode |
 
 ### Parallelism & collision notes
