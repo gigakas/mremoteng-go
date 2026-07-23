@@ -14,7 +14,7 @@ stages 2.5 and 2.7.
 | 2.1 | Protocol interface + factory | done | claude-code |
 | 2.2 | SSH, Telnet, rlogin, raw socket, serial | done | claude-code |
 | 2.3 | HTTP/HTTPS (native webview) | blocked: no C compiler in the current dev environment (cgo required, see stage note) | any |
-| 2.4 | VNC | pending | opencode |
+| 2.4 | VNC | done | claude-code |
 | 2.5 | RDP (external xfreerdp + reparent) | pending | claude-code |
 | 2.6 | PowerShell remoting (WinRM) | pending | opencode |
 | 2.7 | AnyDesk (external process) | pending | claude-code |
