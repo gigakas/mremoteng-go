@@ -172,3 +172,24 @@ stages 2.5 and 2.7.
 ## Exit criteria
 Stages done with audits; a demo config file connects successfully over SSH,
 VNC and RDP on both platforms; top-level README updated.
+
+**2026-07-23 (claude-code) — partial**: all seven stages are done with
+audits (see `auditory/phase2-stage{1..7}-20260723-claude-code.md`, plus
+2.2/2.3/2.4 also dated 20260723). Each backend has real tests where an
+in-process fake server or a genuine external-process/window mechanism
+could be built (SSH, VNC, WinRM against fake servers; the RDP/AnyDesk
+window-embedding mechanism against real Win32 windows). **The phase-level
+"demo config file connects... on both platforms" criterion is not met**:
+there is no runner yet that loads a real mRemoteNG XML config
+(Phase 1's deserializer) and dispatches to `protocol.Create` end-to-end —
+that wiring doesn't exist as a deliverable of any Phase 2 stage, and
+arguably belongs with Phase 3 (the UI is what will actually do this in
+production) or a dedicated `integration/` test. Nothing was tested against
+a *real* RDP/AnyDesk/WinRM server, only fakes/mechanism proofs, and Linux
+has no execution environment available in this session at all (several
+backends have explicit, documented Linux gaps as a result). Top-level
+`README.md` was deliberately **not** updated to claim phase completion,
+since that would overstate what's demonstrated. Recommend: either build a
+minimal `integration/` demo-config-connect test as an explicit follow-up
+task, or fold this criterion into Phase 3's own closing criteria once a
+real UI/runner exists to satisfy it meaningfully.
