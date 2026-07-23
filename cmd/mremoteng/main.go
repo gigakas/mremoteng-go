@@ -8,6 +8,7 @@ import (
 	// Register doc comment). Add a line here for every protocol this
 	// binary should support; a build that wants a smaller footprint can
 	// drop backends by removing their import.
+	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/anydesk"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/raw"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/rdp"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/rlogin"
