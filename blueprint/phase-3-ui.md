@@ -63,3 +63,36 @@ land.
 ## Exit criteria
 Stages done with audits; the app manages a real connection file end-to-end
 (load, edit with inheritance, connect, save); top-level README updated.
+
+**2026-07-24 (claude-code) — met, with caveats.** All seven stages are
+done with audits (`auditory/phase3-stage{1..7}-20260723|20260724-claude-code.md`).
+The full chain is genuinely wired in `cmd/mremoteng/main.go`: File > Open
+Connections File... (`ui.LoadConnectionsFile`, Phase 1's real
+AES-256-GCM/PBKDF2 decryption) populates `ConnectionTree.SetRoot`;
+selecting a node shows it in `PropertiesPanel` with working per-field
+inheritance toggles (stage 3.4); selecting a connection leaf calls
+`protocol.Create` (Phase 2's real backends) and opens a session tab
+(stage 3.3); File > Save Connections File As... (`ui.SaveConnectionsFile`)
+round-trips back through the same real encryption. This also retroactively
+satisfies the runner Phase 2's own wrap-up note said was missing (see
+`blueprint/phase-2-protocols.md`) — it's exactly what stage 3.5 built.
+
+Two caveats carried forward honestly rather than glossed over:
+
+1. **No visual verification of any Phase 3 UI was possible in this dev
+   environment** (see the phase-wide note above, repeated in every
+   stage's own audit) — the wiring is real and headless-tested, but no
+   one has looked at the running app.
+2. **No single automated test exercises the whole load → select →
+   connect → save chain together** — each link is tested in isolation
+   (`internal/ui`'s per-widget tests, Phase 2's per-backend tests,
+   `internal/ui/connectionsfile_test.go`'s real encrypted round trip).
+   Building a chain-level `integration/` test, or getting a real look at
+   the running app, are the natural next steps for whoever can act on
+   them — Phase 4 (Packaging) doesn't strictly need either first, but
+   both would materially increase confidence before calling the UI
+   done for real users.
+
+Top-level `README.md` is updated alongside this note, since — unlike
+Phase 2's wrap-up — the actual wiring this criterion asks for now exists,
+not just the individual pieces.
