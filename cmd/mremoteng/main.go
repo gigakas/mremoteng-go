@@ -9,6 +9,7 @@ import (
 	// binary should support; a build that wants a smaller footprint can
 	// drop backends by removing their import.
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/raw"
+	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/rdp"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/rlogin"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/serial"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/ssh"
