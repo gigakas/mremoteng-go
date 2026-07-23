@@ -13,6 +13,7 @@ import (
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/serial"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/ssh"
 	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/telnet"
+	_ "github.com/mRemoteNG/mremoteng-go/internal/protocol/vnc"
 )
 
 func main() {
