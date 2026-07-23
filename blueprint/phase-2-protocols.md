@@ -16,7 +16,7 @@ stages 2.5 and 2.7.
 | 2.3 | HTTP/HTTPS (native webview) | done | claude-code |
 | 2.4 | VNC | done | claude-code |
 | 2.5 | RDP (external xfreerdp + reparent) | done | claude-code |
-| 2.6 | PowerShell remoting (WinRM) | pending | opencode |
+| 2.6 | PowerShell remoting (WinRM) | done | claude-code |
 | 2.7 | AnyDesk (external process) | pending | claude-code |
 
 ### Parallelism & collision notes
@@ -125,6 +125,24 @@ stages 2.5 and 2.7.
 
 ### 2.6 PowerShell remoting
 - WinRM via existing Go libraries; lowest priority of the phase.
+- **2026-07-23 (claude-code)**: implemented as `protocol.TerminalProtocol`
+  on `github.com/masterzen/winrm` (opens a raw WinRM shell, runs
+  `cmd.exe` interactively, merges stdout/stderr into one stream — reusing
+  the existing io.ReadWriter shape from stage 2.2 rather than PowerShell's
+  richer PSRP object protocol, a deliberate v1 scope cut noted in the
+  package doc comment). `go.mod` pins the client to a 2021 commit (no
+  tagged releases exist) rather than current HEAD: HEAD's response parser
+  rejects the SOAP responses from `github.com/dylanmei/winrmtest` (the
+  standard fake-server test double for this library, itself unmaintained
+  since 2021) with "unsupported action" — a real compatibility drift
+  found by running the tests, not assumed. Found and fixed a real
+  deadlock while writing the Disconnect-idempotency test: an `io.Pipe`-
+  based stdout/stderr merge blocks Write until something Reads, so
+  disconnecting a session nobody had ever read from left the drain
+  goroutines — and thus `Disconnect` itself — hung forever; replaced with
+  a small non-blocking `growingBuffer`. See the stage audit for the full
+  account, including a known, timing-sensitive (not fully root-caused)
+  gap specific to the old test double.
 
 ### 2.7 AnyDesk
 - Same external-process + reparent pattern as RDP (proprietary protocol).
