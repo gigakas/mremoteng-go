@@ -17,7 +17,7 @@ stages 2.5 and 2.7.
 | 2.4 | VNC | done | claude-code |
 | 2.5 | RDP (external xfreerdp + reparent) | done | claude-code |
 | 2.6 | PowerShell remoting (WinRM) | done | claude-code |
-| 2.7 | AnyDesk (external process) | pending | claude-code |
+| 2.7 | AnyDesk (external process) | done | claude-code |
 
 ### Parallelism & collision notes
 
@@ -146,6 +146,28 @@ stages 2.5 and 2.7.
 
 ### 2.7 AnyDesk
 - Same external-process + reparent pattern as RDP (proprietary protocol).
+- **2026-07-23 (claude-code)**: implemented as `protocol.WindowProtocol`,
+  reusing `internal/protocol/winembed` (extracted from stage 2.5's RDP
+  implementation in this same session, since AnyDesk is the second
+  consumer of the exact same find-and-adopt/DPI-aware-SetParent
+  mechanism — the spike's own notes anticipated this: "The same loop
+  re-embeds when a client re-creates its window later (AnyDesk prep,
+  stage 2.7)"). **AnyDesk itself is not installed in this dev
+  environment, and was deliberately not fetched** — unlike the mingw
+  compiler (stage 2.3) or FreeRDP, AnyDesk is live remote-access software
+  with account/ID/telemetry behavior; downloading and running it
+  unattended was judged a different, higher-stakes category of action
+  than fetching a build tool, so it wasn't done without the user being
+  aware. The client-launch and CLI-argument-building code follows
+  AnyDesk's documented command-line interface but is **unverified
+  against a real binary** — only `Connect`'s "client not found" error
+  path is actually exercised by tests here. Linux window
+  discovery/embedding is not implemented, same as RDP's Linux gap, with
+  an added wrinkle: AnyDesk has no documented `/parent-window`-equivalent
+  flag even for a properly resourced future attempt, so it would need the
+  generic reparent-after-launch approach the spike explicitly left
+  "unfinished on purpose" (`docs/spike-x11.md`). See the stage audit for
+  the full account and pending actions.
 
 ## Exit criteria
 Stages done with audits; a demo config file connects successfully over SSH,
