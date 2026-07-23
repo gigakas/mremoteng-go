@@ -12,7 +12,7 @@ stages 2.5 and 2.7.
 | # | Stage | Status | Agent |
 |---|---|---|---|
 | 2.1 | Protocol interface + factory | done | claude-code |
-| 2.2 | SSH, Telnet, rlogin, raw socket, serial | pending | claude-code |
+| 2.2 | SSH, Telnet, rlogin, raw socket, serial | done | claude-code |
 | 2.3 | HTTP/HTTPS (native webview) | pending | any |
 | 2.4 | VNC | pending | opencode |
 | 2.5 | RDP (external xfreerdp + reparent) | pending | claude-code |
