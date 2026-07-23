@@ -11,7 +11,7 @@ land.
 
 | # | Stage | Status | Agent |
 |---|---|---|---|
-| 3.1 | Application shell (window, menu, layout) | pending | claude-code |
+| 3.1 | Application shell (window, menu, layout) | done | claude-code |
 | 3.2 | Connection tree panel | pending | claude-code |
 | 3.3 | Session tabs hosting protocol views | pending | claude-code |
 | 3.4 | Connection properties panel (with inheritance UI) | pending | claude-code |
@@ -33,6 +33,21 @@ land.
   claude-code wires the dialog.
 
 ### Notes
+
+- **2026-07-23 (claude-code) — visual verification is not possible in
+  this dev environment.** Before writing any UI code, confirmed Fyne
+  itself builds and runs (a probe window gets a real, valid Win32 handle:
+  `IsWindowVisible=true`, plausible on-screen coordinates, same
+  `SessionId` as the interactive session) but that window never appears
+  in a screenshot taken from this session (tried `FYNE_RENDERER=software`
+  too — same result). Root cause not confirmed. Raised with the user
+  before proceeding; the user chose to continue on headless-only
+  verification (`fyne.io/fyne/v2/test`, `scripts/check.sh`/`smoke.sh`)
+  rather than pause the phase to chase the screenshot issue. This applies
+  to every stage in this phase, not just 3.1 — each stage's audit repeats
+  the point rather than assuming it's remembered. **Whoever can actually
+  see the app should look at it** before treating any 3.1–3.6 layout as
+  final.
 
 - **v1 uses a fixed layout** (tree + tabs). No auto-hide/floating/docking
   equivalent to the original `WeifenLuo` docking — a known, communicated UX
