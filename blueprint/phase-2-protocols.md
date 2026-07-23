@@ -15,7 +15,7 @@ stages 2.5 and 2.7.
 | 2.2 | SSH, Telnet, rlogin, raw socket, serial | done | claude-code |
 | 2.3 | HTTP/HTTPS (native webview) | done | claude-code |
 | 2.4 | VNC | done | claude-code |
-| 2.5 | RDP (external xfreerdp + reparent) | pending | claude-code |
+| 2.5 | RDP (external xfreerdp + reparent) | done | claude-code |
 | 2.6 | PowerShell remoting (WinRM) | pending | opencode |
 | 2.7 | AnyDesk (external process) | pending | claude-code |
 
@@ -103,6 +103,25 @@ stages 2.5 and 2.7.
   clipboard) — controlled only via CLI flags and `.rdp` files; redirection
   is v2 backlog.
 - **Never link libfreerdp** (GPLv2 vs Apache-2.0).
+- **2026-07-23 (claude-code)**: implemented as `protocol.WindowProtocol`
+  (same interface stage 2.3 introduced). Windows: launches
+  `sdl-freerdp.exe` (not `mstsc` — the spike found it an unreliable
+  embedding target, kept only as documented fallback), then locates its
+  session window with the spike's find-and-adopt retry loop and reparents
+  it with the exact validated recipe (`EmbedChild` in `embed_windows.go`:
+  `SetParent` → restyle → `SetWindowPos(FRAMECHANGED)` →
+  `GetAncestor`-verify). Genuinely tested end-to-end — including the
+  DPI-awareness dance — using a self-created parent window and
+  `mspaint.exe` as an external-process stand-in for FreeRDP (Notepad
+  doesn't work as a test target on this Windows 11 install: it's now an
+  MSIX-packaged app whose launched pid isn't the one owning the window;
+  `mspaint.exe` was checked and confirmed not redirected before using it).
+  Linux: launches `xfreerdp` and tracks its lifecycle, but window
+  discovery/embedding is **not implemented** — this session has no X
+  server, no `xfreerdp` binary, and no way to validate `xgb`-based
+  EWMH-parsing code, so `NativeWindowHandle()` returns 0 on Linux rather
+  than shipping unverified protocol code. See the stage audit for the
+  full account and pending actions.
 
 ### 2.6 PowerShell remoting
 - WinRM via existing Go libraries; lowest priority of the phase.
