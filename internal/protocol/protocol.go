@@ -35,9 +35,13 @@ type Protocol interface {
 	// the UI when the user activates this session's tab.
 	Focus()
 
-	// Resize notifies the backend that its allotted view size changed, in
-	// pixels. Backends that cannot resize a live session (most
-	// external-process backends embedded by window reparenting) may treat
+	// Resize notifies the backend that its allotted view size changed. The
+	// unit is backend-defined: window-embedded backends (RDP, VNC,
+	// AnyDesk) treat it as pixels, matching the reparented window's client
+	// area; terminal backends (SSH, Telnet, rlogin, raw, serial — see
+	// TerminalProtocol) treat it as character cells (width=columns,
+	// height=rows), matching the PTY size their wire protocol actually
+	// negotiates. Backends that cannot resize a live session may treat
 	// this as a no-op.
 	Resize(width, height int)
 
