@@ -1,8 +1,11 @@
 package main
 
 import (
+	"log"
+
 	"fyne.io/fyne/v2/app"
 
+	"github.com/mRemoteNG/mremoteng-go/internal/connection"
 	"github.com/mRemoteNG/mremoteng-go/internal/ui"
 
 	// Blank-imported so each protocol backend's init() registers itself
@@ -25,5 +28,17 @@ import (
 func main() {
 	a := app.NewWithID(ui.AppID)
 	shell := ui.NewShell(a)
+
+	// No persistence yet (stage 3.5) and no "open file" flow yet (stage
+	// 3.4/3.5), so the tree starts empty — an empty real connection.Node
+	// tree, not the placeholder label NewShell defaults to. Loading a
+	// real .xml connections file into this tree is what will actually
+	// satisfy Phase 2/3's shared "demo config file" exit criterion.
+	root, err := connection.NewRootInfo()
+	if err != nil {
+		log.Fatalf("mremoteng: create connection tree root: %v", err)
+	}
+	shell.SetTree(ui.NewConnectionTree(root).Widget)
+
 	shell.Window.ShowAndRun()
 }
