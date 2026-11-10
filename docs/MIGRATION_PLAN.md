@@ -1,98 +1,55 @@
-# Migration plan: mRemoteNG (C#/WinForms) → Go + FreeRDP (external process)
+# Linux-first standalone application plan
 
-Source: analysis and planning done against the original repository at
-`../mRemoteNG`. This document is the phase reference; the operational
-per-stage detail lives in `blueprint/`. Do not duplicate its content in
-other documents — link here instead.
+## Product decision
 
-## Non-negotiable architectural principle
+The user authorized a standalone Linux-first direction on 2026-11-08.
+C#/.NET, Windows availability and complete mRemoteNG parity are not prerequisites
+for development or Linux preview acceptance. Existing Go serializers, security
+code and compatibility fixtures remain supported regression coverage; do not
+claim their incomplete C# corpus is complete. No license change is implied.
 
-RDP and AnyDesk are integrated **only as external processes embedded by
-window reparenting**, never by linking code (no cgo against `libfreerdp` or
-similar). The original mRemoteNG is GPLv2; FreeRDP is Apache-2.0
-(incompatible for direct linking according to the FSF). For window
-embedding:
+## Architecture
 
-- Linux: `github.com/BurntSushi/xgb` (pure-Go X11 protocol, no cgo, no
-  libX11 linking).
-- Windows: `golang.org/x/sys/windows` (`SetParent`/`SetWindowLong` via
-  syscall).
+- Go + Fyne desktop application, fixed connection list/editor layout initially.
+- Native Linux profiles use a versioned JSON file in the user configuration
+  directory, atomic replacement and owner-only permissions. The first increment
+  stores endpoint metadata only, never passwords, tokens or private keys.
+- Existing XML/CSV serializers remain optional interoperability adapters, not
+  the native storage contract. Import must not overwrite source files.
+- SSH and RDP come next. RDP remains an external FreeRDP process; never link
+  libfreerdp. Embedding uses X11/XWayland, not native Wayland (see spike findings).
+- Windows, other protocols, full inheritance editing, vaults, docking and
+  distribution packages are deferred until Linux workflows are validated.
 
-`xfreerdp` is a *runtime* dependency (like `PuTTYNG.exe` in the original
-project), never a *build* dependency.
+## Delivery sequence and acceptance
 
-## Phase 0 — Validation spike (2–3 weeks)
+The active stage table is in `blueprint/linux-preview.md` and supersedes the
+ordering and release gates in the historical phase files.
 
-- Fyne prototype + `xfreerdp` window reparenting on X11.
-- Same prototype on Windows with `SetParent`.
-- Validate behavior under Wayland (expected: requires XWayland).
-- Exit criterion: if reparenting is unreliable on modern GNOME/KDE, decide
-  here whether the limitation is acceptable before continuing.
+1. **L1 — Local profile manager:** runnable desktop with the mRemoteNG layout
+   (menu, toolbar, connection tree with folders, session tabs, Config panel,
+   status bar), Welcome tab, create/edit/delete/filter of SSH and RDP profiles,
+   input validation, durable local storage, visible errors and no pretend
+   Connect action. Test model, persistence and UI actions; provide a Linux
+   build and manual usability steps (`docs/linux-preview-usability.md`).
+2. **L2 — Real sessions:** protocol lifecycle, SSH host-key verification and
+   external FreeRDP, cancellation/exit/error handling. No passwords on command
+   lines, silent certificate bypass or execution of imported shell commands.
+   Local test servers plus explicit human-authorized remote endpoints are required
+   before claiming end-to-end connection success. Partial delivery: the SSH probe
+   (handshake, known_hosts verification, agent/key/password auth, session channel)
+   is implemented and tested against an in-process server; the interactive
+   terminal and RDP embedding remain open.
+3. **L3 — Usable preview:** optional XML import, encrypted credential strategy,
+   session tabs, shortcuts, unsaved-change handling and accessibility review.
+4. **L4 — Linux release candidate:** repeatable packaging, upgrade/recovery tests,
+   X11 and GNOME/KDE XWayland coverage, human usability acceptance and limitations.
+5. **Later:** Windows and additional protocols based on actual demand.
 
-## Phase 1 — Data core (model parity, no UI or protocols)
+## Verification and honest status
 
-Mapping from the original C#:
-
-| Original C# | Go target |
-|---|---|
-| `Connection/AbstractConnectionRecord.cs`, `ConnectionInfo.cs` | `internal/connection` |
-| `Connection/ConnectionInfoInheritance.cs` | Inheritance resolution without runtime reflection; use `go:generate` or an explicit type switch |
-| `Container/ContainerInfo.cs` | `internal/connection` (homogeneous tree) |
-| `Config/Serializers/ConnectionSerializers/Xml/*` (v26/27/28) | `internal/serialize/xml` (same versioned pattern keyed on `ConfVersion`) |
-| `Config/Serializers/ConnectionSerializers/Csv/*` | `internal/serialize/csv` |
-| `Security/SymmetricEncryption/AeadCryptographyProvider.cs` | `internal/security` (stdlib `crypto/cipher`, AES-GCM) |
-| `Security/KeyDerivation/Pkcs5S2KeyGenerator.cs` | `internal/security` (`golang.org/x/crypto/pbkdf2`) |
-| `LegacyRijndaelCryptographyProvider.cs` | `internal/security` (`crypto/aes` CBC, legacy read-only) |
-
-**Critical acceptance test**: generate connection `.xml` files with the
-original C# app (several `ConfVersion` values, encrypted and plain) and
-verify the Go port produces identical results when decrypting/reading.
-Blocking for Phase 2.
-
-## Phase 2 — Protocols (increasing risk order)
-
-1. SSH / Telnet / rlogin / raw socket — native Go (`golang.org/x/crypto/ssh`).
-2. HTTP/HTTPS — OS-native webview (`github.com/webview/webview_go`).
-3. VNC — build on an existing base library (gap-filling work).
-4. RDP — external `xfreerdp`/`wlfreerdp` process + reparent. v1 without
-   disk/printer/clipboard redirection (v2 backlog).
-5. PowerShell remoting — WinRM via existing Go libraries.
-6. AnyDesk — same pattern as RDP (proprietary protocol).
-
-## Phase 3 — UI
-
-- Toolkit: Fyne for the connection tree, tabs, dialogs, menus.
-- Panel docking: **v1 simplifies to a fixed layout** (no auto-hide/floating
-  equivalent to the original `PanelBinder.cs`/`DockPanelLayoutLoader.cs`);
-  revisit as v2 based on demand.
-- Theming: manual reimplementation of the original `Themes/` as Fyne
-  palettes.
-- External credentials (original `ExternalConnectors/`: AWS, 1Password,
-  Vault/OpenBao, Passwordstate, Delinea) — REST/CLI clients, port well.
-
-## Phase 4 — Packaging
-
-- Single Go binary per platform (`GOOS=linux/windows`, `GOARCH=amd64/arm64`).
-- `xfreerdp` is not vendored: package dependency on Linux
-  (`.deb`/`.rpm`/Flatpak), official binary shipped next to the portable
-  `.zip` on Windows.
-- Keep the original project's Stable/Preview/Nightly channel structure
-  during the transition.
-
-## Phase 5 — Migration and cutover
-
-- Direct import of existing connection files (covered by the Phase 1 test).
-- Windows registry options (original `Config/Settings/Registry/`) do not
-  apply on Linux; document a config-file equivalent for enterprise
-  deployments.
-- Parallel coexistence as a "Preview" channel until RDP + SSH parity.
-- Deprecate the C#/WinForms version only after a stable release cycle with
-  real-user feedback.
-
-## Open risks to decide early
-
-1. Wayland: no guaranteed native support, XWayland dependency.
-2. Panel docking: functionality loss in v1 (product decision).
-3. Reflection-based inheritance: needs redesign, not mechanical translation.
-4. Scope: this is a full rewrite — hence a separate repository, not a
-   branch of the original.
+Run `scripts/check.sh` and `scripts/smoke.sh` for each delivery. Keep automated
+headless UI tests distinct from real desktop usability and remote-host tests.
+A preview may be delivered with documented manual validation pending; do not
+mark its human acceptance done until evidence exists. Existing C# corpus tests
+remain in the suite but are no longer a release gate for native Linux profiles.

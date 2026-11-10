@@ -4,6 +4,475 @@
 <!-- Source: fragments in changelog.d/*.md -->
 <!-- Regenerate: make changelog  (or: go run ./cmd/changelog compile) -->
 
+## 2026-11-10
+
+- Add a native VNC client and session view
+  - `internal/protocol/vnc`
+  - `internal/ui/vnc.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/treerow.go`
+  - `internal/ui/properties.go`
+  - `internal/ui/ui_test.go`
+  - `internal/profiles/profiles.go`
+  - `internal/profiles/profiles_test.go`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l8-vnc-20261109-opencode.md`
+  - _2026-11-10 19:20:40 UTC — opencode_
+- Add Quick connect for temporary sessions
+  - `internal/ui/quickconnect.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l10-20261109-opencode.md`
+  - _2026-11-10 19:21:15 UTC — opencode_
+- Add Telnet, RAW, rlogin and HTTP sessions
+  - `internal/protocol/telnet`
+  - `internal/ui/stream.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/properties.go`
+  - `internal/ui/treerow.go`
+  - `internal/ui/ui_test.go`
+  - `internal/profiles`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l8-streams-20261109-opencode.md`
+  - _2026-11-10 19:24:41 UTC — opencode_
+- Add an encrypted credential vault with a master password
+  - `internal/vault`
+  - `internal/ui/vault.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l9-20261109-opencode.md`
+  - _2026-11-10 19:33:13 UTC — opencode_
+- Persist collapsed folders across restarts
+  - `internal/profiles/store.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/folders.go`
+  - `internal/ui/transfer.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l10-workspace-20261109-opencode.md`
+  - _2026-11-10 19:43:23 UTC — opencode_
+- Add diagnostics and close sessions cleanly on exit
+  - `internal/ui/diagnostics.go`
+  - `internal/ui/session.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l11-20261109-opencode.md`
+  - _2026-11-10 19:59:08 UTC — opencode_
+- Package the release as a Debian package
+  - `scripts/package-deb.sh`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l12-20261109-opencode.md`
+  - _2026-11-10 19:59:49 UTC — opencode_
+- Copy the terminal screen, repair a damaged store and add gateway flags
+  - `internal/ui/repair.go`
+  - `internal/ui/terminal.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `internal/protocol/rdp`
+  - `README.md`
+  - `docs/verification-report.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l10-copy-20261109-opencode.md`
+  - _2026-11-10 20:12:01 UTC — opencode_
+- Add a collapsible activity log with its own toggle
+  - `internal/ui/log.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - _2026-11-10 20:23:36 UTC — opencode_
+- Keep the activity log at a fixed height
+  - `internal/ui/log.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 20:25:29 UTC — opencode_
+- Collapse log entries and summarize RDP errors
+  - `internal/ui/log.go`
+  - `internal/protocol/rdp/rdp.go`
+  - `internal/protocol/rdp/rdp_test.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 20:28:17 UTC — opencode_
+- Select and copy terminal text with the mouse
+  - `internal/ui/terminal.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - _2026-11-10 20:40:49 UTC — opencode_
+- Fix terminal drag selection and clipboard copying
+  - `internal/ui/terminal.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 21:00:12 UTC — opencode_
+- Add terminal scrollback, right-click copy and Ctrl-C interrupt
+  - `internal/terminal/terminal.go`
+  - `internal/terminal/terminal_test.go`
+  - `internal/ui/terminal.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 21:09:33 UTC — opencode_
+- Scroll the terminal with the keyboard and during drag
+  - `internal/ui/terminal.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - _2026-11-10 21:12:42 UTC — opencode_
+- Clear the terminal selection after copying it
+  - `internal/ui/terminal.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 21:14:16 UTC — opencode_
+- Stop duplicated scrollback and clear the terminal on disconnect
+  - `internal/terminal/terminal.go`
+  - `internal/terminal/terminal_test.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 21:17:47 UTC — opencode_
+- Re-enable the password field after a session ends
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 21:19:35 UTC — opencode_
+- Give the terminal keyboard focus when a session starts
+  - `internal/ui/terminal.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 21:24:37 UTC — opencode_
+- Send Ctrl combinations to the terminal
+  - `internal/ui/terminal.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - _2026-11-10 21:27:09 UTC — opencode_
+
+## 2026-11-09
+
+- Send Tab to the SSH terminal instead of moving focus
+  - `internal/ui/terminal.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 17:55:45 UTC — opencode_
+- Slim the window chrome: narrow collapsible tree, inline delete, single session bar
+  - `internal/ui/properties.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:05:02 UTC — opencode_
+- Fix the sidebar toggle crash and narrow the tree pane
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-09 18:07:42 UTC — opencode_
+- Reduce the sidebar toggle to a compact icon button
+  - `internal/ui/shell.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:09:42 UTC — opencode_
+- Stamp builds with version and relaunch through scripts/dev.sh
+  - `cmd/mremoteng/main.go`
+  - `internal/ui/shell.go`
+  - `scripts/dev.sh`
+  - `Makefile`
+  - `README.md`
+  - `AGENTS.md`
+  - _2026-11-09 18:11:58 UTC — opencode_
+- Move panel toggles into the status bar and drop the toolbar
+  - `internal/ui/shell.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:14:32 UTC — opencode_
+- Shrink the connection tree to its minimum width
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:15:52 UTC — opencode_
+- Add protocol badges and hover hints to the connection tree
+  - `internal/ui/treerow.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:22:53 UTC — opencode_
+- Use circular protocol badges, hover status hints and a hidden-by-default Config panel
+  - `internal/ui/treerow.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:32:07 UTC — opencode_
+- Add FreeRDP sessions with stdin credentials and auth-only checks
+  - `internal/protocol/rdp`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:37:00 UTC — opencode_
+- Keep the Config panel hidden across selections and add legacy RDP security
+  - `internal/ui/actions.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - `internal/protocol/rdp`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:46:30 UTC — opencode_
+- Verify the SSH client and shell against a container
+  - `internal/protocol/ssh/ssh_test.go`
+  - _2026-11-09 18:49:41 UTC — opencode_
+- Verify RDP sessions against a local xrdp container
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:51:33 UTC — opencode_
+- Embed RDP sessions in the tab and rescale them with the window
+  - `internal/ui/embed.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `go.mod`
+  - `go.sum`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 18:55:46 UTC — opencode_
+- Embed RDP sessions with the x11 build tag and explicit certificate handling
+  - `internal/ui/embed.go`
+  - `internal/ui/session.go`
+  - `internal/protocol/rdp/rdp.go`
+  - `internal/protocol/rdp/rdp_test.go`
+  - `scripts/dev.sh`
+  - `scripts/smoke.sh`
+  - `README.md`
+  - `AGENTS.md`
+  - `go.mod`
+  - `go.sum`
+  - _2026-11-09 19:10:31 UTC — opencode_
+- Keep the embedded RDP session inside its tab and scale it with the window
+  - `internal/ui/embed.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 19:26:19 UTC — opencode_
+- Add persistent folders, a compact theme and a 15 percent tree
+  - `internal/profiles/store.go`
+  - `internal/profiles/profiles_test.go`
+  - `internal/ui/tree.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/theme.go`
+  - `internal/ui/ui_test.go`
+  - `cmd/mremoteng/main.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 20:25:01 UTC — opencode_
+- Support renaming, deleting and moving connections between folders
+  - `internal/ui/folders.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 20:37:46 UTC — opencode_
+- Add row context menus and drag to move connections between folders
+  - `internal/ui/menu.go`
+  - `internal/ui/drop.go`
+  - `internal/ui/treerow.go`
+  - `internal/ui/folders.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 20:59:39 UTC — opencode_
+- Allow mouse-only moves and folder creation from the row menu
+  - `internal/ui/menu.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 21:02:35 UTC — opencode_
+- Add mouse-only rename dialogs with an on-screen keyboard
+  - `internal/ui/keypad.go`
+  - `internal/ui/folders.go`
+  - `internal/ui/menu.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 21:05:06 UTC — opencode_
+- Compact the session bar to stop horizontal scrolling in tabs
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-09 21:08:28 UTC — opencode_
+- Open connections from row taps after enabling dragging
+  - `internal/ui/treerow.go`
+  - `internal/ui/menu.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-09 21:10:35 UTC — opencode_
+- Align the Config form and session bar, and settle the session watcher
+  - `internal/ui/properties.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-09 21:12:49 UTC — opencode_
+- Avoid tree auto-scroll when creating folders
+  - `internal/ui/actions.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-09 21:15:15 UTC — opencode_
+- Replace overflowing folder dialogs with a fixed-width keypad dialog
+  - `internal/ui/folders.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-09 21:17:39 UTC — opencode_
+- Route New folder through the compact keyboard dialog
+  - `internal/ui/actions.go`
+  - `internal/ui/folders.go`
+  - _2026-11-09 21:24:30 UTC — opencode_
+- Remove the on-screen keyboard from the rename dialogs
+  - `internal/ui/folders.go`
+  - `internal/ui/keypad.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-09 21:34:13 UTC — opencode_
+- Polish the window palette, headers and session bar hierarchy
+  - `internal/ui/theme.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/properties.go`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - _2026-11-09 21:43:52 UTC — opencode_
+- Add button icons, remember window geometry and hide embedded RDP off-tab
+  - `internal/ui/window_state.go`
+  - `internal/ui/embed.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/properties.go`
+  - `internal/ui/ui_test.go`
+  - `cmd/mremoteng/main.go`
+  - _2026-11-09 21:51:55 UTC — opencode_
+- Add an embedded application icon
+  - `internal/ui/icon.go`
+  - `internal/ui/assets/icon.svg`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `cmd/mremoteng/main.go`
+  - _2026-11-09 22:00:50 UTC — opencode_
+- Install a desktop entry so the app icon appears in the desktop grid
+  - `internal/ui/window_state.go`
+  - `internal/ui/desktop.go`
+  - `internal/ui/ui_test.go`
+  - `cmd/mremoteng/main.go`
+  - `scripts/install-desktop.sh`
+  - `README.md`
+  - _2026-11-09 22:04:04 UTC — opencode_
+- Add a release build and local installer
+  - `scripts/release.sh`
+  - `scripts/dev.sh`
+  - `VERSION`
+  - `Makefile`
+  - `README.md`
+  - `cmd/mremoteng/main.go`
+  - _2026-11-09 22:06:51 UTC — opencode_
+- Plan the post-L4 improvements in blueprint/backlog.md
+  - `blueprint/backlog.md`
+  - `blueprint/linux-preview.md`
+  - `blueprint/README.md`
+  - _2026-11-09 22:15:38 UTC — opencode_
+- Import and export mRemoteNG XML and CSV with a preview
+  - `internal/transfer`
+  - `internal/ui/transfer.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l5-20261109-opencode.md`
+  - _2026-11-09 22:19:20 UTC — opencode_
+- Add folder defaults and username/port inheritance
+  - `internal/profiles`
+  - `internal/ui/properties.go`
+  - `internal/ui/folders.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/session.go`
+  - `internal/ui/menu.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l6-20261109-opencode.md`
+  - _2026-11-09 22:25:26 UTC — opencode_
+- Add RDP redirection and display options
+  - `internal/protocol/rdp`
+  - `internal/ui/session.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/backlog.md`
+  - `auditory/linux-l7-20261109-opencode.md`
+  - _2026-11-09 22:26:21 UTC — opencode_
+
+## 2026-11-08
+
+- Tighten repository agent guidance around verified workflows and compatibility checks
+  - `AGENTS.md`
+  - _2026-11-08 21:27:45 UTC — opencode_
+- Add native profile store and mRemoteNG-style Fyne desktop shell
+  - `internal/profiles`
+  - `internal/ui`
+  - `cmd/mremoteng/main.go`
+  - `go.mod`
+  - `go.sum`
+  - `Makefile`
+  - `scripts/smoke.sh`
+  - `README.md`
+  - `AGENTS.md`
+  - `docs/linux-preview-usability.md`
+  - _2026-11-08 21:53:29 UTC — opencode_
+- Record the Linux L1 stage audit
+  - `auditory/linux-l1-20261108-opencode.md`
+  - _2026-11-08 21:53:29 UTC — opencode_
+- Reorient the roadmap to a standalone Linux-first application
+  - `docs/MIGRATION_PLAN.md`
+  - `blueprint/linux-preview.md`
+  - _2026-11-08 21:53:29 UTC — opencode_
+- Add an SSH connectivity probe and a session-tab test panel
+  - `internal/protocol/ssh/internal`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - `docs/MIGRATION_PLAN.md`
+  - _2026-11-08 21:57:06 UTC — opencode_
+- Render an interactive SSH terminal in the session tab
+  - `internal/terminal`
+  - `internal/protocol/ssh`
+  - `internal/ui/terminal.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - `blueprint/linux-preview.md`
+  - `go.mod`
+  - `go.sum`
+  - _2026-11-08 22:10:52 UTC — opencode_
+
 ## 2026-07-16
 
 - Phase 1 stage 1.1: add the connection model and invariant-safe tree

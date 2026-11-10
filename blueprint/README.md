@@ -11,6 +11,8 @@ phases and stages. This is the source of truth for coordinating agents.
 - `phase-3-ui.md` — Fyne interface, tree, tabs, theming, external credentials
 - `phase-4-packaging.md` — cross-platform builds and distribution
 - `phase-5-cutover.md` — user migration and coexistence with the original C# app
+- `linux-preview.md` — active Linux-first stage table (L1-L4)
+- `backlog.md` — ordered plan after L4 (L5-L12)
 
 ## Agent roster and task distribution
 
