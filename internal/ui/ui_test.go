@@ -1795,12 +1795,22 @@ func TestUnionFolders_ParentsFirstWithoutDuplicates(t *testing.T) {
 	}
 }
 
-func TestAboutText_ShowsContactAndFeatureStatus(t *testing.T) {
+func TestAboutText_ShowsFeatureStatus(t *testing.T) {
 	text := aboutText()
-	for _, want := range []string{ContactAddress, "Available:", "SSH", "RDP", "VNC", "Pending:", "Serial ports", "Windows"} {
+	for _, want := range []string{"Available:", "SSH", "RDP", "VNC", "Pending:", "Serial ports", "Windows"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("about text missing %q: %q", want, text)
 		}
+	}
+}
+
+func TestAboutHyperlink_OpensAMailComposer(t *testing.T) {
+	link := aboutHyperlink()
+	if link.Scheme != "mailto" {
+		t.Fatalf("scheme = %q, want mailto", link.Scheme)
+	}
+	if got := link.Opaque + link.Path; got != ContactAddress {
+		t.Errorf("address = %q, want %q", got, ContactAddress)
 	}
 }
 

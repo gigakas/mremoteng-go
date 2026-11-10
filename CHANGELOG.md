@@ -174,6 +174,10 @@
   - `internal/ui/shell.go`
   - `internal/ui/ui_test.go`
   - _2026-11-10 21:47:28 UTC — opencode_
+- Open the About contact with the mail client
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 21:51:07 UTC — opencode_
 
 ## 2026-11-09
 

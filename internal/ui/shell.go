@@ -5,6 +5,7 @@ package ui
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -452,7 +453,31 @@ func (s *screen) showStoreLocation() {
 }
 
 func (s *screen) showAbout() {
-	dialog.ShowInformation("About mRemoteNG Go", aboutText(), s.win)
+	title := widget.NewLabelWithStyle("mRemoteNG Go - Linux preview", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	details := widget.NewLabel(aboutText())
+	details.TextStyle = fyne.TextStyle{Monospace: true}
+	contact := widget.NewHyperlink(ContactAddress, aboutHyperlink())
+
+	var popup *widget.PopUp
+	content := container.NewVBox(
+		title,
+		details,
+		container.NewHBox(widget.NewLabel("Contact:"), contact),
+		container.NewHBox(widget.NewButton("Close", func() { popup.Hide() })),
+	)
+	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(620, 420), container.NewPadded(content)), s.win.Canvas())
+	popup.Show()
+}
+
+// aboutHyperlink is the mailto URL used by the contact link.
+func aboutHyperlink() *url.URL {
+	parsed, err := url.Parse("mailto:" + ContactAddress)
+	if err != nil {
+		// The address is a constant, so a parse failure cannot happen; fall back
+		// to a URL that the OpenURL implementation still understands.
+		return &url.URL{Scheme: "mailto", Opaque: ContactAddress}
+	}
+	return parsed
 }
 
 // ContactAddress is the project contact shown in About.
@@ -461,11 +486,9 @@ const ContactAddress = "ganpforrest@gmail.com"
 // aboutText is the About content: build, contact and the feature status.
 func aboutText() string {
 	builder := strings.Builder{}
-	builder.WriteString("mRemoteNG Go - Linux preview\n")
 	if buildLabel != "" {
-		builder.WriteString("Build " + buildLabel + "\n")
+		builder.WriteString("Build " + buildLabel + "\n\n")
 	}
-	builder.WriteString("Contact: " + ContactAddress + "\n\n")
 	builder.WriteString("Available:\n")
 	builder.WriteString("  SSH (known_hosts, agent/key/password, terminal, scrollback)\n")
 	builder.WriteString("  RDP (FreeRDP embedded in the tab, redirections, gateway flags)\n")
