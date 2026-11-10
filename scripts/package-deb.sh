@@ -34,7 +34,7 @@ Section: net
 Priority: optional
 Architecture: $debarch
 Installed-Size: $installed
-Depends: xfreerdp3 | xfreerdp
+Depends: freerdp3-x11 | freerdp-x11
 Recommends: openssh-client
 Maintainer: mremoteng-go contributors
 Description: mRemoteNG-style connection manager for Linux

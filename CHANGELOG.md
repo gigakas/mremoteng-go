@@ -166,6 +166,10 @@
   - `CHANGELOG.md`
   - `scripts/smoke.sh`
   - _2026-11-10 21:41:48 UTC — opencode_
+- Fix the Debian runtime dependency on FreeRDP
+  - `scripts/package-deb.sh`
+  - `README.md`
+  - _2026-11-10 21:45:48 UTC — opencode_
 
 ## 2026-11-09
 
