@@ -1795,6 +1795,15 @@ func TestUnionFolders_ParentsFirstWithoutDuplicates(t *testing.T) {
 	}
 }
 
+func TestAboutText_ShowsContactAndFeatureStatus(t *testing.T) {
+	text := aboutText()
+	for _, want := range []string{ContactAddress, "Available:", "SSH", "RDP", "VNC", "Pending:", "Serial ports", "Windows"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("about text missing %q: %q", want, text)
+		}
+	}
+}
+
 func TestDesktopEntry_MatchesInstalledPaths(t *testing.T) {
 	entry := DesktopEntry("/opt/mremoteng/bin/mremoteng", "mremoteng-go")
 	if got := DesktopEntryExec(entry); got != "/opt/mremoteng/bin/mremoteng" {

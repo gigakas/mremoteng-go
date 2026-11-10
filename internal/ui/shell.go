@@ -452,16 +452,32 @@ func (s *screen) showStoreLocation() {
 }
 
 func (s *screen) showAbout() {
-	title := "mRemoteNG Go"
+	dialog.ShowInformation("About mRemoteNG Go", aboutText(), s.win)
+}
+
+// ContactAddress is the project contact shown in About.
+const ContactAddress = "ganpforrest@gmail.com"
+
+// aboutText is the About content: build, contact and the feature status.
+func aboutText() string {
+	builder := strings.Builder{}
+	builder.WriteString("mRemoteNG Go - Linux preview\n")
 	if buildLabel != "" {
-		title += " " + buildLabel
+		builder.WriteString("Build " + buildLabel + "\n")
 	}
-	dialog.ShowInformation("About mRemoteNG Go",
-		title+"\n\n"+
-			"A Go implementation of the mRemoteNG connection manager (menu, connection tree, "+
-			"session tabs and Config panel).\n\n"+
-			"Connection profiles are stored locally. SSH and RDP sessions are not implemented yet.",
-		s.win)
+	builder.WriteString("Contact: " + ContactAddress + "\n\n")
+	builder.WriteString("Available:\n")
+	builder.WriteString("  SSH (known_hosts, agent/key/password, terminal, scrollback)\n")
+	builder.WriteString("  RDP (FreeRDP embedded in the tab, redirections, gateway flags)\n")
+	builder.WriteString("  VNC, Telnet, RAW, rlogin, HTTP handoff\n")
+	builder.WriteString("  Profiles with folders, defaults and inheritance\n")
+	builder.WriteString("  mRemoteNG XML/CSV import and export\n")
+	builder.WriteString("  Encrypted credential vault, activity log, diagnostics\n\n")
+	builder.WriteString("Pending:\n")
+	builder.WriteString("  Serial ports and embedded webview\n")
+	builder.WriteString("  RD Gateway user interface, session restore\n")
+	builder.WriteString("  Flatpak/rpm packages and the Windows port\n")
+	return builder.String()
 }
 
 func (s *screen) setCounts() {

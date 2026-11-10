@@ -170,6 +170,10 @@
   - `scripts/package-deb.sh`
   - `README.md`
   - _2026-11-10 21:45:48 UTC — opencode_
+- Show the contact and feature status in About
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-10 21:47:28 UTC — opencode_
 
 ## 2026-11-09
 
