@@ -14,9 +14,17 @@ working in parallel cannot collide).
 1. With the changes already in the working tree, run:
 
    ```bash
-   go run ./cmd/changelog new -agent claude-code -summary "<one-line summary, imperative mood>"
+   go run ./cmd/changelog new \
+     -agent claude-code \
+     -summary "<one-line title, imperative mood>" \
+     -description "<what changed, why, how it was validated>"
    ```
 
+   - `-summary` is a short title.
+   - `-description` is where the bitácora explanation goes — **required**
+     unless the change is genuinely trivial (e.g. a typo fix); the tool
+     prints a warning if it's omitted. Cover what changed, why, how it was
+     validated, and any deviation/trade-off worth recording.
    - Affected files are detected automatically from git.
    - To record only a subset: `-files path/a.go,path/b.go`.
    - The command also recompiles `CHANGELOG.md` automatically.
@@ -27,6 +35,6 @@ working in parallel cannot collide).
 
 - One fragment per logical change, not per file.
 - The summary must not contain the `---` sequence.
-- Summaries are written in English.
+- Summaries and descriptions are written in English.
 - When working on a blueprint phase, mention it in the summary
   (e.g. "Phase 1: add XML v26 parser").

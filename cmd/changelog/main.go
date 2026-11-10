@@ -43,8 +43,9 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
-  changelog new -agent <name> -summary "<summary>" [-files a.go,b.go]
+  changelog new -agent <name> -summary "<summary>" [-description "<details>"] [-files a.go,b.go]
       Create a fragment in changelog.d/ and recompile CHANGELOG.md.
+      -description should explain every change made (the bitácora).
       Without -files, affected files are detected from git.
   changelog compile
       Regenerate CHANGELOG.md from the fragments.`)
@@ -54,6 +55,7 @@ func runNew(args []string) {
 	fs := flag.NewFlagSet("new", flag.ExitOnError)
 	agent := fs.String("agent", "", "agent name (claude-code, opencode, ...)")
 	summary := fs.String("summary", "", "one-line change summary, imperative mood")
+	description := fs.String("description", "", "detailed multi-line explanation of what changed and why (recommended)")
 	files := fs.String("files", "", "comma-separated list of affected files (optional)")
 	_ = fs.Parse(args)
 
@@ -90,6 +92,12 @@ func runNew(args []string) {
 	}
 	b.WriteString("---\n\n")
 	b.WriteString(strings.TrimSpace(*summary) + "\n")
+	if strings.TrimSpace(*description) != "" {
+		b.WriteString("\n" + strings.TrimSpace(*description) + "\n")
+	}
+	if *description == "" {
+		fmt.Fprintln(os.Stderr, "warning: -description is empty; provide a detailed explanation for the changelog bitácora")
+	}
 
 	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
 		fatal(err)

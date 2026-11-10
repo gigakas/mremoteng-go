@@ -11,13 +11,13 @@ stages 2.5 and 2.7.
 
 | # | Stage | Status | Agent |
 |---|---|---|---|
-| 2.1 | Protocol interface + factory | pending | claude-code |
-| 2.2 | SSH, Telnet, rlogin, raw socket, serial | pending | claude-code |
-| 2.3 | HTTP/HTTPS (native webview) | pending | any |
-| 2.4 | VNC | pending | opencode |
-| 2.5 | RDP (external xfreerdp + reparent) | pending | claude-code |
-| 2.6 | PowerShell remoting (WinRM) | pending | opencode |
-| 2.7 | AnyDesk (external process) | pending | claude-code |
+| 2.1 | Protocol interface + factory | done | claude-code |
+| 2.2 | SSH, Telnet, rlogin, raw socket, serial | done | claude-code |
+| 2.3 | HTTP/HTTPS (native webview) | done | claude-code |
+| 2.4 | VNC | done | claude-code |
+| 2.5 | RDP (external xfreerdp + reparent) | done | claude-code |
+| 2.6 | PowerShell remoting (WinRM) | done | claude-code |
+| 2.7 | AnyDesk (external process) | done | claude-code |
 
 ### Parallelism & collision notes
 
@@ -68,6 +68,28 @@ stages 2.5 and 2.7.
 - OS-native webview (WebView2 on Windows, WebKitGTK on Linux) via a thin
   wrapper. This is the only place where cgo is acceptable, and only through
   the wrapper library.
+- **2026-07-23 (claude-code)**: first attempt blocked — this dev
+  environment had no C compiler and no admin rights to install one via
+  chocolatey. Unblocked in the same session by downloading a portable,
+  no-installer mingw-w64 build (winlibs.com/GitHub releases, plain zip
+  extract, no admin needed) to a session-scratch directory and prepending
+  its `bin/` to `PATH`. **This is not a permanent fixture of the dev
+  environment** — it lives outside the repo and outside any durable
+  machine state, so a future session/agent on a machine without a C
+  compiler will hit the same block and needs to repeat this (or have a
+  proper mingw-w64 install with admin rights, or work from Linux with
+  WebKitGTK dev headers instead).
+- Implemented on `github.com/webview/webview_go`. Found and fixed a real
+  cross-thread bug in that library while writing the first integration
+  test: its Windows backend's `Terminate()` is a bare `PostQuitMessage(0)`,
+  which is thread-local in Win32 and silently does nothing when called
+  from a goroutine other than the one running the message loop — despite
+  the library's own doc comment claiming `Terminate` is safe to call from
+  another thread (true for its GTK backend, which internally dispatches;
+  not true for Win32). Worked around by routing `Terminate` through
+  `Dispatch` (which correctly marshals via `PostMessageW` to the
+  webview's message-only window) instead of calling it directly. See the
+  stage audit for the full account.
 
 ### 2.4 VNC
 - Build on the most complete existing Go VNC client library; fill gaps
@@ -81,13 +103,93 @@ stages 2.5 and 2.7.
   clipboard) — controlled only via CLI flags and `.rdp` files; redirection
   is v2 backlog.
 - **Never link libfreerdp** (GPLv2 vs Apache-2.0).
+- **2026-07-23 (claude-code)**: implemented as `protocol.WindowProtocol`
+  (same interface stage 2.3 introduced). Windows: launches
+  `sdl-freerdp.exe` (not `mstsc` — the spike found it an unreliable
+  embedding target, kept only as documented fallback), then locates its
+  session window with the spike's find-and-adopt retry loop and reparents
+  it with the exact validated recipe (`EmbedChild` in `embed_windows.go`:
+  `SetParent` → restyle → `SetWindowPos(FRAMECHANGED)` →
+  `GetAncestor`-verify). Genuinely tested end-to-end — including the
+  DPI-awareness dance — using a self-created parent window and
+  `mspaint.exe` as an external-process stand-in for FreeRDP (Notepad
+  doesn't work as a test target on this Windows 11 install: it's now an
+  MSIX-packaged app whose launched pid isn't the one owning the window;
+  `mspaint.exe` was checked and confirmed not redirected before using it).
+  Linux: launches `xfreerdp` and tracks its lifecycle, but window
+  discovery/embedding is **not implemented** — this session has no X
+  server, no `xfreerdp` binary, and no way to validate `xgb`-based
+  EWMH-parsing code, so `NativeWindowHandle()` returns 0 on Linux rather
+  than shipping unverified protocol code. See the stage audit for the
+  full account and pending actions.
 
 ### 2.6 PowerShell remoting
 - WinRM via existing Go libraries; lowest priority of the phase.
+- **2026-07-23 (claude-code)**: implemented as `protocol.TerminalProtocol`
+  on `github.com/masterzen/winrm` (opens a raw WinRM shell, runs
+  `cmd.exe` interactively, merges stdout/stderr into one stream — reusing
+  the existing io.ReadWriter shape from stage 2.2 rather than PowerShell's
+  richer PSRP object protocol, a deliberate v1 scope cut noted in the
+  package doc comment). `go.mod` pins the client to a 2021 commit (no
+  tagged releases exist) rather than current HEAD: HEAD's response parser
+  rejects the SOAP responses from `github.com/dylanmei/winrmtest` (the
+  standard fake-server test double for this library, itself unmaintained
+  since 2021) with "unsupported action" — a real compatibility drift
+  found by running the tests, not assumed. Found and fixed a real
+  deadlock while writing the Disconnect-idempotency test: an `io.Pipe`-
+  based stdout/stderr merge blocks Write until something Reads, so
+  disconnecting a session nobody had ever read from left the drain
+  goroutines — and thus `Disconnect` itself — hung forever; replaced with
+  a small non-blocking `growingBuffer`. See the stage audit for the full
+  account, including a known, timing-sensitive (not fully root-caused)
+  gap specific to the old test double.
 
 ### 2.7 AnyDesk
 - Same external-process + reparent pattern as RDP (proprietary protocol).
+- **2026-07-23 (claude-code)**: implemented as `protocol.WindowProtocol`,
+  reusing `internal/protocol/winembed` (extracted from stage 2.5's RDP
+  implementation in this same session, since AnyDesk is the second
+  consumer of the exact same find-and-adopt/DPI-aware-SetParent
+  mechanism — the spike's own notes anticipated this: "The same loop
+  re-embeds when a client re-creates its window later (AnyDesk prep,
+  stage 2.7)"). **AnyDesk itself is not installed in this dev
+  environment, and was deliberately not fetched** — unlike the mingw
+  compiler (stage 2.3) or FreeRDP, AnyDesk is live remote-access software
+  with account/ID/telemetry behavior; downloading and running it
+  unattended was judged a different, higher-stakes category of action
+  than fetching a build tool, so it wasn't done without the user being
+  aware. The client-launch and CLI-argument-building code follows
+  AnyDesk's documented command-line interface but is **unverified
+  against a real binary** — only `Connect`'s "client not found" error
+  path is actually exercised by tests here. Linux window
+  discovery/embedding is not implemented, same as RDP's Linux gap, with
+  an added wrinkle: AnyDesk has no documented `/parent-window`-equivalent
+  flag even for a properly resourced future attempt, so it would need the
+  generic reparent-after-launch approach the spike explicitly left
+  "unfinished on purpose" (`docs/spike-x11.md`). See the stage audit for
+  the full account and pending actions.
 
 ## Exit criteria
 Stages done with audits; a demo config file connects successfully over SSH,
 VNC and RDP on both platforms; top-level README updated.
+
+**2026-07-23 (claude-code) — partial**: all seven stages are done with
+audits (see `auditory/phase2-stage{1..7}-20260723-claude-code.md`, plus
+2.2/2.3/2.4 also dated 20260723). Each backend has real tests where an
+in-process fake server or a genuine external-process/window mechanism
+could be built (SSH, VNC, WinRM against fake servers; the RDP/AnyDesk
+window-embedding mechanism against real Win32 windows). **The phase-level
+"demo config file connects... on both platforms" criterion is not met**:
+there is no runner yet that loads a real mRemoteNG XML config
+(Phase 1's deserializer) and dispatches to `protocol.Create` end-to-end —
+that wiring doesn't exist as a deliverable of any Phase 2 stage, and
+arguably belongs with Phase 3 (the UI is what will actually do this in
+production) or a dedicated `integration/` test. Nothing was tested against
+a *real* RDP/AnyDesk/WinRM server, only fakes/mechanism proofs, and Linux
+has no execution environment available in this session at all (several
+backends have explicit, documented Linux gaps as a result). Top-level
+`README.md` was deliberately **not** updated to claim phase completion,
+since that would overstate what's demonstrated. Recommend: either build a
+minimal `integration/` demo-config-connect test as an explicit follow-up
+task, or fold this criterion into Phase 3's own closing criteria once a
+real UI/runner exists to satisfy it meaningfully.

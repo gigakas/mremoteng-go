@@ -207,6 +207,7 @@ func readFixture(t *testing.T, name string) []byte {
 
 func validateFixtureDigest(t *testing.T, data []byte, want string) {
 	t.Helper()
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
 	digest := sha256.Sum256(data)
 	got := hex.EncodeToString(digest[:])
 	if got != want {

@@ -89,6 +89,90 @@ func TestRender_ChronologicalOrder(t *testing.T) {
 	}
 }
 
+func TestParseFragment_DescriptionSeparatedByBlankLine(t *testing.T) {
+	fragment := `---
+timestamp: 2026-07-22T20:00:00Z
+agent: opencode
+files:
+  - main.go
+---
+
+Fix the parser
+
+The body parser split on the wrong delimiter. This caused descriptions
+to be lost. Added a test and fixed the split logic.
+`
+	e, err := ParseFragment([]byte(fragment))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if e.Summary != "Fix the parser" {
+		t.Errorf("summary = %q, want %q", e.Summary, "Fix the parser")
+	}
+	wantDesc := "The body parser split on the wrong delimiter. This caused descriptions\nto be lost. Added a test and fixed the split logic."
+	if e.Description != wantDesc {
+		t.Errorf("description = %q, want %q", e.Description, wantDesc)
+	}
+}
+
+func TestParseFragment_NoDescription_OnlySummary(t *testing.T) {
+	fragment := `---
+timestamp: 2026-07-22T20:00:00Z
+agent: opencode
+---
+
+Just a summary without details.
+`
+	e, err := ParseFragment([]byte(fragment))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if e.Summary != "Just a summary without details." {
+		t.Errorf("summary = %q", e.Summary)
+	}
+	if e.Description != "" {
+		t.Errorf("description = %q, want empty", e.Description)
+	}
+}
+
+func TestRender_DescriptionIndentedUnderSummary(t *testing.T) {
+	entries := []Entry{
+		{
+			Timestamp:   time.Date(2026, 7, 22, 10, 0, 0, 0, time.UTC),
+			Agent:       "opencode",
+			Summary:     "Add feature X.",
+			Description: "Feature X does two things:\nline one and line two.",
+			Files:       []string{"a.go"},
+		},
+	}
+	out := Render(entries)
+	if !strings.Contains(out, "- Add feature X.\n") {
+		t.Errorf("summary line missing:\n%s", out)
+	}
+	if !strings.Contains(out, "\n  Feature X does two things:\n  line one and line two.\n") {
+		t.Errorf("description not indented under summary:\n%s", out)
+	}
+	if !strings.Contains(out, "  - `a.go`\n") {
+		t.Errorf("file list missing:\n%s", out)
+	}
+}
+
+func TestRender_NoDescription_KeepsOldLayout(t *testing.T) {
+	entries := []Entry{
+		{
+			Timestamp: time.Date(2026, 7, 22, 10, 0, 0, 0, time.UTC),
+			Agent:     "opencode",
+			Summary:   "Simple change.",
+			Files:     []string{"b.go"},
+		},
+	}
+	out := Render(entries)
+	expected := "- Simple change.\n  - `b.go`\n  - _2026-07-22 10:00:00 UTC — opencode_\n"
+	if !strings.Contains(out, expected) {
+		t.Errorf("layout without description is wrong, want:\n%s\ngot:\n%s", expected, out)
+	}
+}
+
 func TestLoadDir_IgnoresReadmeAndSorts(t *testing.T) {
 	dir := t.TempDir()
 	older := "---\ntimestamp: 2026-07-14T10:00:00Z\nagent: opencode\n---\nOld change.\n"

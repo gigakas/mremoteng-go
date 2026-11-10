@@ -17,10 +17,11 @@ import (
 
 // Entry is a single change recorded by an agent.
 type Entry struct {
-	Timestamp time.Time
-	Agent     string
-	Summary   string
-	Files     []string
+	Timestamp   time.Time
+	Agent       string
+	Summary     string
+	Description string
+	Files       []string
 }
 
 // Header heads the generated CHANGELOG.md.
@@ -76,15 +77,26 @@ func ParseFragment(data []byte) (Entry, error) {
 	}
 
 	e.Summary = strings.TrimSpace(body)
+	if e.Summary == "" {
+		return e, fmt.Errorf("fragment has no summary (empty body)")
+	}
+
+	// The body may contain a one-line summary followed by a detailed
+	// description separated by a blank line. The first paragraph is the
+	// summary; everything after the first blank line is the description.
+	if parts := strings.SplitN(e.Summary, "\n\n", 2); len(parts) == 2 {
+		e.Summary = strings.TrimSpace(parts[0])
+		e.Description = strings.TrimSpace(parts[1])
+		if e.Summary == "" {
+			return e, fmt.Errorf("fragment has no summary (empty body)")
+		}
+	}
 
 	if e.Timestamp.IsZero() {
 		return e, fmt.Errorf("fragment is missing the timestamp field")
 	}
 	if e.Agent == "" {
 		return e, fmt.Errorf("fragment is missing the agent field")
-	}
-	if e.Summary == "" {
-		return e, fmt.Errorf("fragment has no summary (empty body)")
 	}
 	return e, nil
 }
@@ -118,8 +130,10 @@ func LoadDir(dir string) ([]Entry, error) {
 
 // Render produces the full CHANGELOG.md content: one section per date
 // (most recent first) and, within each date, changes in ascending
-// chronological order. Each entry starts with the change explanation and
-// ends with a metadata line: UTC date/time, agent and affected files.
+// chronological order. Each entry starts with the change summary. If a
+// description is present it is rendered as an indented paragraph between
+// the summary and the file list. The entry ends with a metadata line:
+// UTC date/time, agent and affected files.
 func Render(entries []Entry) string {
 	sorted := make([]Entry, len(entries))
 	copy(sorted, entries)
@@ -142,6 +156,17 @@ func Render(entries []Entry) string {
 		fmt.Fprintf(&b, "\n## %s\n\n", d)
 		for _, e := range byDate[d] {
 			fmt.Fprintf(&b, "- %s\n", e.Summary)
+			if e.Description != "" {
+				b.WriteString("\n")
+				for _, line := range strings.Split(e.Description, "\n") {
+					if strings.TrimSpace(line) == "" {
+						b.WriteString("\n")
+					} else {
+						fmt.Fprintf(&b, "  %s\n", line)
+					}
+				}
+				b.WriteString("\n")
+			}
 			for _, f := range e.Files {
 				fmt.Fprintf(&b, "  - `%s`\n", f)
 			}
