@@ -4,7 +4,6 @@
 <!-- Source: fragments in changelog.d/*.md -->
 <!-- Regenerate: make changelog  (or: go run ./cmd/changelog compile) -->
 
-<<<<<<< HEAD
 ## 2026-11-10
 
 - Add a native VNC client and session view
@@ -157,6 +156,16 @@
   - `internal/ui/ui_test.go`
   - `README.md`
   - _2026-11-10 21:27:09 UTC — opencode_
+- Resolve the merge conflict and keep one coherent application
+  - `go.mod`
+  - `go.sum`
+  - `cmd/mremoteng/main.go`
+  - `internal/ui`
+  - `internal/protocol`
+  - `README.md`
+  - `CHANGELOG.md`
+  - `scripts/smoke.sh`
+  - _2026-11-10 21:41:48 UTC — opencode_
 
 ## 2026-11-09
 
@@ -473,7 +482,7 @@
   - `go.mod`
   - `go.sum`
   - _2026-11-08 22:10:52 UTC — opencode_
-=======
+
 ## 2026-07-23
 
 - Phase 2 stage 2.2: add SSH, Telnet, rlogin, raw socket and serial backends
@@ -910,7 +919,6 @@
   - `internal/protocol/protocol.go`
   - `internal/protocol/protocol_test.go`
   - _2026-07-22 21:24:22 UTC — claude-code_
->>>>>>> 876e6198187aa7ca8eeacb02d85b84d8328d4e68
 
 ## 2026-07-16
 
