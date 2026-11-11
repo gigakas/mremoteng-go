@@ -508,8 +508,7 @@ func (s *screen) showAbout() {
 		container.NewHBox(widget.NewLabel("Contact:"), contact),
 		container.NewHBox(widget.NewButton("Close", func() { popup.Hide() })),
 	)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(620, 420), container.NewPadded(content)), s.win.Canvas())
-	popup.Show()
+	popup = s.showModal(content, fyne.NewSize(620, 420))
 }
 
 // aboutHyperlink is the mailto URL used by the contact link.

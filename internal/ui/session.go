@@ -366,8 +366,7 @@ func (p *sessionPanel) requestRDPOptions() {
 			widget.NewButton("Cancel", func() { popup.Hide() }),
 		),
 	)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(460, 300), container.NewPadded(content)), p.screen.win.Canvas())
-	popup.Show()
+	popup = p.screen.showModal(content, fyne.NewSize(460, 300))
 }
 
 func (p *sessionPanel) target() sshclient.Target {

@@ -2277,3 +2277,26 @@ func TestSelectConnection_KeepsConfigPanelHidden(t *testing.T) {
 		t.Error("switching connections hid a panel the user had open")
 	}
 }
+
+func TestRequireWritable_ReadOnlyStore_ReportsProblemAndBlocks(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	s.writable = false
+	if s.requireWritable("Saving") {
+		t.Fatal("requireWritable allowed a write on a read-only store")
+	}
+	want := "Saving is disabled because the existing file could not be read."
+	if s.status.Text != want {
+		t.Errorf("status = %q, want %q", s.status.Text, want)
+	}
+}
+
+func TestRequireWritable_WritableStore_AllowsAndKeepsStatus(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	s.setStatus("ready")
+	if !s.requireWritable("Saving") {
+		t.Fatal("requireWritable blocked a writable store")
+	}
+	if s.status.Text != "ready" {
+		t.Errorf("status = %q, want it left untouched", s.status.Text)
+	}
+}

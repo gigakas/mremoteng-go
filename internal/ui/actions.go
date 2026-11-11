@@ -239,8 +239,7 @@ func (s *screen) isDirty() bool {
 }
 
 func (s *screen) save() {
-	if !s.writable {
-		s.setProblem("Saving is disabled because the existing file could not be read.")
+	if !s.requireWritable("Saving") {
 		return
 	}
 	profile, err := s.formProfile()
@@ -296,8 +295,7 @@ func (s *screen) revert() {
 }
 
 func (s *screen) requestDelete() {
-	if !s.writable {
-		s.setProblem("Deleting is disabled because the existing file could not be read.")
+	if !s.requireWritable("Deleting") {
 		return
 	}
 	target, known := s.profileByID(s.selected)
@@ -368,8 +366,7 @@ func (s *screen) requestNewFolder() {
 }
 
 func (s *screen) addFolder(raw string) {
-	if !s.writable {
-		s.setProblem("Creating folders is disabled because the existing file could not be read.")
+	if !s.requireWritable("Creating folders") {
 		return
 	}
 	folder := strings.Trim(strings.TrimSpace(raw), "/")
@@ -430,4 +427,16 @@ func (s *screen) setProblem(text string) {
 	s.status.SetText(text)
 	s.log.add("error", text)
 	s.logConsole.refresh(s)
+}
+
+// requireWritable reports whether the profile store may be modified. When it
+// may not, it explains why in the status bar using the caller's action, so the
+// user learns that the loaded file failed to read rather than that a button is
+// broken.
+func (s *screen) requireWritable(action string) bool {
+	if s.writable {
+		return true
+	}
+	s.setProblem(action + " is disabled because the existing file could not be read.")
+	return false
 }

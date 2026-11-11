@@ -50,8 +50,7 @@ func (s *screen) requestVault() {
 			widget.NewButton("Cancel", func() { popup.Hide() }),
 		),
 	)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(560, 220), container.NewPadded(content)), s.win.Canvas())
-	popup.Show()
+	popup = s.showModal(content, fyne.NewSize(560, 220))
 }
 
 // createVault initialises a new credential file.

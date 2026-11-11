@@ -76,8 +76,7 @@ func (s *screen) showTextDialog(title, confirm string, entry *widget.Entry, onCo
 			widget.NewButton("Cancel", func() { popup.Hide() }),
 		),
 	)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(textDialogWidth, textDialogHeight), container.NewPadded(content)), s.win.Canvas())
-	popup.Show()
+	popup = s.showModal(content, fyne.NewSize(textDialogWidth, textDialogHeight))
 }
 
 // requestFolderDefaults edits the values a folder shares with its descendants.
@@ -107,14 +106,12 @@ func (s *screen) requestFolderDefaults(path string) {
 			widget.NewButton("Cancel", func() { popup.Hide() }),
 		),
 	)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(textDialogWidth, 190), container.NewPadded(content)), s.win.Canvas())
-	popup.Show()
+	popup = s.showModal(content, fyne.NewSize(textDialogWidth, 190))
 }
 
 // saveFolderDefaults persists the shared values for one folder.
 func (s *screen) saveFolderDefaults(path, username, portText string) {
-	if !s.writable {
-		s.setProblem("Editing folder defaults is disabled because the existing file could not be read.")
+	if !s.requireWritable("Editing folder defaults") {
 		return
 	}
 	defaults := make([]profiles.FolderDefault, 0, len(s.defaults)+1)
@@ -150,8 +147,7 @@ func (s *screen) saveFolderDefaults(path, username, portText string) {
 
 // renameFolder moves folder (and everything below it) to a new path.
 func (s *screen) renameFolder(old, raw string) {
-	if !s.writable {
-		s.setProblem("Renaming folders is disabled because the existing file could not be read.")
+	if !s.requireWritable("Renaming folders") {
 		return
 	}
 	folder := strings.Trim(strings.TrimSpace(raw), "/")
@@ -230,8 +226,7 @@ func (s *screen) requestDeleteFolder() {
 }
 
 func (s *screen) deleteFolder(folder string) {
-	if !s.writable {
-		s.setProblem("Deleting folders is disabled because the existing file could not be read.")
+	if !s.requireWritable("Deleting folders") {
 		return
 	}
 	nextProfiles := make([]profiles.Profile, 0, len(s.all))
@@ -277,8 +272,7 @@ func (s *screen) requestRenameConnection() {
 
 // renameConnection applies a new connection name and refreshes tree and tab.
 func (s *screen) renameConnection(profile profiles.Profile, raw string) {
-	if !s.writable {
-		s.setProblem("Renaming connections is disabled because the existing file could not be read.")
+	if !s.requireWritable("Renaming connections") {
 		return
 	}
 	updated := profile
@@ -307,8 +301,7 @@ func (s *screen) renameConnection(profile profiles.Profile, raw string) {
 
 // moveConnection places profile in folder; an empty path moves it to the root.
 func (s *screen) moveConnection(profile profiles.Profile, raw string) {
-	if !s.writable {
-		s.setProblem("Moving connections is disabled because the existing file could not be read.")
+	if !s.requireWritable("Moving connections") {
 		return
 	}
 	folder := strings.Trim(strings.TrimSpace(raw), "/")

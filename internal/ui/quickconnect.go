@@ -37,8 +37,7 @@ func (s *screen) requestQuickConnect() {
 			widget.NewButton("Cancel", func() { popup.Hide() }),
 		),
 	)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(textDialogWidth, 320), container.NewPadded(content)), s.win.Canvas())
-	popup.Show()
+	popup = s.showModal(content, fyne.NewSize(textDialogWidth, 320))
 }
 
 // quickConnect validates the ad-hoc endpoint and opens a temporary session tab.

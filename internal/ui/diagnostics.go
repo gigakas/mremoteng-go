@@ -68,8 +68,7 @@ func (s *screen) requestDiagnostics() {
 			widget.NewButton("Close", func() { popup.Hide() }),
 		),
 	)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(560, 260), container.NewPadded(content)), s.win.Canvas())
-	popup.Show()
+	popup = s.showModal(content, fyne.NewSize(560, 260))
 }
 
 // activeSessionCount counts panels holding a live session.

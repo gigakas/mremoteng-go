@@ -85,8 +85,7 @@ func (s *screen) showImportPreview(path string, preview transfer.Preview) {
 		widget.NewButton("Cancel", func() { popup.Hide() }),
 	)
 	content.Add(buttons)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(520, 190), container.NewPadded(content)), s.win.Canvas())
-	popup.Show()
+	popup = s.showModal(content, fyne.NewSize(520, 190))
 }
 
 // importSummary describes what the import would do.
@@ -126,8 +125,7 @@ func (s *screen) duplicateCount(preview transfer.Preview) int {
 
 // applyImport merges or replaces the store with the imported connections.
 func (s *screen) applyImport(preview transfer.Preview, replace bool) {
-	if !s.writable {
-		s.setProblem("Importing is disabled because the existing file could not be read.")
+	if !s.requireWritable("Importing") {
 		return
 	}
 	profilesOut := make([]profiles.Profile, 0, len(s.all)+len(preview.Profiles))
@@ -250,6 +248,5 @@ func (s *screen) showSecretDialog(title, confirm string, onConfirm func(string))
 			widget.NewButton("Cancel", func() { popup.Hide() }),
 		),
 	)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(textDialogWidth, textDialogHeight), container.NewPadded(content)), s.win.Canvas())
-	popup.Show()
+	popup = s.showModal(content, fyne.NewSize(textDialogWidth, textDialogHeight))
 }
