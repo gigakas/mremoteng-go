@@ -7,11 +7,11 @@ package vault
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/mRemoteNG/mremoteng-go/internal/credential"
 )
@@ -33,18 +33,18 @@ type Client struct {
 	InsecureSkipVerify bool
 }
 
+// New builds a client for the Vault/OpenBao server at addr. A trailing
+// slash is trimmed because do concatenates Addr with a path that already
+// starts with one, which would otherwise request "//v1/...".
 func New(addr, token string) *Client {
-	return &Client{Addr: addr, Token: token}
+	return &Client{Addr: strings.TrimRight(addr, "/"), Token: token}
 }
 
 func (c *Client) httpClient() *http.Client {
-	if c.HTTPClient != nil {
-		return c.HTTPClient
+	if c.InsecureSkipVerify && c.HTTPClient == nil {
+		return credential.InsecureHTTPClient()
 	}
-	if !c.InsecureSkipVerify {
-		return http.DefaultClient
-	}
-	return &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}} //nolint:gosec // explicit opt-in, documented on Client.
+	return credential.HTTPClient(c.HTTPClient)
 }
 
 type apiResponse struct {
@@ -73,24 +73,18 @@ func (c *Client) do(ctx context.Context, method, path string, body any) (json.Ra
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := c.httpClient().Do(req)
+	opContext := fmt.Sprintf("%s %s", method, path)
+	respBody, status, err := credential.Do(c.httpClient(), req, "vault: request "+opContext, "vault: read response body")
 	if err != nil {
-		return nil, fmt.Errorf("vault: request %s %s: %w", method, path, err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("vault: read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("vault: %s %s: HTTP %d: %s", method, path, resp.StatusCode, string(respBody))
+	if err := credential.CheckStatus(status, http.StatusOK, respBody, "vault: "+opContext); err != nil {
+		return nil, err
 	}
 
 	var parsed apiResponse
-	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return nil, fmt.Errorf("vault: parse response: %w", err)
+	if err := credential.DecodeJSON(respBody, &parsed, "vault: parse response"); err != nil {
+		return nil, err
 	}
 	if len(parsed.Errors) > 0 {
 		return nil, fmt.Errorf("vault: %s %s: %v", method, path, parsed.Errors)
@@ -111,8 +105,8 @@ func (c *Client) ReadKV2(ctx context.Context, mount, path string) (map[string]st
 	var wrapper struct {
 		Data map[string]string `json:"data"`
 	}
-	if err := json.Unmarshal(data, &wrapper); err != nil {
-		return nil, fmt.Errorf("vault: parse KV v2 secret at %s/%s: %w", mount, path, err)
+	if err := credential.DecodeJSON(data, &wrapper, fmt.Sprintf("vault: parse KV v2 secret at %s/%s", mount, path)); err != nil {
+		return nil, err
 	}
 	return wrapper.Data, nil
 }
@@ -125,8 +119,8 @@ func (c *Client) ReadKV1(ctx context.Context, mount, path string) (map[string]st
 		return nil, err
 	}
 	var values map[string]string
-	if err := json.Unmarshal(data, &values); err != nil {
-		return nil, fmt.Errorf("vault: parse KV v1 secret at %s/%s: %w", mount, path, err)
+	if err := credential.DecodeJSON(data, &values, fmt.Sprintf("vault: parse KV v1 secret at %s/%s", mount, path)); err != nil {
+		return nil, err
 	}
 	return values, nil
 }
@@ -169,8 +163,8 @@ func (c *Client) SSHOTP(ctx context.Context, mount, role, username, ip string) (
 	var wrapper struct {
 		Key string `json:"key"`
 	}
-	if err := json.Unmarshal(data, &wrapper); err != nil {
-		return "", fmt.Errorf("vault: parse SSH OTP for role %s: %w", role, err)
+	if err := credential.DecodeJSON(data, &wrapper, fmt.Sprintf("vault: parse SSH OTP for role %s", role)); err != nil {
+		return "", err
 	}
 	if wrapper.Key == "" {
 		return "", fmt.Errorf("vault: SSH OTP response for role %s had no key", role)
@@ -183,8 +177,8 @@ func decodeCredential(data json.RawMessage, errContext string) (credential.Crede
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := json.Unmarshal(data, &wrapper); err != nil {
-		return credential.Credential{}, fmt.Errorf("%s: %w", errContext, err)
+	if err := credential.DecodeJSON(data, &wrapper, errContext); err != nil {
+		return credential.Credential{}, err
 	}
 	return credential.Credential{Username: wrapper.Username, Password: wrapper.Password}, nil
 }

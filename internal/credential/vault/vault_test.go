@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/mRemoteNG/mremoteng-go/internal/credential/vault"
@@ -126,6 +127,34 @@ func TestSSHOTP_PostsUsernameAndIPAndReturnsKey(t *testing.T) {
 	}
 	if gotBody["username"] != "deploy" || gotBody["ip"] != "10.0.0.5" {
 		t.Errorf("SSHOTP request body = %+v", gotBody)
+	}
+}
+
+func TestNew_TrailingSlashAddr_RequestPathHasNoDoubleSlash(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"data": map[string]string{"username": "alice", "password": "s3cret"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := vault.New(srv.URL+"/", "test-token")
+	if got := strings.TrimRight(srv.URL, "/"); c.Addr != got {
+		t.Errorf("Addr = %q, want %q (trailing slash trimmed)", c.Addr, got)
+	}
+	if _, err := c.ReadKV2(context.Background(), "secret", "web1"); err != nil {
+		t.Fatalf("ReadKV2: %v", err)
+	}
+
+	if gotPath != "/v1/secret/data/web1" {
+		t.Errorf("request path = %q, want %q", gotPath, "/v1/secret/data/web1")
+	}
+	if strings.Contains(gotPath, "//") {
+		t.Errorf("request path = %q, contains a doubled slash", gotPath)
 	}
 }
 

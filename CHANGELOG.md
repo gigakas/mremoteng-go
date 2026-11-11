@@ -256,6 +256,28 @@
   - `internal/ui/framebuffer.go`
   - `internal/ui/framebuffer_test.go`
   - _2026-11-11 22:03:30 UTC — mimocode_
+- Extract the external-provider HTTP plumbing into shared internal/credential helpers
+
+  The five REST clients under internal/credential each carried their own copy of the same request plumbing: the nil-http.Client fallback to http.DefaultClient, the send/ReadAll/status-check/unmarshal block, and (in delinea and onepassword) a byte-identical fieldIs predicate. They now call five helpers in internal/credential (http.go, fields.go): HTTPClient(given *http.Client) *http.Client, InsecureHTTPClient() *http.Client, Do(client *http.Client, req *http.Request, doErrContext, readErrContext string) ([]byte, int, error), CheckStatus(status, want int, body []byte, errContext string) error, DecodeJSON(body []byte, out any, errContext string) error and FieldIs(first, second, want string) bool. This is a pure refactor: every provider keeps its exact error wording, its own status-code policy (vault, delinea token auth, passwordstate and onepassword accept only 200; delinea's secret GET returns body+status to its caller for the 401 re-auth retry; awsec2 still parses the EC2 XML error envelope) and its own request building. InsecureSkipVerify stays isolated: only vault.Client.httpClient calls InsecureHTTPClient, gated on the existing documented field, so no other provider gains the capability. Do is given a per-provider transport-error and read-error context string precisely so the previous messages survive verbatim. Helpers are additive; no exported provider signature changed and no existing provider test was edited. New unit tests cover the helper contracts (nil fallback, insecure transport wiring, both error contexts, status/JSON formatting, FieldIs). Validated with go build ./internal/credential/... and go test ./internal/credential/... -count=1.
+
+  - `internal/credential/http.go`
+  - `internal/credential/fields.go`
+  - `internal/credential/http_test.go`
+  - `internal/credential/fields_test.go`
+  - `internal/credential/credential.go`
+  - `internal/credential/vault/vault.go`
+  - `internal/credential/delinea/delinea.go`
+  - `internal/credential/passwordstate/passwordstate.go`
+  - `internal/credential/onepassword/onepassword.go`
+  - `internal/credential/awsec2/awsec2.go`
+  - _2026-11-11 22:11:23 UTC — mimocode-cred_
+- Trim a trailing slash from the vault client address in New
+
+  vault.New stored the address verbatim, so an address ending in a slash produced a doubled request path: the client concatenates Addr with paths that already start with one, giving GET //v1/secret/data/web1. delinea, passwordstate and onepassword already normalize their base URL the same way in New, so vault.New now applies strings.TrimRight(addr, "/") to match them; Addr keeps that normalized value, which is also what a caller configuring the client sees. New test TestNew_TrailingSlashAddr_RequestPathHasNoDoubleSlash builds a client from a server URL with a trailing slash, asserts Addr lost it, and asserts the observed request path is /v1/secret/data/web1 with no "//" (it fails with //v1/... before this change). No other provider needs the same normalization: delinea, passwordstate and onepassword already trim in New, and awsec2 never concatenates a base URL with a path -- it parses its Endpoint as a complete URL and only sets the query string, so a trailing slash there cannot double. Validated with go build ./internal/credential/... and go test ./internal/credential/... -count=1.
+
+  - `internal/credential/vault/vault.go`
+  - `internal/credential/vault/vault_test.go`
+  - _2026-11-11 22:13:42 UTC — mimocode-cred_
 
 ## 2026-11-10
 
