@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"os"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
@@ -48,10 +49,15 @@ type termWidget struct {
 	// autoFocus asks the first layout pass to take the keyboard: focusing before
 	// the widget is rendered is dropped by the driver.
 	autoFocus bool
-	// fontSize is the terminal-only text size (Ctrl+scroll zoom).
+	// fontSize is the terminal-only text size (zoom shortcuts and Ctrl+scroll).
 	fontSize float32
 	// onZoom lets the panel rebuild the theme override after a zoom change.
 	onZoom func()
+	// ctrlHeld reports whether Ctrl is down, because scroll events carry no
+	// modifiers; tests replace it.
+	ctrlHeld func() bool
+	// lastZoom throttles wheel zoom so the grid is not rebuilt per event.
+	lastZoom time.Time
 }
 
 const (
@@ -66,6 +72,29 @@ func (t *termWidget) textSize() float32 {
 		return theme.TextSize()
 	}
 	return t.fontSize
+}
+
+// ctrlDown reports whether Ctrl is held, guarding the injectable seam.
+func (t *termWidget) ctrlDown() bool {
+	if t.ctrlHeld == nil {
+		return false
+	}
+	return t.ctrlHeld()
+}
+
+// zoomByScroll turns one wheel notch into a zoom step, throttled so a spinning
+// wheel does not rebuild the text grid on every event.
+func (t *termWidget) zoomByScroll(dy float32) {
+	now := time.Now()
+	if !t.lastZoom.IsZero() && now.Sub(t.lastZoom) < zoomScrollInterval {
+		return
+	}
+	t.lastZoom = now
+	step := float32(zoomScrollStep)
+	if dy < 0 {
+		step = -step
+	}
+	t.adjustZoom(step)
 }
 
 // adjustZoom changes the terminal text size, clamped to a readable range.
@@ -92,6 +121,7 @@ func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *
 	t := &termWidget{
 		emulator: terminal.New(cols, rows),
 		fontSize: theme.TextSize(),
+		ctrlHeld: ctrlHeld,
 		send:     send,
 		onResize: onResize,
 		styles:   map[uint32]widget.TextGridStyle{},
@@ -249,9 +279,14 @@ func (t *termWidget) viewStart() ([]string, int) {
 	return lines, start
 }
 
-// Scrolled moves the view through the scrollback.
+// Scrolled moves the view through the scrollback; with Ctrl held it zooms the
+// console instead.
 func (t *termWidget) Scrolled(event *fyne.ScrollEvent) {
 	if event.Scrolled.DY == 0 {
+		return
+	}
+	if t.ctrlDown() {
+		t.zoomByScroll(event.Scrolled.DY)
 		return
 	}
 

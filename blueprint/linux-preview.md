@@ -59,8 +59,10 @@ SSH is implemented in `internal/protocol/ssh` and exposed in the session tab:
   wheel and PageUp/arrow keys browse them while the view is scrolled up, and a
   mouse selection is copied to the clipboard by right-click (there is no
   Ctrl-Shift-C, because key events carry no modifier information). Zoom is per
-  terminal via Ctrl+= / Ctrl+- / Ctrl+0 or View > Terminal zoom; Ctrl+scroll
-  deliberately scrolls the history instead of zooming.
+  terminal via Ctrl+= / Ctrl+- / Ctrl+0, View > Terminal zoom, or Ctrl+scroll;
+  the wheel path asks the X server for the Ctrl state, since Fyne scroll events
+  carry no modifiers, and throttles the step so the grid is not rebuilt on every
+  notch.
 - Unknown hosts require explicit approval of the shown SHA-256 fingerprint; the
   password lives only in the widget for that attempt.
 
