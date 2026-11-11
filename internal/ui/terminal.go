@@ -80,11 +80,11 @@ func (t *termWidget) adjustZoom(delta float32) {
 		return
 	}
 	t.fontSize = size
-	// Rebuilding the theme override triggers a layout pass, which recreates the
-	// grid and refits the emulator; doing it twice here caused visible flicker.
 	if t.onZoom != nil {
 		t.onZoom()
 	}
+	t.fit(t.Size())
+	t.render()
 }
 
 func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *termWidget {
@@ -233,6 +233,15 @@ func (t *termWidget) viewStart() ([]string, int) {
 // Scrolled moves the view through the scrollback.
 func (t *termWidget) Scrolled(event *fyne.ScrollEvent) {
 	if event.Scrolled.DY == 0 {
+		return
+	}
+	// Ctrl+scroll zooms the console instead of scrolling it.
+	if controlPressed() {
+		if event.Scrolled.DY > 0 {
+			t.adjustZoom(1)
+		} else {
+			t.adjustZoom(-1)
+		}
 		return
 	}
 

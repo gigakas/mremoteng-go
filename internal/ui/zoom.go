@@ -2,9 +2,12 @@ package ui
 
 import (
 	"image/color"
+	"os"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
+	"github.com/BurntSushi/xgb"
+	"github.com/BurntSushi/xgb/xproto"
 )
 
 // zoomTheme overrides only the text size, so the terminal can zoom without
@@ -30,3 +33,23 @@ func (t zoomTheme) Size(name fyne.ThemeSizeName) float32 {
 }
 
 // zoomLevels documents the discrete steps used by the shortcuts and menu.
+
+// controlPressed reports whether Ctrl is held, by asking the X server: Fyne's
+// scroll events carry no modifier information.
+func controlPressed() bool {
+	if os.Getenv("DISPLAY") == "" {
+		return false
+	}
+	conn, err := xgb.NewConn()
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+	setup := xproto.Setup(conn)
+	root := setup.DefaultScreen(conn).Root
+	reply, err := xproto.QueryPointer(conn, root).Reply()
+	if err != nil {
+		return false
+	}
+	return reply.Mask&xproto.ModMaskControl != 0
+}
