@@ -47,7 +47,7 @@ type termWidget struct {
 	// autoFocus asks the first layout pass to take the keyboard: focusing before
 	// the widget is rendered is dropped by the driver.
 	autoFocus bool
-	// fontSize is the terminal-only text size (zoom shortcuts and Ctrl+scroll).
+	// fontSize is the terminal-only text size (Ctrl+scroll zoom).
 	fontSize float32
 	// onZoom lets the panel rebuild the theme override after a zoom change.
 	onZoom func()
@@ -77,16 +77,14 @@ func (t *termWidget) adjustZoom(delta float32) {
 		size = maxFontSize
 	}
 	if size == t.textSize() {
-		traceZoom("adjust clamped old=%.0f size=%.0f", t.textSize(), size)
 		return
 	}
-	traceZoom("adjust old=%.0f new=%.0f", t.textSize(), size)
 	t.fontSize = size
+	// Rebuilding the theme override triggers a layout pass, which recreates the
+	// grid and refits the emulator; doing it twice here caused visible flicker.
 	if t.onZoom != nil {
 		t.onZoom()
 	}
-	t.fit(t.Size())
-	t.render()
 }
 
 func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *termWidget {
@@ -149,7 +147,7 @@ func (t *termWidget) Resize(size fyne.Size) {
 
 // traceResize records geometry changes when MRE_TRACE_RESIZE is set, so a
 // layout oscillation can be diagnosed without a debugger.
-func (t *termWidget) traceResize(size fyne.Size, cols, rows int) {
+func traceResize(size fyne.Size, cols, rows int) {
 	if os.Getenv("MRE_TRACE_RESIZE") == "" {
 		return
 	}
@@ -158,7 +156,7 @@ func (t *termWidget) traceResize(size fyne.Size, cols, rows int) {
 		return
 	}
 	defer func() { _ = file.Close() }()
-	fmt.Fprintf(file, "size=%.0fx%.0f cols=%d rows=%d text=%.0f\n", size.Width, size.Height, cols, rows, t.textSize())
+	fmt.Fprintf(file, "size=%.0fx%.0f cols=%d rows=%d\n", size.Width, size.Height, cols, rows)
 }
 
 func (t *termWidget) fit(size fyne.Size) {
@@ -174,7 +172,7 @@ func (t *termWidget) fit(size fyne.Size) {
 	if cols == t.cols && rows == t.rows {
 		return
 	}
-	t.traceResize(size, cols, rows)
+	traceResize(size, cols, rows)
 	t.cols, t.rows = cols, rows
 	t.emulator.Resize(cols, rows)
 	if t.onResize != nil {

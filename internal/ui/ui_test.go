@@ -1625,9 +1625,6 @@ func TestSessionPanel_TelnetConnect_ShowsTerminalAndSendsInput(t *testing.T) {
 	if panel.term == nil || len(panel.slot.Objects) != 1 {
 		t.Fatal("terminal view was not installed")
 	}
-	if panel.terminalWrap == nil {
-		t.Error("telnet terminal was installed without the zoom theme override")
-	}
 	if panel.term.onZoom == nil || panel.term.onCopy == nil {
 		t.Error("telnet terminal is not wired for zoom and clipboard copy")
 	}

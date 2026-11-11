@@ -364,9 +364,8 @@ func (s *screen) registerControlShortcuts() {
 		canvas.AddShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: fyne.KeyModifierControl},
 			func(fyne.Shortcut) { s.sendControlToFocused(key) })
 	}
-	// Zoom stays on discrete shortcuts: Fyne scroll events carry no modifiers,
-	// and reading the Ctrl state from X misreported it on Wayland/XWayland, so a
-	// plain wheel zoomed instead of scrolling.
+	// Terminal zoom stays on discrete shortcuts: a wheel gesture kept Ctrl held
+	// and rebuilt the grid on every event, which flickered and reset the size.
 	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyEqual, Modifier: fyne.KeyModifierControl},
 		func(fyne.Shortcut) { s.zoomFocusedTerminal(2) })
 	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyMinus, Modifier: fyne.KeyModifierControl},
@@ -377,9 +376,7 @@ func (s *screen) registerControlShortcuts() {
 
 // zoomFocusedTerminal changes the font size of the focused terminal.
 func (s *screen) zoomFocusedTerminal(delta float32) {
-	term, ok := s.focusedTerminal()
-	traceZoom("shortcut delta=%.0f focused=%v", delta, ok)
-	if ok {
+	if term, ok := s.focusedTerminal(); ok {
 		term.adjustZoom(delta)
 	}
 }
@@ -511,7 +508,8 @@ func (s *screen) showAbout() {
 		container.NewHBox(widget.NewLabel("Contact:"), contact),
 		container.NewHBox(widget.NewButton("Close", func() { popup.Hide() })),
 	)
-	popup = s.showModal(content, fyne.NewSize(620, 420))
+	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(620, 420), container.NewPadded(content)), s.win.Canvas())
+	popup.Show()
 }
 
 // aboutHyperlink is the mailto URL used by the contact link.

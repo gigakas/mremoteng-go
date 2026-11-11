@@ -1,9 +1,7 @@
 package ui
 
 import (
-	"fmt"
 	"image/color"
-	"os"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
@@ -32,18 +30,3 @@ func (t zoomTheme) Size(name fyne.ThemeSizeName) float32 {
 }
 
 // zoomLevels documents the discrete steps used by the shortcuts and menu.
-
-// traceZoom records zoom decisions when MRE_TRACE_ZOOM is set, so a zoom that
-// does nothing can be traced to the shortcut, the size change or the repaint
-// without a debugger.
-func traceZoom(format string, args ...any) {
-	if os.Getenv("MRE_TRACE_ZOOM") == "" {
-		return
-	}
-	file, err := os.OpenFile("/tmp/mremoteng-zoom.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return
-	}
-	defer func() { _ = file.Close() }()
-	fmt.Fprintf(file, format+"\n", args...)
-}
