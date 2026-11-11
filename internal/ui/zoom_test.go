@@ -46,6 +46,7 @@ func TestInstallTerminal_ZoomThenActivity_KeepsTheTextSize(t *testing.T) {
 		t.Fatal("connect did not install the terminal theme override")
 	}
 	firstWrapper := panel.terminalWrap
+	firstGrid := term.grid
 	before := rowHeight(term)
 
 	term.adjustZoom(4)
@@ -53,6 +54,9 @@ func TestInstallTerminal_ZoomThenActivity_KeepsTheTextSize(t *testing.T) {
 	zoomed := rowHeight(term)
 	if zoomed <= before {
 		t.Fatalf("zoom did not enlarge the text: before %.0f, after %.0f", before, zoomed)
+	}
+	if term.grid == firstGrid {
+		t.Error("zoom kept the old text grid; TextGrid caches the theme size per row")
 	}
 
 	if panel.terminalWrap != firstWrapper {
@@ -75,5 +79,49 @@ func TestInstallTerminal_ZoomThenActivity_KeepsTheTextSize(t *testing.T) {
 	}
 	if panel.terminalWrap != firstWrapper {
 		t.Error("second zoom step replaced the theme override")
+	}
+}
+
+// TestZoomFocusedTerminal_ShortcutPath_ChangesTextSize covers the path the
+// shortcuts and the View menu take: the panel is found through the canvas
+// focus, not passed directly.
+func TestZoomFocusedTerminal_ShortcutPath_ChangesTextSize(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	reader, writer := io.Pipe()
+	t.Cleanup(func() { _ = writer.Close() })
+	shell := &fakeShell{output: reader}
+	s.openShell = func(sshclient.Target, sshclient.Options, sshclient.TermSize) (shellSession, sshclient.Result, error) {
+		return shell, sshclient.Result{ServerVersion: "SSH-2.0-test", HostKeyVerified: true}, nil
+	}
+	panel := s.newSessionPanel(sshPanelProfile(t, "tester"))
+	panel.applyConnect(panel.target(), sshclient.Options{}, shell,
+		sshclient.Result{ServerVersion: "SSH-2.0-test", HostKeyVerified: true}, nil)
+
+	s.win.SetContent(panel.content())
+	s.win.Resize(fyne.NewSize(1000, 700))
+	term := panel.term
+	term.focus()
+	if _, ok := s.focusedTerminal(); !ok {
+		t.Fatal("the terminal does not own the canvas focus, so the shortcuts cannot reach it")
+	}
+
+	before := rowHeight(term)
+	s.zoomFocusedTerminal(2)
+	s.win.Resize(fyne.NewSize(1000, 700))
+	if got := rowHeight(term); got <= before {
+		t.Errorf("zoom in did nothing: before %.0f, after %.0f", before, got)
+	}
+	zoomed := rowHeight(term)
+
+	s.zoomFocusedTerminal(-2)
+	s.win.Resize(fyne.NewSize(1000, 700))
+	if got := rowHeight(term); got >= zoomed {
+		t.Errorf("zoom out did nothing: zoomed %.0f, after %.0f", zoomed, got)
+	}
+
+	s.resetFocusedTerminalZoom()
+	s.win.Resize(fyne.NewSize(1000, 700))
+	if got := rowHeight(term); got != before {
+		t.Errorf("reset did not restore the base size: want %.0f, got %.0f", before, got)
 	}
 }

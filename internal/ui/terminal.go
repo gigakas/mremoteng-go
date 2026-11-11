@@ -22,6 +22,7 @@ type termWidget struct {
 
 	emulator *terminal.Emulator
 	grid     *widget.TextGrid
+	renderer *termRenderer
 	send     func([]byte)
 	onResize func(cols, rows int)
 	styles   map[uint32]widget.TextGridStyle
@@ -105,7 +106,25 @@ func (t *termWidget) CreateRenderer() fyne.WidgetRenderer {
 	t.grid = widget.NewTextGrid()
 	t.grid.Scroll = fyne.ScrollNone
 	t.render()
-	return &termRenderer{parent: t, objects: []fyne.CanvasObject{t.grid}, font: t.textSize()}
+	t.renderer = &termRenderer{parent: t, objects: []fyne.CanvasObject{t.grid}, font: t.textSize()}
+	return t.renderer
+}
+
+// rebuildGrid replaces the text grid with a fresh one and repaints.
+//
+// widget.TextGrid caches the theme text size in its row renderers, and its
+// ApplyTheme is empty, so a theme change alone does not resize the glyphs. A
+// new grid is the only reliable way to make both axes follow the new size.
+func (t *termWidget) rebuildGrid() {
+	grid := widget.NewTextGrid()
+	grid.Scroll = fyne.ScrollNone
+	t.grid = grid
+	if t.renderer != nil {
+		t.renderer.font = t.textSize()
+		t.renderer.objects[0] = grid
+		grid.Resize(t.Size())
+	}
+	t.render()
 }
 
 type termRenderer struct {
@@ -147,7 +166,7 @@ func (t *termWidget) Resize(size fyne.Size) {
 
 // traceResize records geometry changes when MRE_TRACE_RESIZE is set, so a
 // layout oscillation can be diagnosed without a debugger.
-func traceResize(size fyne.Size, cols, rows int) {
+func (t *termWidget) traceResize(size fyne.Size, cols, rows int) {
 	if os.Getenv("MRE_TRACE_RESIZE") == "" {
 		return
 	}
@@ -156,7 +175,7 @@ func traceResize(size fyne.Size, cols, rows int) {
 		return
 	}
 	defer func() { _ = file.Close() }()
-	fmt.Fprintf(file, "size=%.0fx%.0f cols=%d rows=%d\n", size.Width, size.Height, cols, rows)
+	fmt.Fprintf(file, "size=%.0fx%.0f cols=%d rows=%d text=%.0f\n", size.Width, size.Height, cols, rows, t.textSize())
 }
 
 func (t *termWidget) fit(size fyne.Size) {
@@ -172,7 +191,7 @@ func (t *termWidget) fit(size fyne.Size) {
 	if cols == t.cols && rows == t.rows {
 		return
 	}
-	traceResize(size, cols, rows)
+	t.traceResize(size, cols, rows)
 	t.cols, t.rows = cols, rows
 	t.emulator.Resize(cols, rows)
 	if t.onResize != nil {

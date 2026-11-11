@@ -560,8 +560,10 @@ func (p *sessionPanel) installTerminal() {
 	}
 	if p.terminalWrap != nil {
 		p.terminalTheme.size = p.term.textSize()
-		// Refresh re-registers the theme and makes the TextGrid re-read the text
-		// size it caches; fit then recomputes the grid for the new cell metrics.
+		// A new grid is what makes the glyphs follow the new size: TextGrid caches
+		// the theme text size per row and its ApplyTheme is empty. The wrapper
+		// refresh re-registers the mutated theme for the widget.
+		p.term.rebuildGrid()
 		p.terminalWrap.Refresh()
 		p.term.fit(p.term.Size())
 		p.term.render()
