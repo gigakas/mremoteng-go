@@ -1,0 +1,6 @@
+{
+  "$schema": "https://mimo.xiaomi.com/mimocode/config.json",
+  // Reuse the project skills this repository already keeps for Claude Code, so
+  // MiMoCode and Claude Code read a single tree instead of two copies.
+  "skills": { "paths": [".claude/skills"] }
+}
