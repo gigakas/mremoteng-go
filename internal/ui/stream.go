@@ -51,8 +51,7 @@ func (p *sessionPanel) connectStream() {
 		p.setProblem("Unsupported stream protocol.")
 		return
 	}
-	p.connect.Disable()
-	p.setStatus("Connecting to " + p.profile.Host + " (" + string(mode) + ") ...")
+	p.setConnecting("Connecting to " + p.profile.Host + " (" + string(mode) + ") ...")
 	resolved := p.screen.resolve(p.profile)
 	address := net.JoinHostPort(resolved.Host, strconv.Itoa(resolved.Port))
 	config := telnetclient.Config{Mode: mode, Username: resolved.Username, Timeout: 10 * time.Second}
@@ -60,7 +59,7 @@ func (p *sessionPanel) connectStream() {
 		session, err := p.screen.dialStream(address, config)
 		fyne.Do(func() {
 			if err != nil {
-				p.connect.Enable()
+				p.setConnected(false)
 				p.setProblem(string(mode) + " connection failed: " + err.Error())
 				return
 			}
@@ -73,29 +72,14 @@ func (p *sessionPanel) connectStream() {
 func (p *sessionPanel) startStream(session streamSession, mode telnetclient.Mode) {
 	p.stream = session
 	p.term = newTermWidget(80, 24, func(data []byte) { _, _ = session.Write(data) }, nil)
-	p.slot.Objects = []fyne.CanvasObject{p.term}
-	p.slot.Refresh()
-	p.connect.Disable()
-	p.disconnect.Enable()
-	p.password.Disable()
-	p.maximiseTerminal()
+	p.installSlot(p.term)
+	p.setConnected(true)
 	p.setStatus(string(mode) + " session with " + p.profile.Host + " connected. The terminal has no remote pty, so some full-screen programs may misbehave.")
 	go p.readStream(session)
 }
 
 func (p *sessionPanel) readStream(session streamSession) {
-	buffer := make([]byte, 32*1024)
-	for {
-		n, err := session.Read(buffer)
-		if n > 0 {
-			chunk := append([]byte(nil), buffer[:n]...)
-			fyne.Do(func() { p.applyOutput(chunk) })
-		}
-		if err != nil {
-			fyne.Do(func() { p.streamClosed(session) })
-			return
-		}
-	}
+	pumpBytes(session, p.applyOutput, func() { p.streamClosed(session) })
 }
 
 func (p *sessionPanel) streamClosed(session streamSession) {
@@ -103,10 +87,7 @@ func (p *sessionPanel) streamClosed(session streamSession) {
 		return
 	}
 	p.stream = nil
-	p.connect.Enable()
-	p.disconnect.Disable()
-	p.password.Enable()
-	p.restoreConfig()
+	p.setConnected(false)
 	p.setStatus("Session closed.")
 }
 

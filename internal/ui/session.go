@@ -140,8 +140,7 @@ func (p *sessionPanel) content() fyne.CanvasObject {
 		note := widget.NewLabel("Connect opens the address in your default browser. An embedded webview is not implemented yet.")
 		note.Wrapping = fyne.TextWrapWord
 		note.Importance = widget.LowImportance
-		p.slot.Objects = []fyne.CanvasObject{container.NewVBox(note)}
-		p.slot.Refresh()
+		p.installSlot(container.NewVBox(note))
 		return container.NewBorder(p.connectionBar(), nil, nil, nil, container.NewPadded(p.slot))
 	}
 	if p.profile.Protocol == profiles.RDP {
@@ -149,8 +148,7 @@ func (p *sessionPanel) content() fyne.CanvasObject {
 			"Test needs server support for auth-only; enable Ignore cert for changed or self-signed certificates.")
 		p.note.Wrapping = fyne.TextWrapWord
 		p.note.Importance = widget.WarningImportance
-		p.slot.Objects = []fyne.CanvasObject{container.NewVBox(p.note)}
-		p.slot.Refresh()
+		p.installSlot(container.NewVBox(p.note))
 		return container.NewBorder(p.connectionBar(), nil, nil, nil, container.NewPadded(p.slot))
 	}
 	return container.NewBorder(p.connectionBar(), nil, nil, nil, container.NewPadded(p.slot))
@@ -194,8 +192,7 @@ func (p *sessionPanel) rdpSecurity() string {
 }
 
 func (p *sessionPanel) connectRDP() {
-	p.connect.Disable()
-	p.setStatus("Starting FreeRDP for " + p.profile.Host + " ...")
+	p.setConnecting("Starting FreeRDP for " + p.profile.Host + " ...")
 	target := p.rdpTarget()
 	options := p.rdpConfig
 	options.Password = p.passwordFor()
@@ -228,7 +225,7 @@ func (p *sessionPanel) applyConnectRDPWithArea(session rdpSession, area embedded
 		if area != nil {
 			area.Destroy()
 		}
-		p.connect.Enable()
+		p.setConnected(false)
 		p.setProblem("RDP launch failed: " + err.Error())
 		if embedErr != nil {
 			p.setProblem("RDP launch failed: " + err.Error() + " (embedding unavailable: " + embedErr.Error() + ")")
@@ -239,10 +236,7 @@ func (p *sessionPanel) applyConnectRDPWithArea(session rdpSession, area embedded
 	p.rdpStart = time.Now()
 	p.rdpDetached.Store(false)
 	p.embedded = area
-	p.maximiseTerminal()
-	p.connect.Disable()
-	p.disconnect.Enable()
-	p.password.Disable()
+	p.setConnected(true)
 	if area != nil {
 		p.setStatus("RDP session for " + p.profile.Host + " embedded in the tab; it rescales with the window.")
 	} else {
@@ -262,9 +256,7 @@ func (p *sessionPanel) applyConnectRDPWithArea(session rdpSession, area embedded
 			}
 			p.rdp = nil
 			p.releaseEmbedded()
-			p.restoreConfig()
-			p.connect.Enable()
-			p.disconnect.Disable()
+			p.setConnected(false)
 			if time.Since(p.rdpStart) < 3*time.Second {
 				p.setProblem("RDP session ended immediately. If FreeRDP reported a changed or self-signed certificate, enable Ignore certificate and try again.")
 				return
@@ -395,8 +387,7 @@ func (p *sessionPanel) connectShell() {
 		p.setProblem("Add a username in the Config panel and save the connection before connecting.")
 		return
 	}
-	p.connect.Disable()
-	p.setStatus("Connecting to " + p.profile.Host + " ...")
+	p.setConnecting("Connecting to " + p.profile.Host + " ...")
 	target := p.target()
 	options := sshclient.Options{Password: p.passwordFor(), Timeout: 15 * time.Second}
 	go func() {
@@ -416,7 +407,7 @@ func (p *sessionPanel) applyConnect(target sshclient.Target, options sshclient.O
 				func() { p.retryTrusted(options) }, nil)
 			return
 		}
-		p.connect.Enable()
+		p.setConnected(false)
 		p.setProblem("SSH connection failed: " + err.Error())
 		return
 	}
@@ -440,10 +431,7 @@ func (p *sessionPanel) startSession(shell shellSession, result sshclient.Result)
 	// Take the keyboard on the first layout pass; the tab selection also
 	// focuses the terminal once the tab is painted.
 	p.term.autoFocus = true
-	p.connect.Disable()
-	p.disconnect.Enable()
-	p.password.Disable()
-	p.maximiseTerminal()
+	p.setConnected(true)
 
 	verification := "unverified host key"
 	if result.HostKeyVerified {
@@ -464,18 +452,7 @@ func (p *sessionPanel) maximiseTerminal() {
 }
 
 func (p *sessionPanel) readOutput(shell shellSession) {
-	buffer := make([]byte, 32*1024)
-	for {
-		n, err := shell.Output().Read(buffer)
-		if n > 0 {
-			chunk := append([]byte(nil), buffer[:n]...)
-			fyne.Do(func() { p.applyOutput(chunk) })
-		}
-		if err != nil {
-			fyne.Do(p.sessionClosed)
-			return
-		}
-	}
+	pumpBytes(shell.Output(), p.applyOutput, p.sessionClosed)
 }
 
 func (p *sessionPanel) applyOutput(data []byte) {
@@ -490,8 +467,7 @@ func (p *sessionPanel) clearTerminal() {
 	p.term = nil
 	placeholder := widget.NewLabel("Session closed. Choose Connect to open a new terminal.")
 	placeholder.Importance = widget.LowImportance
-	p.slot.Objects = []fyne.CanvasObject{placeholder}
-	p.slot.Refresh()
+	p.installSlot(placeholder)
 }
 
 func (p *sessionPanel) sessionClosed() {
@@ -501,15 +477,7 @@ func (p *sessionPanel) sessionClosed() {
 	}
 	// A finished session must leave the panel ready to connect again, including
 	// the password field that startSession disabled.
-	p.connect.Enable()
-	p.disconnect.Disable()
-	p.password.Enable()
-	if p.hidConfig {
-		p.hidConfig = false
-		if !p.screen.propertiesVisible {
-			p.screen.toggleProperties()
-		}
-	}
+	p.setConnected(false)
 	p.setStatus("Session closed.")
 }
 
@@ -542,10 +510,7 @@ func (p *sessionPanel) disconnectShell() {
 		p.stream = nil
 		_ = session.Close()
 		p.clearTerminal()
-		p.connect.Enable()
-		p.disconnect.Disable()
-		p.password.Enable()
-		p.restoreConfig()
+		p.setConnected(false)
 		p.setStatus("Session closed.")
 		return
 	}
@@ -554,10 +519,7 @@ func (p *sessionPanel) disconnectShell() {
 		p.vnc = nil
 		p.vncView = nil
 		_ = session.Close()
-		p.connect.Enable()
-		p.disconnect.Disable()
-		p.password.Enable()
-		p.restoreConfig()
+		p.setConnected(false)
 		p.setStatus("VNC session closed.")
 		return
 	}
@@ -566,10 +528,7 @@ func (p *sessionPanel) disconnectShell() {
 		_ = p.rdp.Close()
 		p.rdp = nil
 		p.releaseEmbedded()
-		p.restoreConfig()
-		p.connect.Enable()
-		p.disconnect.Disable()
-		p.password.Enable()
+		p.setConnected(false)
 		p.setStatus("RDP session closed.")
 		return
 	}
@@ -589,8 +548,7 @@ func (p *sessionPanel) installTerminal() {
 	size := p.term.textSize()
 	base := fyne.CurrentApp().Settings().Theme()
 	wrapped := container.NewThemeOverride(p.term, zoomTheme{base: base, size: size})
-	p.slot.Objects = []fyne.CanvasObject{wrapped}
-	p.slot.Refresh()
+	p.installSlot(wrapped)
 }
 
 // wireTerminal connects clipboard and interrupt actions to a terminal view.

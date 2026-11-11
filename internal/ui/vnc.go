@@ -91,12 +91,8 @@ func (v *vncView) MouseMoved(event *desktop.MouseEvent) {
 func (p *sessionPanel) startVNC(session vncSession) {
 	p.vnc = session
 	p.vncView = newVNCView(session)
-	p.slot.Objects = []fyne.CanvasObject{container.NewStack(p.vncView)}
-	p.slot.Refresh()
-	p.connect.Disable()
-	p.disconnect.Enable()
-	p.password.Disable()
-	p.maximiseTerminal()
+	p.installSlot(container.NewStack(p.vncView))
+	p.setConnected(true)
 	p.setStatus("VNC session with " + p.profile.Host + " connected. Click the view to send a left click.")
 	go p.readVNC(session)
 }
@@ -121,24 +117,20 @@ func (p *sessionPanel) vncClosed(session vncSession) {
 	}
 	p.vnc = nil
 	p.vncView = nil
-	p.connect.Enable()
-	p.disconnect.Disable()
-	p.password.Enable()
-	p.restoreConfig()
+	p.setConnected(false)
 	p.setStatus("VNC session closed.")
 }
 
 // connectVNC opens the VNC session for this tab.
 func (p *sessionPanel) connectVNC() {
-	p.connect.Disable()
-	p.setStatus("Connecting to " + p.profile.Host + " (VNC) ...")
+	p.setConnecting("Connecting to " + p.profile.Host + " (VNC) ...")
 	resolved := p.screen.resolve(p.profile)
 	address := net.JoinHostPort(resolved.Host, strconv.Itoa(resolved.Port))
 	go func() {
 		session, err := p.screen.dialVNC(address, vncclient.Config{Password: p.password.Text, Timeout: 10 * time.Second})
 		fyne.Do(func() {
 			if err != nil {
-				p.connect.Enable()
+				p.setConnected(false)
 				p.setProblem("VNC connection failed: " + err.Error())
 				return
 			}

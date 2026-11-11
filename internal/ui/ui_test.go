@@ -2300,3 +2300,44 @@ func TestRequireWritable_WritableStore_AllowsAndKeepsStatus(t *testing.T) {
 		t.Errorf("status = %q, want it left untouched", s.status.Text)
 	}
 }
+
+func TestSetConnected_LiveSession_DisablesConnectAndPassword(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	p := s.newSessionPanel(sampleProfile(t, "lab", "", string(profiles.SSH), "192.0.2.10", 22))
+	p.setConnected(true)
+	if !p.connect.Disabled() {
+		t.Error("Connect is still enabled while a session is live")
+	}
+	if p.disconnect.Disabled() {
+		t.Error("Disconnect is disabled while a session is live")
+	}
+	if !p.password.Disabled() {
+		t.Error("password field is enabled while a session is live")
+	}
+}
+
+func TestSetConnected_EndedSession_RestoresControls(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	p := s.newSessionPanel(sampleProfile(t, "lab", "", string(profiles.SSH), "192.0.2.10", 22))
+	p.setConnected(true)
+	p.setConnected(false)
+	if p.connect.Disabled() {
+		t.Error("Connect is disabled after the session ended")
+	}
+	if !p.disconnect.Disabled() {
+		t.Error("Disconnect is enabled after the session ended")
+	}
+	if p.password.Disabled() {
+		t.Error("password field is disabled after the session ended")
+	}
+}
+
+func TestInstallSlot_NewContent_ReplacesSessionArea(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	p := s.newSessionPanel(sampleProfile(t, "lab", "", string(profiles.SSH), "192.0.2.10", 22))
+	label := widget.NewLabel("session area")
+	p.installSlot(label)
+	if len(p.slot.Objects) != 1 || p.slot.Objects[0] != label {
+		t.Errorf("session area holds %d objects, want only the installed content", len(p.slot.Objects))
+	}
+}
