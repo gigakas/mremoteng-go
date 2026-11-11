@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -50,13 +49,8 @@ type termWidget struct {
 	autoFocus bool
 	// fontSize is the terminal-only text size (Ctrl+scroll zoom).
 	fontSize float32
-	// zoom is the grid-level theme override; the grid re-reads its theme when
-	// refreshed, so it must carry the size itself instead of inheriting it.
-	zoom *zoomTheme
 	// onZoom lets the panel rebuild the theme override after a zoom change.
 	onZoom func()
-	// ctrlHeld reports whether Ctrl is down; tests replace it.
-	ctrlHeld func() bool
 }
 
 const (
@@ -86,9 +80,6 @@ func (t *termWidget) adjustZoom(delta float32) {
 		return
 	}
 	t.fontSize = size
-	if t.zoom != nil {
-		t.zoom.size = size
-	}
 	if t.onZoom != nil {
 		t.onZoom()
 	}
@@ -106,7 +97,6 @@ func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *
 		cols:     cols,
 		rows:     rows,
 	}
-	t.zoom = &zoomTheme{base: fyne.CurrentApp().Settings().Theme(), size: t.textSize()}
 	t.ExtendBaseWidget(t)
 	return t
 }
@@ -115,7 +105,7 @@ func (t *termWidget) CreateRenderer() fyne.WidgetRenderer {
 	t.grid = widget.NewTextGrid()
 	t.grid.Scroll = fyne.ScrollNone
 	t.render()
-	return &termRenderer{parent: t, objects: []fyne.CanvasObject{container.NewThemeOverride(t.grid, t.zoom)}, font: t.textSize()}
+	return &termRenderer{parent: t, objects: []fyne.CanvasObject{t.grid}, font: t.textSize()}
 }
 
 type termRenderer struct {
@@ -132,8 +122,8 @@ func (r *termRenderer) Layout(size fyne.Size) {
 		grid := widget.NewTextGrid()
 		grid.Scroll = fyne.ScrollNone
 		r.parent.grid = grid
-		r.objects[0] = container.NewThemeOverride(grid, r.parent.zoom)
-		r.objects[0].Resize(size)
+		r.objects[0] = grid
+		grid.Resize(size)
 		r.parent.fit(size)
 		r.parent.render()
 	} else {
@@ -246,7 +236,7 @@ func (t *termWidget) Scrolled(event *fyne.ScrollEvent) {
 		return
 	}
 	// Ctrl+scroll zooms the console instead of scrolling it.
-	if t.ctrlHeld != nil && t.ctrlHeld() {
+	if controlPressed() {
 		if event.Scrolled.DY > 0 {
 			t.adjustZoom(1)
 		} else {

@@ -82,7 +82,6 @@ func TestScrolled_MovesThroughScrollbackWithoutChangingZoom(t *testing.T) {
 	window.Resize(fyne.NewSize(1000, 700))
 
 	term := panel.term
-	term.ctrlHeld = func() bool { return false }
 	// Incremental output, because the emulator records scrollback by aligning
 	// consecutive screens rather than scanning one large chunk.
 	for i := 0; i < 120; i++ {
