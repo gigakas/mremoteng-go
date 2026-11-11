@@ -2,7 +2,7 @@
 // a console inside the application instead of requiring an external terminal.
 //
 // The emulator interprets escape sequences; this package exposes a snapshot of
-// the visible screen that the UI paints. Scrollback history is not kept yet.
+// the visible screen that the UI paints and a bounded scrollback history.
 package terminal
 
 import (

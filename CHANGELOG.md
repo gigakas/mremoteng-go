@@ -156,6 +156,106 @@
   - `internal/serialize/xml/node26.go`
   - `internal/serialize/xml/node27.go`
   - _2026-11-11 22:00:44 UTC — mimocode-xml_
+- Delete code the shipped binary cannot execute
+
+  Remove every package the mremoteng binary could never reach, proven with go list -deps ./cmd/mremoteng, and record the deletion in a new audit.
+
+  Deleted in import-graph order:
+  1. internal/ui/ansi.go (345 non-test LOC) + ansi_test.go (175 LOC, 12 tests). Superseded by internal/terminal (vt10x), which internal/ui/terminal.go drives; newANSIState had no caller outside its own file. The ui_test.go call to min() now resolves to the Go builtin, no test edit needed.
+  2. internal/ui/framebuffer.go (190 non-test LOC) + framebuffer_test.go (164 LOC, 4 tests). The live VNC panel renders through internal/ui/vnc.go; Attach was called only from its own test and fakeFramebuffer was the only protocol.FramebufferProtocol implementation.
+  3. internal/protocol/{raw,rlogin,serial,anydesk} (570 non-test LOC, 431 test LOC, 12 tests). Only their own tests imported them; RAW and RLOGIN are served by internal/protocol/telnet modes via internal/ui/stream.go, and internal/profiles has no SERIAL or AnyDesk protocol constant. go mod tidy then dropped go.bug.st/serial v1.8.0, the only external dependency lost.
+  4. internal/protocol root package (333 non-test LOC, 185 test LOC, 7 tests): protocol.go, factory.go, lifecycle.go, terminal.go, window.go, framebuffer.go. No production importer remained: Register was called only from init() funcs in the packages above, Create only from tests, and cmd/mremoteng blank-imports no backend, so the shipped registry was always empty.
+  5. internal/ui/folders.go: requestMoveConnection (12 LOC) had no call site; moves are served by the row context menu Move to submenu, drag-and-drop and the File menu paths that call moveConnection directly.
+
+  Totals: 1451 non-test LOC and 955 test LOC (2406 lines), 35 test functions, one external dependency and five packages.
+
+  README.md:25 advertised a File > Move connection to folder menu item that does not exist; it now points at the row right-click Move to submenu, so the capability stays documented and only the false path is gone.
+
+  New audit auditory/linux-deadcode-20261111-mimocode.md follows auditory/TEMPLATE.md and explains why the nine audits that record these packages as delivered stages stay untouched (committed audits are immutable), what deliberately stayed (L9 credential providers, the connection test-only API), and the pending repo-wide gate.
+
+  Validation was scoped to avoid a concurrent agent's uncommitted work in internal/serialize/xml and internal/connection: go build -tags x11 ./internal/ui/ ./cmd/..., go build ./internal/protocol/..., go vet -tags x11 ./internal/ui/ ./cmd/..., go vet ./integration/, go test ./internal/ui/ -count=1 (ok, 0.849s), and go mod tidy with git diff confirming only go.bug.st/serial left go.mod/go.sum. ./scripts/check.sh and ./scripts/smoke.sh are left to the lead.
+
+  - `internal/ui/ansi.go`
+  - `internal/ui/ansi_test.go`
+  - `internal/ui/framebuffer.go`
+  - `internal/ui/framebuffer_test.go`
+  - `internal/ui/folders.go`
+  - `internal/protocol`
+  - `go.mod`
+  - `go.sum`
+  - `README.md`
+  - `auditory/linux-deadcode-20261111-mimocode.md`
+  - _2026-11-11 22:02:12 UTC — mimocode-cleanup_
+- Fix stale references left by the dead-code removal and the defaults change
+
+  internal/terminal/terminal.go still claimed scrollback history was not kept, while the emulator keeps up to historyLimit = 2000 lines in its history slice and trims it; the package comment now describes what it does. blueprint/linux-preview.md listed internal/protocol/ as L2 ownership after that package was deleted, so it now names the four backend packages that remain (ssh, rdp, vnc, telnet). blueprint/backlog.md listed scrollback as pending under L10 although it shipped, so the status line now records terminal zoom, scrollback and copy as done and leaves session persistence, the settings dialog and manual ordering pending. Validated with ./scripts/check.sh and the corpus integration suite.
+
+  - `.claude/skills/design-patterns/SKILL.md`
+  - `.claude/skills/design-patterns/references/app-recipes.md`
+  - `.claude/skills/design-patterns/references/behavioral-patterns.md`
+  - `.claude/skills/design-patterns/references/creational-patterns.md`
+  - `.claude/skills/design-patterns/references/language-idioms.md`
+  - `.claude/skills/design-patterns/references/pattern-relations.md`
+  - `.claude/skills/design-patterns/references/structural-patterns.md`
+  - `.claude/skills/documentation/SKILL.md`
+  - `.claude/skills/documentation/references/adr.md`
+  - `.claude/skills/documentation/references/api-docs.md`
+  - `.claude/skills/documentation/references/diagrams.md`
+  - `.claude/skills/documentation/references/docstrings.md`
+  - `.claude/skills/documentation/references/readme.md`
+  - `.claude/skills/documentation/references/runbooks.md`
+  - `.claude/skills/documentation/references/user-guides.md`
+  - `.claude/skills/refactoring/SKILL.md`
+  - `.claude/skills/refactoring/references/code-smells.md`
+  - `.claude/skills/refactoring/references/file-responsibility-rules.md`
+  - `.claude/skills/refactoring/references/refactoring-recipes.md`
+  - `.claude/skills/refactoring/references/techniques.md`
+  - `.claude/skills/solid-principles/SKILL.md`
+  - `.claude/skills/test-driven-development/SKILL.md`
+  - `.claude/skills/testing-patterns/SKILL.md`
+  - `.claude/skills/testing-patterns/references/architecture-tests.md`
+  - `.claude/skills/testing-patterns/references/mutation-testing.md`
+  - `.claude/skills/testing-patterns/references/test-doubles.md`
+  - `.claude/skills/testing-patterns/references/test-smells.md`
+  - `.claude/skills/testing-patterns/references/test-strategy.md`
+  - `.mimocode/mimocode.jsonc`
+  - `AGENTS.md`
+  - `README.md`
+  - `auditory/linux-deadcode-20261111-mimocode.md`
+  - `blueprint/backlog.md`
+  - `blueprint/linux-preview.md`
+  - `docs/linux-preview-usability.md`
+  - `go.mod`
+  - `go.sum`
+  - `internal/connection/model.go`
+  - `internal/protocol/anydesk/anydesk.go`
+  - `internal/protocol/anydesk/anydesk_test.go`
+  - `internal/protocol/anydesk/embed_linux.go`
+  - `internal/protocol/anydesk/embed_windows.go`
+  - `internal/protocol/factory.go`
+  - `internal/protocol/framebuffer.go`
+  - `internal/protocol/lifecycle.go`
+  - `internal/protocol/protocol.go`
+  - `internal/protocol/protocol_test.go`
+  - `internal/protocol/raw/raw.go`
+  - `internal/protocol/raw/raw_test.go`
+  - `internal/protocol/rlogin/rlogin.go`
+  - `internal/protocol/rlogin/rlogin_test.go`
+  - `internal/protocol/serial/serial.go`
+  - `internal/protocol/serial/serial_test.go`
+  - `internal/protocol/terminal.go`
+  - `internal/protocol/window.go`
+  - `internal/serialize/xml/attributes.go`
+  - `internal/serialize/xml/deserialize_test.go`
+  - `internal/serialize/xml/node26.go`
+  - `internal/serialize/xml/node27.go`
+  - `internal/terminal/terminal.go`
+  - `internal/ui/ansi.go`
+  - `internal/ui/ansi_test.go`
+  - `internal/ui/folders.go`
+  - `internal/ui/framebuffer.go`
+  - `internal/ui/framebuffer_test.go`
+  - _2026-11-11 22:03:30 UTC — mimocode_
 
 ## 2026-11-10
 

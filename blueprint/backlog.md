@@ -90,7 +90,7 @@ installer and tarball release.
 - **Depends on**: L6 (fields to fill) and a decision on whether to reuse the
   mRemoteNG XML encryption or a native scheme.
 
-## Stage L10 — Session UX and workspace state — **partially done (2026-11-09)**: Quick connect (`auditory/linux-l10-20261109-opencode.md`) and persisted collapsed folders (`auditory/linux-l10-workspace-20261109-opencode.md`); visible-screen copy and repair path done (`auditory/linux-l10-copy-20261109-opencode.md`); scrollback, session persistence, settings dialog and manual ordering pending.
+## Stage L10 — Session UX and workspace state — **partially done (2026-11-09)**: Quick connect (`auditory/linux-l10-20261109-opencode.md`) and persisted collapsed folders (`auditory/linux-l10-workspace-20261109-opencode.md`); visible-screen copy and repair path done (`auditory/linux-l10-copy-20261109-opencode.md`); terminal zoom, scrollback and copy done; session persistence, settings dialog and manual ordering pending.
 
 - **Scope**: terminal scrollback and selection/copy, session persistence and
   reconnect, quick-connect bar, notifications panel, settings dialog (default

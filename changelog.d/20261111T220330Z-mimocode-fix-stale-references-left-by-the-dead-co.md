@@ -1,0 +1,74 @@
+---
+timestamp: 2026-11-11T22:03:30Z
+agent: mimocode
+files:
+  - .claude/skills/design-patterns/SKILL.md
+  - .claude/skills/design-patterns/references/app-recipes.md
+  - .claude/skills/design-patterns/references/behavioral-patterns.md
+  - .claude/skills/design-patterns/references/creational-patterns.md
+  - .claude/skills/design-patterns/references/language-idioms.md
+  - .claude/skills/design-patterns/references/pattern-relations.md
+  - .claude/skills/design-patterns/references/structural-patterns.md
+  - .claude/skills/documentation/SKILL.md
+  - .claude/skills/documentation/references/adr.md
+  - .claude/skills/documentation/references/api-docs.md
+  - .claude/skills/documentation/references/diagrams.md
+  - .claude/skills/documentation/references/docstrings.md
+  - .claude/skills/documentation/references/readme.md
+  - .claude/skills/documentation/references/runbooks.md
+  - .claude/skills/documentation/references/user-guides.md
+  - .claude/skills/refactoring/SKILL.md
+  - .claude/skills/refactoring/references/code-smells.md
+  - .claude/skills/refactoring/references/file-responsibility-rules.md
+  - .claude/skills/refactoring/references/refactoring-recipes.md
+  - .claude/skills/refactoring/references/techniques.md
+  - .claude/skills/solid-principles/SKILL.md
+  - .claude/skills/test-driven-development/SKILL.md
+  - .claude/skills/testing-patterns/SKILL.md
+  - .claude/skills/testing-patterns/references/architecture-tests.md
+  - .claude/skills/testing-patterns/references/mutation-testing.md
+  - .claude/skills/testing-patterns/references/test-doubles.md
+  - .claude/skills/testing-patterns/references/test-smells.md
+  - .claude/skills/testing-patterns/references/test-strategy.md
+  - .mimocode/mimocode.jsonc
+  - AGENTS.md
+  - README.md
+  - auditory/linux-deadcode-20261111-mimocode.md
+  - blueprint/backlog.md
+  - blueprint/linux-preview.md
+  - docs/linux-preview-usability.md
+  - go.mod
+  - go.sum
+  - internal/connection/model.go
+  - internal/protocol/anydesk/anydesk.go
+  - internal/protocol/anydesk/anydesk_test.go
+  - internal/protocol/anydesk/embed_linux.go
+  - internal/protocol/anydesk/embed_windows.go
+  - internal/protocol/factory.go
+  - internal/protocol/framebuffer.go
+  - internal/protocol/lifecycle.go
+  - internal/protocol/protocol.go
+  - internal/protocol/protocol_test.go
+  - internal/protocol/raw/raw.go
+  - internal/protocol/raw/raw_test.go
+  - internal/protocol/rlogin/rlogin.go
+  - internal/protocol/rlogin/rlogin_test.go
+  - internal/protocol/serial/serial.go
+  - internal/protocol/serial/serial_test.go
+  - internal/protocol/terminal.go
+  - internal/protocol/window.go
+  - internal/serialize/xml/attributes.go
+  - internal/serialize/xml/deserialize_test.go
+  - internal/serialize/xml/node26.go
+  - internal/serialize/xml/node27.go
+  - internal/terminal/terminal.go
+  - internal/ui/ansi.go
+  - internal/ui/ansi_test.go
+  - internal/ui/folders.go
+  - internal/ui/framebuffer.go
+  - internal/ui/framebuffer_test.go
+---
+
+Fix stale references left by the dead-code removal and the defaults change
+
+internal/terminal/terminal.go still claimed scrollback history was not kept, while the emulator keeps up to historyLimit = 2000 lines in its history slice and trims it; the package comment now describes what it does. blueprint/linux-preview.md listed internal/protocol/ as L2 ownership after that package was deleted, so it now names the four backend packages that remain (ssh, rdp, vnc, telnet). blueprint/backlog.md listed scrollback as pending under L10 although it shipped, so the status line now records terminal zoom, scrollback and copy as done and leaves session persistence, the settings dialog and manual ordering pending. Validated with ./scripts/check.sh and the corpus integration suite.
