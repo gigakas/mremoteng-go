@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 	"os"
 	"sync"
@@ -78,4 +79,19 @@ func ctrlHeld() bool {
 		return false
 	}
 	return reply.Mask&xproto.ModMaskControl != 0
+}
+
+// traceZoom records zoom decisions when MRE_TRACE_ZOOM is set, so a zoom that
+// does nothing can be traced to the shortcut, the size change or the repaint
+// without a debugger.
+func traceZoom(format string, args ...any) {
+	if os.Getenv("MRE_TRACE_ZOOM") == "" {
+		return
+	}
+	file, err := os.OpenFile("/tmp/mremoteng-zoom.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer func() { _ = file.Close() }()
+	fmt.Fprintf(file, format+"\n", args...)
 }

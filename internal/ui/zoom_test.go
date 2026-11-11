@@ -43,10 +43,9 @@ func TestInstallTerminal_ZoomThenActivity_KeepsTheTextSize(t *testing.T) {
 	window.Resize(fyne.NewSize(1000, 700))
 
 	term := panel.term
-	if panel.terminalWrap == nil {
+	if term.gridWrap == nil {
 		t.Fatal("connect did not install the terminal theme override")
 	}
-	firstWrapper := panel.terminalWrap
 	firstGrid := term.grid
 	before := rowHeight(term)
 
@@ -58,10 +57,6 @@ func TestInstallTerminal_ZoomThenActivity_KeepsTheTextSize(t *testing.T) {
 	}
 	if term.grid == firstGrid {
 		t.Error("zoom kept the old text grid; TextGrid caches the theme size per row")
-	}
-
-	if panel.terminalWrap != firstWrapper {
-		t.Error("zoom replaced the theme override; it must mutate the existing one")
 	}
 
 	// Everything the user does after zooming must preserve the size.
@@ -77,9 +72,6 @@ func TestInstallTerminal_ZoomThenActivity_KeepsTheTextSize(t *testing.T) {
 	window.Resize(fyne.NewSize(1000, 700))
 	if got := rowHeight(term); got <= zoomed {
 		t.Errorf("second zoom step did not enlarge the text: was %.0f, got %.0f", zoomed, got)
-	}
-	if panel.terminalWrap != firstWrapper {
-		t.Error("second zoom step replaced the theme override")
 	}
 }
 

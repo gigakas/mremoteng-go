@@ -376,7 +376,9 @@ func (s *screen) registerControlShortcuts() {
 
 // zoomFocusedTerminal changes the font size of the focused terminal.
 func (s *screen) zoomFocusedTerminal(delta float32) {
-	if term, ok := s.focusedTerminal(); ok {
+	term, ok := s.focusedTerminal()
+	traceZoom("shortcut delta=%.0f focused=%v", delta, ok)
+	if ok {
 		term.adjustZoom(delta)
 	}
 }
@@ -384,10 +386,7 @@ func (s *screen) zoomFocusedTerminal(delta float32) {
 // resetFocusedTerminalZoom returns the focused terminal to the default size.
 func (s *screen) resetFocusedTerminalZoom() {
 	if term, ok := s.focusedTerminal(); ok {
-		term.fontSize = theme.TextSize()
-		if term.onZoom != nil {
-			term.onZoom()
-		}
+		term.adjustZoom(theme.TextSize() - term.textSize())
 	}
 }
 
