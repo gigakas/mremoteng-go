@@ -551,11 +551,7 @@ func (p *sessionPanel) installTerminal() {
 	if p.term == nil {
 		return
 	}
-	size := p.term.textSize()
-	base := fyne.CurrentApp().Settings().Theme()
-	wrapped := container.NewThemeOverride(p.term, zoomTheme{base: base, size: size})
-	p.slot.Objects = []fyne.CanvasObject{wrapped}
-	p.slot.Refresh()
+	p.installSlot(p.term)
 }
 
 // wireTerminal connects clipboard and interrupt actions to a terminal view.
@@ -569,7 +565,6 @@ func (p *sessionPanel) wireTerminal(term *termWidget) {
 		p.setStatus("Selection copied to the clipboard.")
 	}
 	term.onInterrupt = func() { term.sendBytes([]byte{0x03}) }
-	term.onZoom = p.installTerminal
 }
 
 // copyTerminalScreen copies the terminal contents to the clipboard.

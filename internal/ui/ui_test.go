@@ -1304,20 +1304,18 @@ func TestSessionPanel_AfterDisconnect_CanReconnect(t *testing.T) {
 	}
 }
 
-func TestTermWidget_AdjustZoom_ClampsAndNotifies(t *testing.T) {
+func TestTermWidget_AdjustZoom_ClampsAndUpdatesTheme(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 	term := newTermWidget(20, 4, nil, nil)
-	calls := 0
-	term.onZoom = func() { calls++ }
 	start := term.textSize()
 
 	term.adjustZoom(2)
 	if term.textSize() != start+2 {
 		t.Fatalf("size = %.0f, want %.0f", term.textSize(), start+2)
 	}
-	if calls != 1 {
-		t.Errorf("onZoom calls = %d, want 1", calls)
+	if term.zoom == nil || term.zoom.Size(theme.SizeNameText) != start+2 {
+		t.Errorf("zoom theme text size = %v, want %.0f", term.zoom, start+2)
 	}
 	for i := 0; i < 50; i++ {
 		term.adjustZoom(1)
@@ -1625,8 +1623,11 @@ func TestSessionPanel_TelnetConnect_ShowsTerminalAndSendsInput(t *testing.T) {
 	if panel.term == nil || len(panel.slot.Objects) != 1 {
 		t.Fatal("terminal view was not installed")
 	}
-	if panel.term.onZoom == nil || panel.term.onCopy == nil {
-		t.Error("telnet terminal is not wired for zoom and clipboard copy")
+	if panel.term.onCopy == nil {
+		t.Error("telnet terminal is not wired for clipboard copy")
+	}
+	if panel.term.zoom == nil {
+		t.Error("telnet terminal has no grid-level zoom theme")
 	}
 	panel.term.TypedRune('a')
 	panel.term.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEnter})

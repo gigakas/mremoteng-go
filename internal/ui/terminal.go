@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -49,8 +50,14 @@ type termWidget struct {
 	autoFocus bool
 	// fontSize is the terminal-only text size (Ctrl+scroll zoom).
 	fontSize float32
-	// onZoom lets the panel rebuild the theme override after a zoom change.
-	onZoom func()
+	// zoom is the grid-level theme override; the grid owns its text size, so a
+	// refresh (typing, scroll, selection) cannot fall back to the app theme.
+	zoom *zoomTheme
+	// renderer is the termRenderer built in CreateRenderer, so the grid can be
+	// swapped in place on a zoom step.
+	renderer *termRenderer
+	// ctrlHeld reports whether Ctrl is down; tests replace it.
+	ctrlHeld func() bool
 }
 
 const (
@@ -80,9 +87,10 @@ func (t *termWidget) adjustZoom(delta float32) {
 		return
 	}
 	t.fontSize = size
-	if t.onZoom != nil {
-		t.onZoom()
+	if t.zoom != nil {
+		t.zoom.size = size
 	}
+	t.rebuildGrid()
 	t.fit(t.Size())
 	t.render()
 }
@@ -97,15 +105,40 @@ func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *
 		cols:     cols,
 		rows:     rows,
 	}
+	t.zoom = &zoomTheme{base: fyne.CurrentApp().Settings().Theme(), size: t.textSize()}
+	t.ctrlHeld = controlPressed
 	t.ExtendBaseWidget(t)
 	return t
 }
 
 func (t *termWidget) CreateRenderer() fyne.WidgetRenderer {
-	t.grid = widget.NewTextGrid()
-	t.grid.Scroll = fyne.ScrollNone
+	t.renderer = &termRenderer{parent: t, font: t.textSize()}
+	t.renderer.objects = []fyne.CanvasObject{t.installGrid(fyne.NewSize(1, 1))}
 	t.render()
-	return &termRenderer{parent: t, objects: []fyne.CanvasObject{t.grid}, font: t.textSize()}
+	return t.renderer
+}
+
+// installGrid builds a text grid wrapped in the terminal's own theme override,
+// so the grid reads the terminal size on every refresh instead of the app theme.
+func (t *termWidget) installGrid(size fyne.Size) fyne.CanvasObject {
+	grid := widget.NewTextGrid()
+	grid.Scroll = fyne.ScrollNone
+	if t.zoom == nil {
+		t.zoom = &zoomTheme{base: fyne.CurrentApp().Settings().Theme(), size: t.textSize()}
+	}
+	t.grid = grid
+	wrap := container.NewThemeOverride(grid, t.zoom)
+	wrap.Resize(size)
+	return wrap
+}
+
+// rebuildGrid swaps the text grid for a fresh one carrying the current size.
+func (t *termWidget) rebuildGrid() {
+	if t.renderer != nil {
+		t.renderer.font = t.textSize()
+		t.renderer.objects[0] = t.installGrid(t.Size())
+	}
+	t.render()
 }
 
 type termRenderer struct {
@@ -119,11 +152,7 @@ type termRenderer struct {
 func (r *termRenderer) Layout(size fyne.Size) {
 	if r.font != r.parent.textSize() || r.parent.grid == nil {
 		r.font = r.parent.textSize()
-		grid := widget.NewTextGrid()
-		grid.Scroll = fyne.ScrollNone
-		r.parent.grid = grid
-		r.objects[0] = grid
-		grid.Resize(size)
+		r.parent.rebuildGrid()
 		r.parent.fit(size)
 		r.parent.render()
 	} else {
@@ -236,7 +265,7 @@ func (t *termWidget) Scrolled(event *fyne.ScrollEvent) {
 		return
 	}
 	// Ctrl+scroll zooms the console instead of scrolling it.
-	if controlPressed() {
+	if t.ctrlHeld != nil && t.ctrlHeld() {
 		if event.Scrolled.DY > 0 {
 			t.adjustZoom(1)
 		} else {
