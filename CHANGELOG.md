@@ -17,6 +17,9 @@
   - `internal/ui/ui_test.go`
   - `README.md`
   - _2026-11-11 19:45:13 UTC — opencode_
+- Bump the preview to 0.6.0
+  - `VERSION`
+  - _2026-11-11 19:45:56 UTC — opencode_
 
 ## 2026-11-10
 
