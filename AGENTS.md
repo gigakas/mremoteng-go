@@ -13,8 +13,9 @@
 
 ## Commands and verification
 
-Run from the repository root with Go 1.23+. If Go is not on PATH, use
-`export PATH="$HOME/.local/go/bin:$PATH"`; both scripts below do this automatically.
+Run from the repository root with Go 1.25+ (`go.mod` declares `go 1.25.0`). If Go
+is not on PATH, use `export PATH="$HOME/.local/go/bin:$PATH"`; both scripts below
+do this automatically.
 
 ```bash
 ./scripts/check.sh    # mandatory before finishing: formatting check -> vet -> all tests

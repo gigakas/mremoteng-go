@@ -7,16 +7,17 @@ historical phase dependencies. Existing completed stages and audits are retained
 | Stage | Scope | Status | Owner |
 |---|---|---|---|
 | L1 | mRemoteNG-style profile manager (tree, tabs, Config panel) | in progress (opencode; human usability pending) | opencode |
-| L2 | SSH/RDP session lifecycle and real connections | in progress (opencode; SSH terminal done, RDP external process done, embedding pending) | opencode |
-| L3 | Session UX, optional import, credential strategy | pending | any |
-| L4 | Linux packaging and human usability acceptance | pending | human + any |
+| L2 | SSH/RDP session lifecycle and real connections | in progress (opencode; SSH terminal, embedded RDP and VNC done; modifier-key input, embedded webview and serial pending) | opencode |
+| L3 | Session UX, optional import, credential strategy | in progress (import/export, credential vault, quick connect, folders, terminal zoom, scrollback/copy done; see the matching backlog stages, no L3 audit yet) | opencode |
+| L4 | Linux packaging and human usability acceptance | partially done (`.deb` via `scripts/package-deb.sh`; rpm/Flatpak and human acceptance pending) | human + any |
 
 ## Ownership and coordination
 
 - Folders are stored explicitly (`folders` in the native document), so an empty
   folder created with File > New folder survives restarts; connections join one
-  through the Folder field or File > Move connection to folder. Rename rewrites
-  the whole subtree and every contained connection's Folder value; delete is
+  through the Folder field or a connection row's right-click Move to submenu.
+  Rename rewrites the whole subtree and every contained connection's Folder
+  value; delete is
   recursive and confirms the number of affected connections. Rows expose a
   right-click context menu (folder: create subfolder in one click, rename,
   delete; connection: rename, open, Move to submenu listing the root and every
@@ -37,7 +38,9 @@ historical phase dependencies. Existing completed stages and audits are retained
   integration and the active-plan documentation. No existing core package changes.
 - Independent L1 units may be delegated within disjoint files: profile storage,
   desktop UI, and entrypoint/build wiring. The lead integrates and audits L1.
-- L2 owns `internal/protocol/`; later UI wiring is a separate scoped change.
+- L2 owns `internal/protocol/{ssh,rdp,vnc,telnet}` and `internal/terminal/`; UI wiring in
+  `internal/ui/` lands as a scoped change. Packages added after L4
+  (`internal/vault`, `internal/transfer`) belong to their backlog stage.
 - Other phase work must not overlap the active track. Stage closure still needs
   checks, smoke, audit and changelog; manual acceptance is recorded separately.
 - Delegation of this Linux implementation is authorized by the current user
@@ -52,6 +55,12 @@ SSH is implemented in `internal/protocol/ssh` and exposed in the session tab:
 - Interactive shell: PTY request, shell start, stdin/stdout streaming and
   `window-change` on resize. Output is rendered by `internal/terminal` (VT100/
   xterm emulation, 256 colours, cursor) inside the tab.
+- Terminal history: `internal/terminal` keeps up to 2000 scrolled lines; the
+  wheel and PageUp/arrow keys browse them while the view is scrolled up, and a
+  mouse selection is copied to the clipboard by right-click (there is no
+  Ctrl-Shift-C, because key events carry no modifier information). Zoom is per
+  terminal via Ctrl+= / Ctrl+- / Ctrl+0 or View > Terminal zoom; Ctrl+scroll
+  deliberately scrolls the history instead of zooming.
 - Unknown hosts require explicit approval of the shown SHA-256 fingerprint; the
   password lives only in the widget for that attempt.
 
@@ -76,9 +85,11 @@ session opened. Auth-only is not supported by that server, so "Test credentials"
 reports failure while Connect works; the status message says so. The `RDP_LOCAL`
 test documents how to repeat the auth-only check against a compatible host.
 
-Open: embedding the RDP window in the tab, scrollback history, and modifier-key
-input (Fyne does not deliver Ctrl/Alt in key events; Ctrl-C/Ctrl-D are buttons,
-and Shift-Tab is indistinguishable from Tab). Tab is delivered to the shell via
+Open: modifier-key input (Fyne key events carry no modifier information, so
+Ctrl-C/Ctrl-D are buttons and Shift-Tab is indistinguishable from Tab; only the
+control combinations registered in `internal/ui/shell.go` reach the shell), the
+embedded webview (HTTP profiles open in the system browser, see
+`internal/ui/stream.go`), and serial ports. Tab is delivered to the shell via
 `fyne.Tabbable` so completion works.
 
 ## Audit naming for this track
@@ -93,12 +104,16 @@ historical `phase<N>-stage<M>` scheme does not describe the Linux track.
   failures, filtering, tree selection, delete confirmation, discard guard,
   write lockout after a load failure).
 - Manual: `docs/linux-preview-usability.md` is pending human execution; the
-  stage stays open until that evidence exists.
+  stage stays open until that evidence exists. The script now also covers what
+  shipped after the first draft (folders, import/export, quick connect, terminal
+  zoom, scrollback and copy, credential vault), so one run accepts the product
+  as it stands.
 
 ## Next stages
 
 `blueprint/backlog.md` holds the ordered plan after L4 (import/export,
 inheritance, RDP parity, extra protocols, credentials, session UX, reliability
-and packaging). Read it before proposing work outside this table.
+and packaging) and records which of those stages are already partially
+delivered. Read it before proposing work outside this table.
 
 See `docs/MIGRATION_PLAN.md` for acceptance criteria and deferred work.
