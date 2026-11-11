@@ -9,6 +9,14 @@
 - Bump the preview to 0.5.0
   - `VERSION`
   - _2026-11-11 19:38:08 UTC — opencode_
+- Zoom the terminal with Ctrl+scroll
+  - `internal/ui/zoom.go`
+  - `internal/ui/terminal.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/ui_test.go`
+  - `README.md`
+  - _2026-11-11 19:45:13 UTC — opencode_
 
 ## 2026-11-10
 

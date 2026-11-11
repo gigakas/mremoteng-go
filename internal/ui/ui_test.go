@@ -462,7 +462,11 @@ func TestTermWidget_Write_PaintsScreen(t *testing.T) {
 
 func TestSessionPanel_Connect_ShowsTerminalAndForwardsInput(t *testing.T) {
 	s := newTestScreen(t, &fakeStore{})
-	shell := &fakeShell{output: strings.NewReader("")}
+	// A pipe keeps the session open until the test disconnects; an immediate EOF
+	// would close the panel and clear the terminal.
+	reader, writer := io.Pipe()
+	t.Cleanup(func() { _ = writer.Close() })
+	shell := &fakeShell{output: reader}
 	s.openShell = func(sshclient.Target, sshclient.Options, sshclient.TermSize) (shellSession, sshclient.Result, error) {
 		return shell, sshclient.Result{ServerVersion: "SSH-2.0-test", HostKeyVerified: true}, nil
 	}
@@ -480,8 +484,8 @@ func TestSessionPanel_Connect_ShowsTerminalAndForwardsInput(t *testing.T) {
 		t.Errorf("shell input = %q, want %q", shell.input, "x")
 	}
 	panel.applyOutput([]byte("hi"))
-	if len(panel.term.grid.Rows) == 0 || panel.term.grid.Rows[0].Cells[0].Rune != 'h' {
-		t.Errorf("terminal did not paint remote output")
+	if text := panel.term.screenText(); !strings.Contains(text, "hi") {
+		t.Errorf("terminal did not receive the remote output: %q", text)
 	}
 	panel.disconnectShell()
 	if !shell.closed {
@@ -1297,6 +1301,47 @@ func TestSessionPanel_AfterDisconnect_CanReconnect(t *testing.T) {
 	panel.password.SetText("again")
 	if panel.password.Text != "again" {
 		t.Error("password field is not editable after disconnecting")
+	}
+}
+
+func TestTermWidget_AdjustZoom_ClampsAndNotifies(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	term := newTermWidget(20, 4, nil, nil)
+	calls := 0
+	term.onZoom = func() { calls++ }
+	start := term.textSize()
+
+	term.adjustZoom(2)
+	if term.textSize() != start+2 {
+		t.Fatalf("size = %.0f, want %.0f", term.textSize(), start+2)
+	}
+	if calls != 1 {
+		t.Errorf("onZoom calls = %d, want 1", calls)
+	}
+	for i := 0; i < 50; i++ {
+		term.adjustZoom(1)
+	}
+	if term.textSize() != maxFontSize {
+		t.Errorf("size = %.0f, want the maximum %d", term.textSize(), maxFontSize)
+	}
+	for i := 0; i < 60; i++ {
+		term.adjustZoom(-1)
+	}
+	if term.textSize() != minFontSize {
+		t.Errorf("size = %.0f, want the minimum %d", term.textSize(), minFontSize)
+	}
+}
+
+func TestZoomTheme_OverridesOnlyTextSize(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	z := zoomTheme{base: theme.DefaultTheme(), size: 20}
+	if got := z.Size(theme.SizeNameText); got != 20 {
+		t.Fatalf("text size = %.0f, want 20", got)
+	}
+	if got, want := z.Size(theme.SizeNamePadding), theme.DefaultTheme().Size(theme.SizeNamePadding); got != want {
+		t.Errorf("padding = %.0f, want it untouched (%0.f)", got, want)
 	}
 }
 

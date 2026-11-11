@@ -45,6 +45,44 @@ type termWidget struct {
 	// autoFocus asks the first layout pass to take the keyboard: focusing before
 	// the widget is rendered is dropped by the driver.
 	autoFocus bool
+	// fontSize is the terminal-only text size (Ctrl+scroll zoom).
+	fontSize float32
+	// onZoom lets the panel rebuild the theme override after a zoom change.
+	onZoom func()
+}
+
+const (
+	minFontSize     = 8
+	maxFontSize     = 28
+	defaultFontSize = 12
+)
+
+// textSize returns the size used for cell measurements.
+func (t *termWidget) textSize() float32 {
+	if t.fontSize <= 0 {
+		return theme.TextSize()
+	}
+	return t.fontSize
+}
+
+// adjustZoom changes the terminal text size, clamped to a readable range.
+func (t *termWidget) adjustZoom(delta float32) {
+	size := t.textSize() + delta
+	if size < minFontSize {
+		size = minFontSize
+	}
+	if size > maxFontSize {
+		size = maxFontSize
+	}
+	if size == t.textSize() {
+		return
+	}
+	t.fontSize = size
+	if t.onZoom != nil {
+		t.onZoom()
+	}
+	t.fit(t.Size())
+	t.render()
 }
 
 func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *termWidget {
@@ -91,7 +129,7 @@ func (t *termWidget) Resize(size fyne.Size) {
 }
 
 func (t *termWidget) fit(size fyne.Size) {
-	cell := fyne.MeasureText("M", theme.TextSize(), fyne.TextStyle{Monospace: true})
+	cell := fyne.MeasureText("M", t.textSize(), fyne.TextStyle{Monospace: true})
 	if cell.Width <= 0 || cell.Height <= 0 {
 		return
 	}
@@ -140,7 +178,7 @@ type cellPos struct {
 
 // cellAt maps a widget position to a buffer cell.
 func (t *termWidget) cellAt(position fyne.Position) cellPos {
-	cell := fyne.MeasureText("M", theme.TextSize(), fyne.TextStyle{Monospace: true})
+	cell := fyne.MeasureText("M", t.textSize(), fyne.TextStyle{Monospace: true})
 	if cell.Width <= 0 || cell.Height <= 0 {
 		return cellPos{}
 	}
@@ -163,6 +201,15 @@ func (t *termWidget) viewStart() ([]string, int) {
 // Scrolled moves the view through the scrollback.
 func (t *termWidget) Scrolled(event *fyne.ScrollEvent) {
 	if event.Scrolled.DY == 0 {
+		return
+	}
+	// Ctrl+scroll zooms the console instead of scrolling it.
+	if controlPressed() {
+		if event.Scrolled.DY > 0 {
+			t.adjustZoom(1)
+			return
+		}
+		t.adjustZoom(-1)
 		return
 	}
 	maxOffset := t.emulator.HistoryLen()
@@ -283,7 +330,7 @@ func (t *termWidget) Dragged(event *fyne.DragEvent) {
 // extendSelection updates the drag end, scrolling the view when the pointer goes
 // past the top or bottom edge so long outputs can be selected in one drag.
 func (t *termWidget) extendSelection(position fyne.Position) {
-	cell := fyne.MeasureText("M", theme.TextSize(), fyne.TextStyle{Monospace: true})
+	cell := fyne.MeasureText("M", t.textSize(), fyne.TextStyle{Monospace: true})
 	if cell.Width <= 0 || cell.Height <= 0 {
 		return
 	}

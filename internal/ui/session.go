@@ -437,16 +437,10 @@ func (p *sessionPanel) startSession(shell shellSession, result sshclient.Result)
 		_ = shell.Resize(sshclient.TermSize{Cols: cols, Rows: rows})
 	})
 	p.wireTerminal(p.term)
-	p.slot.Objects = []fyne.CanvasObject{p.term}
-	p.slot.Refresh()
-	// Take the keyboard on the first layout pass and once more shortly after,
-	// because focusing before the tab is painted is dropped by the driver.
+	p.installTerminal()
+	// Take the keyboard on the first layout pass; the tab selection also
+	// focuses the terminal once the tab is painted.
 	p.term.autoFocus = true
-	term := p.term
-	go func() {
-		time.Sleep(150 * time.Millisecond)
-		fyne.Do(term.focus)
-	}()
 	p.connect.Disable()
 	p.disconnect.Enable()
 	p.password.Disable()
@@ -587,6 +581,19 @@ func (p *sessionPanel) disconnectShell() {
 	p.sessionClosed()
 }
 
+// installTerminal wraps the terminal in a theme override so zoom affects only
+// the console, never the rest of the window.
+func (p *sessionPanel) installTerminal() {
+	if p.term == nil {
+		return
+	}
+	size := p.term.textSize()
+	base := fyne.CurrentApp().Settings().Theme()
+	wrapped := container.NewThemeOverride(p.term, zoomTheme{base: base, size: size})
+	p.slot.Objects = []fyne.CanvasObject{wrapped}
+	p.slot.Refresh()
+}
+
 // wireTerminal connects clipboard and interrupt actions to a terminal view.
 func (p *sessionPanel) wireTerminal(term *termWidget) {
 	term.onCopy = func(text string) {
@@ -598,6 +605,7 @@ func (p *sessionPanel) wireTerminal(term *termWidget) {
 		p.setStatus("Selection copied to the clipboard.")
 	}
 	term.onInterrupt = func() { term.sendBytes([]byte{0x03}) }
+	term.onZoom = p.installTerminal
 }
 
 // copyTerminalScreen copies the terminal contents to the clipboard.

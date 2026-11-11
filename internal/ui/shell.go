@@ -282,7 +282,12 @@ func (s *screen) menu() *fyne.MainMenu {
 // tabs share one X11 window, so an orphaned child would cover the whole app.
 func (s *screen) tabSelected(item *container.TabItem) {
 	for id, panel := range s.panels {
-		panel.setEmbeddedVisible(s.openTabs[id] == item)
+		visible := s.openTabs[id] == item
+		panel.setEmbeddedVisible(visible)
+		if visible && panel.term != nil {
+			// The terminal of the selected tab owns the keyboard.
+			panel.term.focus()
+		}
 	}
 }
 

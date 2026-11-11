@@ -42,6 +42,8 @@ implemented yet** — that is stage L2 in [`blueprint/linux-preview.md`](bluepri
 - **Activity log**: every status and error message is timestamped and kept in a
   collapsible console (bounded to 200 entries) with its own status-bar icon and a
   Clear action.
+- **Terminal zoom**: Ctrl+scroll changes the console font size (8-28) without
+  touching the rest of the window; the size is per terminal tab.
 - **Terminal**: scrollback (2000 lines) with the mouse wheel (dragging past an
   edge auto-scrolls), PageUp/PageDown and the arrows once scrolled (at the bottom
   the arrows keep their shell meaning; Home/End jump in the history), drag to select,
