@@ -5,7 +5,6 @@ go 1.25.0
 require (
 	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
-	go.bug.st/serial v1.8.0
 	golang.org/x/crypto v0.33.0
 )
 

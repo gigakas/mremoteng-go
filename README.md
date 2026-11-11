@@ -22,8 +22,9 @@ implemented yet** — that is stage L2 in [`blueprint/linux-preview.md`](bluepri
   created (File > New folder, persisted even while empty), **renamed** (whole
   subtree, with the Folder value of every contained connection rewritten) and
   **deleted** (with confirmation; contained connections and their tabs go too).
-  **File > Move connection to folder** moves a connection into a folder, or back
-  to the root by clearing the field. Each row
+  Right-clicking a connection row opens a context menu whose **Move to** submenu
+  lists the root and every folder, so moving a connection into a folder — or back
+  to the root — needs clicks only. Each row
   starts with a circular SSH/RDP badge; hovering reports the full name and
   endpoint in the status bar. The footer shows `connections / folders`.
 - Config panel with name, folder, protocol (SSH/RDP), host, port and username;

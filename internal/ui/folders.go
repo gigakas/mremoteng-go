@@ -305,19 +305,6 @@ func (s *screen) renameConnection(profile profiles.Profile, raw string) {
 	s.setStatus("Renamed connection to " + updated.Name + ".")
 }
 
-// requestMoveConnection asks where the selected connection should live.
-func (s *screen) requestMoveConnection() {
-	profile, known := s.profileByID(s.selected)
-	if !known {
-		s.setStatus("Select a connection in the tree to move it.")
-		return
-	}
-	entry := widget.NewEntry()
-	entry.SetText(profile.Folder)
-	entry.SetPlaceHolder("(root) or Production/Web")
-	s.showTextDialog("Move "+profile.Name, "Move", entry, func() { s.moveConnection(profile, entry.Text) })
-}
-
 // moveConnection places profile in folder; an empty path moves it to the root.
 func (s *screen) moveConnection(profile profiles.Profile, raw string) {
 	if !s.writable {
