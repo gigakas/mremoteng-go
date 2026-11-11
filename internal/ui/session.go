@@ -88,6 +88,12 @@ type sessionPanel struct {
 	rdpStart time.Time
 	embedded embeddedArea
 	note     *widget.Label
+	// terminalTheme and terminalWrap are the single theme override this panel
+	// keeps for zoom. Replacing the wrapper instead of mutating its theme left
+	// the previous one alive, and refreshing that orphan re-registered its old
+	// text size, which reverted the zoom.
+	terminalTheme *zoomTheme
+	terminalWrap  *container.ThemeOverride
 	// rdpDetached is set when the user closes the session, so the watcher
 	// goroutine never touches the UI (or a shutting-down app) afterwards.
 	rdpDetached atomic.Bool
@@ -539,16 +545,30 @@ func (p *sessionPanel) disconnectShell() {
 	p.sessionClosed()
 }
 
-// installTerminal wraps the terminal in a theme override so zoom affects only
-// the console, never the rest of the window.
+// installTerminal keeps the terminal under one theme override so zoom affects
+// only the console, never the rest of the window.
+//
+// The override is created once and its theme is mutated afterwards: Fyne keeps
+// theme overrides in a per-object cache, and ThemeOverride.Refresh re-registers
+// its own theme. Creating a second wrapper left the first one alive, so any
+// refresh of that orphan re-registered the previous text size and the zoom
+// jumped back on the next output or scroll.
 func (p *sessionPanel) installTerminal() {
 	if p.term == nil {
 		return
 	}
-	size := p.term.textSize()
-	base := fyne.CurrentApp().Settings().Theme()
-	wrapped := container.NewThemeOverride(p.term, zoomTheme{base: base, size: size})
-	p.installSlot(wrapped)
+	if p.terminalWrap != nil {
+		p.terminalTheme.size = p.term.textSize()
+		// Refresh re-registers the theme and makes the TextGrid re-read the text
+		// size it caches; fit then recomputes the grid for the new cell metrics.
+		p.terminalWrap.Refresh()
+		p.term.fit(p.term.Size())
+		p.term.render()
+		return
+	}
+	p.terminalTheme = &zoomTheme{base: fyne.CurrentApp().Settings().Theme(), size: p.term.textSize()}
+	p.terminalWrap = container.NewThemeOverride(p.term, p.terminalTheme)
+	p.installSlot(p.terminalWrap)
 }
 
 // wireTerminal connects clipboard and interrupt actions to a terminal view.
