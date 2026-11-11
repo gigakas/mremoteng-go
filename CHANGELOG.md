@@ -20,6 +20,11 @@
 - Bump the preview to 0.6.0
   - `VERSION`
   - _2026-11-11 19:45:56 UTC — opencode_
+- Scale the terminal grid on both axes when zooming
+  - `internal/ui/terminal.go`
+  - `internal/ui/ui_test.go`
+  - `VERSION`
+  - _2026-11-11 20:11:07 UTC — opencode_
 
 ## 2026-11-10
 

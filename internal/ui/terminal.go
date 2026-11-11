@@ -102,16 +102,29 @@ func (t *termWidget) CreateRenderer() fyne.WidgetRenderer {
 	t.grid = widget.NewTextGrid()
 	t.grid.Scroll = fyne.ScrollNone
 	t.render()
-	return &termRenderer{parent: t, objects: []fyne.CanvasObject{t.grid}}
+	return &termRenderer{parent: t, objects: []fyne.CanvasObject{t.grid}, font: t.textSize()}
 }
 
 type termRenderer struct {
 	parent  *termWidget
 	objects []fyne.CanvasObject
+	// font is the text size the current grid was built with; TextGrid caches its
+	// row height, so a zoom change needs a fresh grid to scale both axes.
+	font float32
 }
 
 func (r *termRenderer) Layout(size fyne.Size) {
-	r.objects[0].Resize(size)
+	if r.font != r.parent.textSize() || r.parent.grid == nil {
+		r.font = r.parent.textSize()
+		grid := widget.NewTextGrid()
+		grid.Scroll = fyne.ScrollNone
+		r.parent.grid = grid
+		r.objects[0] = grid
+		grid.Resize(size)
+		r.parent.render()
+	} else {
+		r.objects[0].Resize(size)
+	}
 	if r.parent.autoFocus {
 		r.parent.autoFocus = false
 		r.parent.focus()

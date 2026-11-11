@@ -1345,6 +1345,30 @@ func TestZoomTheme_OverridesOnlyTextSize(t *testing.T) {
 	}
 }
 
+func TestTermWidget_Zoom_RebuildsTheGridForBothAxes(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	term := newTermWidget(20, 4, nil, nil)
+	term.CreateRenderer()
+	before := term.grid
+	term.Resize(fyne.NewSize(400, 200))
+	oldCols, oldRows := term.cols, term.rows
+
+	term.adjustZoom(6)
+	renderer := term.CreateRenderer()
+	renderer.Layout(fyne.NewSize(400, 200))
+
+	if term.grid == before {
+		t.Fatal("grid was not rebuilt after the zoom change")
+	}
+	if term.cols >= oldCols || term.rows >= oldRows {
+		t.Errorf("grid = %dx%d, want fewer columns and rows at a larger font (%dx%d)", term.cols, term.rows, oldCols, oldRows)
+	}
+	if term.cols < 5 || term.rows < 2 {
+		t.Errorf("grid collapsed to %dx%d", term.cols, term.rows)
+	}
+}
+
 func TestTermWidget_CtrlCInterruptsAndCtrlVPastes(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
