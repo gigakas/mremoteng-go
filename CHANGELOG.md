@@ -4,6 +4,12 @@
 <!-- Source: fragments in changelog.d/*.md -->
 <!-- Regenerate: make changelog  (or: go run ./cmd/changelog compile) -->
 
+## 2026-11-11
+
+- Bump the preview to 0.5.0
+  - `VERSION`
+  - _2026-11-11 19:38:08 UTC — opencode_
+
 ## 2026-11-10
 
 - Add a native VNC client and session view
