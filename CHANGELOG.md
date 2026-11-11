@@ -317,6 +317,14 @@
   - `internal/ui/session.go`
   - `internal/ui/zoom_test.go`
   - _2026-11-11 22:53:15 UTC — mimocode_
+- Set up the stream terminals like the SSH one so zoom and copy work
+
+  startStream created the terminal widget and installed it in the slot directly, unlike startSession which wires clipboard, interrupt and zoom callbacks and wraps the widget in the zoom theme override. Telnet, RAW and rlogin sessions therefore ignored the zoom shortcuts entirely and their right-click copy did nothing, because onZoom and onCopy were nil. startStream now calls wireTerminal and installTerminal. Added forgetTerminalOverride, called whenever a session installs a new terminal widget: the previous wrapper belongs to the widget of the session that ended, and reusing it would refresh the wrong terminal on the first zoom of the next session. Extended TestSessionPanel_TelnetConnect_ShowsTerminalAndSendsInput to assert the override exists and the callbacks are wired. Validated with ./scripts/check.sh.
+
+  - `internal/ui/session.go`
+  - `internal/ui/stream.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-11 22:53:45 UTC — mimocode_
 
 ## 2026-11-10
 

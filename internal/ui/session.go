@@ -432,6 +432,7 @@ func (p *sessionPanel) startSession(shell shellSession, result sshclient.Result)
 	p.term = newTermWidget(80, 24, func(data []byte) { _ = shell.Input(data) }, func(cols, rows int) {
 		_ = shell.Resize(sshclient.TermSize{Cols: cols, Rows: rows})
 	})
+	p.forgetTerminalOverride()
 	p.wireTerminal(p.term)
 	p.installTerminal()
 	// Take the keyboard on the first layout pass; the tab selection also
@@ -569,6 +570,14 @@ func (p *sessionPanel) installTerminal() {
 	p.terminalTheme = &zoomTheme{base: fyne.CurrentApp().Settings().Theme(), size: p.term.textSize()}
 	p.terminalWrap = container.NewThemeOverride(p.term, p.terminalTheme)
 	p.installSlot(p.terminalWrap)
+}
+
+// forgetTerminalOverride drops the zoom override of the session that ended. A
+// new session installs a new terminal widget, and the previous wrapper still
+// wraps the old one.
+func (p *sessionPanel) forgetTerminalOverride() {
+	p.terminalWrap = nil
+	p.terminalTheme = nil
 }
 
 // wireTerminal connects clipboard and interrupt actions to a terminal view.

@@ -72,7 +72,11 @@ func (p *sessionPanel) connectStream() {
 func (p *sessionPanel) startStream(session streamSession, mode telnetclient.Mode) {
 	p.stream = session
 	p.term = newTermWidget(80, 24, func(data []byte) { _, _ = session.Write(data) }, nil)
-	p.installSlot(p.term)
+	// Same setup as an SSH terminal: clipboard, interrupt and zoom wiring, and
+	// the theme override that makes zoom affect only the console.
+	p.forgetTerminalOverride()
+	p.wireTerminal(p.term)
+	p.installTerminal()
 	p.setConnected(true)
 	p.setStatus(string(mode) + " session with " + p.profile.Host + " connected. The terminal has no remote pty, so some full-screen programs may misbehave.")
 	go p.readStream(session)
