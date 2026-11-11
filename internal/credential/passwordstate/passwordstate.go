@@ -4,9 +4,7 @@ package passwordstate
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -31,10 +29,7 @@ func New(baseURL, apiKey string) *Client {
 }
 
 func (c *Client) httpClient() *http.Client {
-	if c.HTTPClient != nil {
-		return c.HTTPClient
-	}
-	return http.DefaultClient
+	return credential.HTTPClient(c.HTTPClient)
 }
 
 type passwordRecord struct {
@@ -53,23 +48,20 @@ func (c *Client) Password(ctx context.Context, passwordID int) (credential.Crede
 		return credential.Credential{}, fmt.Errorf("passwordstate: build request: %w", err)
 	}
 
-	resp, err := c.httpClient().Do(req)
+	body, status, err := credential.Do(c.httpClient(), req,
+		fmt.Sprintf("passwordstate: get password %d", passwordID),
+		fmt.Sprintf("passwordstate: read response for password %d", passwordID),
+	)
 	if err != nil {
-		return credential.Credential{}, fmt.Errorf("passwordstate: get password %d: %w", passwordID, err)
+		return credential.Credential{}, err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return credential.Credential{}, fmt.Errorf("passwordstate: read response for password %d: %w", passwordID, err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return credential.Credential{}, fmt.Errorf("passwordstate: get password %d: HTTP %d: %s", passwordID, resp.StatusCode, string(body))
+	if err := credential.CheckStatus(status, http.StatusOK, body, fmt.Sprintf("passwordstate: get password %d", passwordID)); err != nil {
+		return credential.Credential{}, err
 	}
 
 	var records []passwordRecord
-	if err := json.Unmarshal(body, &records); err != nil {
-		return credential.Credential{}, fmt.Errorf("passwordstate: parse response for password %d: %w", passwordID, err)
+	if err := credential.DecodeJSON(body, &records, fmt.Sprintf("passwordstate: parse response for password %d", passwordID)); err != nil {
+		return credential.Credential{}, err
 	}
 	if len(records) == 0 {
 		return credential.Credential{}, fmt.Errorf("passwordstate: password %d not found", passwordID)

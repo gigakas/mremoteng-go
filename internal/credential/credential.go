@@ -8,7 +8,8 @@
 // Each provider lives in its own subpackage (vault, delinea,
 // passwordstate, onepassword, awsec2) since their APIs, auth schemes and
 // request/response shapes have nothing in common beyond "fetch a
-// secret". This package holds only the one shared result type.
+// secret". This package holds the one shared result type plus the shared
+// request plumbing those clients use (http.go, fields.go).
 //
 // No UI: internal/ui/properties.go already renders
 // ExternalCredentialProvider/ExternalAddressProvider as plain enum

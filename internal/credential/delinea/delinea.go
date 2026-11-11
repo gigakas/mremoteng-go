@@ -5,9 +5,7 @@ package delinea
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -37,10 +35,7 @@ func New(baseURL, username, password string) *Client {
 }
 
 func (c *Client) httpClient() *http.Client {
-	if c.HTTPClient != nil {
-		return c.HTTPClient
-	}
-	return http.DefaultClient
+	return credential.HTTPClient(c.HTTPClient)
 }
 
 // authenticate obtains and caches a bearer token via OAuth2 password
@@ -58,25 +53,19 @@ func (c *Client) authenticate(ctx context.Context) (string, error) {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.httpClient().Do(req)
+	body, status, err := credential.Do(c.httpClient(), req, "delinea: token request", "delinea: read token response")
 	if err != nil {
-		return "", fmt.Errorf("delinea: token request: %w", err)
+		return "", err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("delinea: read token response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("delinea: authenticate: HTTP %d: %s", resp.StatusCode, string(body))
+	if err := credential.CheckStatus(status, http.StatusOK, body, "delinea: authenticate"); err != nil {
+		return "", err
 	}
 
 	var parsed struct {
 		AccessToken string `json:"access_token"`
 	}
-	if err := json.Unmarshal(body, &parsed); err != nil {
-		return "", fmt.Errorf("delinea: parse token response: %w", err)
+	if err := credential.DecodeJSON(body, &parsed, "delinea: parse token response"); err != nil {
+		return "", err
 	}
 	if parsed.AccessToken == "" {
 		return "", fmt.Errorf("delinea: token response had no access_token")
@@ -128,24 +117,20 @@ func (c *Client) Secret(ctx context.Context, secretID int) (credential.Credentia
 	}
 
 	var parsed secretResponse
-	if err := json.Unmarshal(body, &parsed); err != nil {
-		return credential.Credential{}, fmt.Errorf("delinea: parse secret %d: %w", secretID, err)
+	if err := credential.DecodeJSON(body, &parsed, fmt.Sprintf("delinea: parse secret %d", secretID)); err != nil {
+		return credential.Credential{}, err
 	}
 
 	var out credential.Credential
 	for _, item := range parsed.Items {
 		switch {
-		case fieldIs(item.FieldName, item.Slug, "username"):
+		case credential.FieldIs(item.FieldName, item.Slug, "username"):
 			out.Username = item.ItemValue
-		case fieldIs(item.FieldName, item.Slug, "password"):
+		case credential.FieldIs(item.FieldName, item.Slug, "password"):
 			out.Password = item.ItemValue
 		}
 	}
 	return out, nil
-}
-
-func fieldIs(fieldName, slug, want string) bool {
-	return strings.EqualFold(fieldName, want) || strings.EqualFold(slug, want)
 }
 
 func (c *Client) getSecret(ctx context.Context, secretID int, forceRefresh bool) ([]byte, int, error) {
@@ -160,15 +145,8 @@ func (c *Client) getSecret(ctx context.Context, secretID int, forceRefresh bool)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := c.httpClient().Do(req)
-	if err != nil {
-		return nil, 0, fmt.Errorf("delinea: get secret %d: %w", secretID, err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, 0, fmt.Errorf("delinea: read secret %d response: %w", secretID, err)
-	}
-	return body, resp.StatusCode, nil
+	return credential.Do(c.httpClient(), req,
+		fmt.Sprintf("delinea: get secret %d", secretID),
+		fmt.Sprintf("delinea: read secret %d response", secretID),
+	)
 }

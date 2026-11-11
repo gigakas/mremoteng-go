@@ -16,12 +16,13 @@ import (
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/mRemoteNG/mremoteng-go/internal/credential"
 )
 
 const service = "ec2"
@@ -55,10 +56,7 @@ func New(accessKeyID, secretAccessKey string) *Client {
 }
 
 func (c *Client) httpClient() *http.Client {
-	if c.HTTPClient != nil {
-		return c.HTTPClient
-	}
-	return http.DefaultClient
+	return credential.HTTPClient(c.HTTPClient)
 }
 
 func (c *Client) clock() time.Time {
@@ -214,21 +212,18 @@ func (c *Client) doSigned(ctx context.Context, region string, params url.Values)
 	}
 	req.Header.Set("Authorization", authorization)
 
-	resp, err := c.httpClient().Do(req)
+	body, status, err := credential.Do(c.httpClient(), req, "awsec2: request", "awsec2: read response body")
 	if err != nil {
-		return nil, fmt.Errorf("awsec2: request: %w", err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("awsec2: read response body: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
+	if status != http.StatusOK {
+		// EC2's query API answers errors with an XML envelope whose code
+		// and message are the useful part, so it is parsed before falling
+		// back to reporting the raw body.
 		if errResp, ok := parseErrorResponse(body); ok {
-			return nil, fmt.Errorf("awsec2: HTTP %d: %s: %s", resp.StatusCode, errResp.Code, errResp.Message)
+			return nil, fmt.Errorf("awsec2: HTTP %d: %s: %s", status, errResp.Code, errResp.Message)
 		}
-		return nil, fmt.Errorf("awsec2: HTTP %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("awsec2: HTTP %d: %s", status, string(body))
 	}
 	return body, nil
 }

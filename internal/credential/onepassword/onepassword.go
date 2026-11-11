@@ -7,9 +7,7 @@ package onepassword
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,10 +31,7 @@ func New(connectHost, token string) *Client {
 }
 
 func (c *Client) httpClient() *http.Client {
-	if c.HTTPClient != nil {
-		return c.HTTPClient
-	}
-	return http.DefaultClient
+	return credential.HTTPClient(c.HTTPClient)
 }
 
 type itemResponse struct {
@@ -63,23 +58,20 @@ func (c *Client) Item(ctx context.Context, vaultID, itemID string) (credential.C
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
-	resp, err := c.httpClient().Do(req)
+	body, status, err := credential.Do(c.httpClient(), req,
+		fmt.Sprintf("onepassword: get item %s/%s", vaultID, itemID),
+		fmt.Sprintf("onepassword: read response for item %s/%s", vaultID, itemID),
+	)
 	if err != nil {
-		return credential.Credential{}, fmt.Errorf("onepassword: get item %s/%s: %w", vaultID, itemID, err)
+		return credential.Credential{}, err
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return credential.Credential{}, fmt.Errorf("onepassword: read response for item %s/%s: %w", vaultID, itemID, err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return credential.Credential{}, fmt.Errorf("onepassword: get item %s/%s: HTTP %d: %s", vaultID, itemID, resp.StatusCode, string(body))
+	if err := credential.CheckStatus(status, http.StatusOK, body, fmt.Sprintf("onepassword: get item %s/%s", vaultID, itemID)); err != nil {
+		return credential.Credential{}, err
 	}
 
 	var parsed itemResponse
-	if err := json.Unmarshal(body, &parsed); err != nil {
-		return credential.Credential{}, fmt.Errorf("onepassword: parse item %s/%s: %w", vaultID, itemID, err)
+	if err := credential.DecodeJSON(body, &parsed, fmt.Sprintf("onepassword: parse item %s/%s", vaultID, itemID)); err != nil {
+		return credential.Credential{}, err
 	}
 
 	var out credential.Credential
@@ -91,10 +83,10 @@ func (c *Client) Item(ctx context.Context, vaultID, itemID string) (credential.C
 		case "PASSWORD":
 			out.Password = field.Value
 		}
-		if fieldIs(field.ID, field.Label, "username") {
+		if credential.FieldIs(field.ID, field.Label, "username") {
 			usernameByLabel = field.Value
 		}
-		if fieldIs(field.ID, field.Label, "password") {
+		if credential.FieldIs(field.ID, field.Label, "password") {
 			passwordByLabel = field.Value
 		}
 	}
@@ -105,8 +97,4 @@ func (c *Client) Item(ctx context.Context, vaultID, itemID string) (credential.C
 		out.Password = passwordByLabel
 	}
 	return out, nil
-}
-
-func fieldIs(id, label, want string) bool {
-	return strings.EqualFold(id, want) || strings.EqualFold(label, want)
 }
