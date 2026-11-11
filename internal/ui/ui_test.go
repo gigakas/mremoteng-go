@@ -1355,6 +1355,7 @@ func TestTermWidget_Zoom_RebuildsTheGridForBothAxes(t *testing.T) {
 	oldCols, oldRows := term.cols, term.rows
 
 	term.adjustZoom(6)
+	term.fit(fyne.NewSize(400, 200))
 	renderer := term.CreateRenderer()
 	renderer.Layout(fyne.NewSize(400, 200))
 

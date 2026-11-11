@@ -25,6 +25,14 @@
   - `internal/ui/ui_test.go`
   - `VERSION`
   - _2026-11-11 20:11:07 UTC — opencode_
+- Zoom the terminal with discrete controls instead of the wheel
+  - `internal/ui/terminal.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/zoom.go`
+  - `internal/ui/ui_test.go`
+  - `VERSION`
+  - `README.md`
+  - _2026-11-11 20:22:05 UTC — opencode_
 
 ## 2026-11-10
 

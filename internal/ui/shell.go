@@ -265,6 +265,9 @@ func (s *screen) menu() *fyne.MainMenu {
 	)
 	view := fyne.NewMenu("View",
 		fyne.NewMenuItem("Toggle connections panel", s.toggleSidebar),
+		fyne.NewMenuItem("Terminal zoom in", func() { s.zoomFocusedTerminal(2) }),
+		fyne.NewMenuItem("Terminal zoom out", func() { s.zoomFocusedTerminal(-2) }),
+		fyne.NewMenuItem("Terminal zoom reset", s.resetFocusedTerminalZoom),
 		fyne.NewMenuItem("Toggle Config panel", s.toggleProperties),
 	)
 	tools := fyne.NewMenu("Tools",
@@ -361,6 +364,41 @@ func (s *screen) registerControlShortcuts() {
 		canvas.AddShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: fyne.KeyModifierControl},
 			func(fyne.Shortcut) { s.sendControlToFocused(key) })
 	}
+	// Terminal zoom stays on discrete shortcuts: a wheel gesture kept Ctrl held
+	// and rebuilt the grid on every event, which flickered and reset the size.
+	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyEqual, Modifier: fyne.KeyModifierControl},
+		func(fyne.Shortcut) { s.zoomFocusedTerminal(2) })
+	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyMinus, Modifier: fyne.KeyModifierControl},
+		func(fyne.Shortcut) { s.zoomFocusedTerminal(-2) })
+	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.Key0, Modifier: fyne.KeyModifierControl},
+		func(fyne.Shortcut) { s.resetFocusedTerminalZoom() })
+}
+
+// zoomFocusedTerminal changes the font size of the focused terminal.
+func (s *screen) zoomFocusedTerminal(delta float32) {
+	if term, ok := s.focusedTerminal(); ok {
+		term.adjustZoom(delta)
+	}
+}
+
+// resetFocusedTerminalZoom returns the focused terminal to the default size.
+func (s *screen) resetFocusedTerminalZoom() {
+	if term, ok := s.focusedTerminal(); ok {
+		term.fontSize = theme.TextSize()
+		if term.onZoom != nil {
+			term.onZoom()
+		}
+	}
+}
+
+// focusedTerminal returns the terminal that owns the keyboard.
+func (s *screen) focusedTerminal() (*termWidget, bool) {
+	canvas := s.win.Canvas()
+	if canvas == nil {
+		return nil, false
+	}
+	term, ok := canvas.Focused().(*termWidget)
+	return term, ok
 }
 
 // handledByFyne lists combinations Fyne already turns into built-in shortcuts;

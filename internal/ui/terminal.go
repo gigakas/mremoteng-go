@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
+	"os"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -78,16 +80,17 @@ func (t *termWidget) adjustZoom(delta float32) {
 		return
 	}
 	t.fontSize = size
+	// Rebuilding the theme override triggers a layout pass, which recreates the
+	// grid and refits the emulator; doing it twice here caused visible flicker.
 	if t.onZoom != nil {
 		t.onZoom()
 	}
-	t.fit(t.Size())
-	t.render()
 }
 
 func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *termWidget {
 	t := &termWidget{
 		emulator: terminal.New(cols, rows),
+		fontSize: theme.TextSize(),
 		send:     send,
 		onResize: onResize,
 		styles:   map[uint32]widget.TextGridStyle{},
@@ -121,6 +124,7 @@ func (r *termRenderer) Layout(size fyne.Size) {
 		r.parent.grid = grid
 		r.objects[0] = grid
 		grid.Resize(size)
+		r.parent.fit(size)
 		r.parent.render()
 	} else {
 		r.objects[0].Resize(size)
@@ -141,6 +145,20 @@ func (t *termWidget) Resize(size fyne.Size) {
 	t.fit(size)
 }
 
+// traceResize records geometry changes when MRE_TRACE_RESIZE is set, so a
+// layout oscillation can be diagnosed without a debugger.
+func traceResize(size fyne.Size, cols, rows int) {
+	if os.Getenv("MRE_TRACE_RESIZE") == "" {
+		return
+	}
+	file, err := os.OpenFile("/tmp/mremoteng-resize.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer func() { _ = file.Close() }()
+	fmt.Fprintf(file, "size=%.0fx%.0f cols=%d rows=%d\n", size.Width, size.Height, cols, rows)
+}
+
 func (t *termWidget) fit(size fyne.Size) {
 	cell := fyne.MeasureText("M", t.textSize(), fyne.TextStyle{Monospace: true})
 	if cell.Width <= 0 || cell.Height <= 0 {
@@ -154,6 +172,7 @@ func (t *termWidget) fit(size fyne.Size) {
 	if cols == t.cols && rows == t.rows {
 		return
 	}
+	traceResize(size, cols, rows)
 	t.cols, t.rows = cols, rows
 	t.emulator.Resize(cols, rows)
 	if t.onResize != nil {
@@ -216,15 +235,7 @@ func (t *termWidget) Scrolled(event *fyne.ScrollEvent) {
 	if event.Scrolled.DY == 0 {
 		return
 	}
-	// Ctrl+scroll zooms the console instead of scrolling it.
-	if controlPressed() {
-		if event.Scrolled.DY > 0 {
-			t.adjustZoom(1)
-			return
-		}
-		t.adjustZoom(-1)
-		return
-	}
+
 	maxOffset := t.emulator.HistoryLen()
 	t.scrollOffset += int(event.Scrolled.DY)
 	if t.scrollOffset < 0 {
