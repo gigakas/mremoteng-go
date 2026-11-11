@@ -404,7 +404,7 @@ func (p *sessionPanel) applyConnect(target sshclient.Target, options sshclient.O
 			p.screen.confirm("Unverified SSH host key",
 				fmt.Sprintf("The host key for %s is not in known_hosts.\n\nFingerprint: %s\n\nConnect and trust it for this session?",
 					target.Host, unknown.Fingerprint),
-				func() { p.retryTrusted(options) }, nil)
+				func() { p.retryTrusted(options) }, func() { p.setConnected(false) })
 			return
 		}
 		p.setConnected(false)

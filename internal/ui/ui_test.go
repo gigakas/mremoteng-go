@@ -2341,3 +2341,19 @@ func TestInstallSlot_NewContent_ReplacesSessionArea(t *testing.T) {
 		t.Errorf("session area holds %d objects, want only the installed content", len(p.slot.Objects))
 	}
 }
+
+func TestApplyConnect_DeclinedUnknownHostKey_ReEnablesConnect(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	p := s.newSessionPanel(sampleProfile(t, "lab", "", string(profiles.SSH), "192.0.2.10", 22))
+	s.confirm = func(_, _ string, _, onDecline func()) {
+		if onDecline != nil {
+			onDecline()
+		}
+	}
+	p.connect.Disable()
+	p.applyConnect(sshclient.Target{Host: "192.0.2.10"}, sshclient.Options{}, nil, sshclient.Result{},
+		&sshclient.UnknownHostKeyError{Fingerprint: "SHA256:abc"})
+	if p.connect.Disabled() {
+		t.Error("Connect stays disabled after the user declined the host key")
+	}
+}
