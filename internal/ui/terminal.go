@@ -5,7 +5,6 @@ import (
 	"image/color"
 	"os"
 	"strings"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -57,11 +56,6 @@ type termWidget struct {
 	// reliable: the glyphs kept the old size while the emulator refitted.
 	gridTheme *zoomTheme
 	gridWrap  fyne.CanvasObject
-	// ctrlHeld reports whether Ctrl is down, because scroll events carry no
-	// modifiers; tests replace it.
-	ctrlHeld func() bool
-	// lastZoom throttles wheel zoom so the grid is not rebuilt per event.
-	lastZoom time.Time
 }
 
 const (
@@ -76,29 +70,6 @@ func (t *termWidget) textSize() float32 {
 		return theme.TextSize()
 	}
 	return t.fontSize
-}
-
-// ctrlDown reports whether Ctrl is held, guarding the injectable seam.
-func (t *termWidget) ctrlDown() bool {
-	if t.ctrlHeld == nil {
-		return false
-	}
-	return t.ctrlHeld()
-}
-
-// zoomByScroll turns one wheel notch into a zoom step, throttled so a spinning
-// wheel does not rebuild the text grid on every event.
-func (t *termWidget) zoomByScroll(dy float32) {
-	now := time.Now()
-	if !t.lastZoom.IsZero() && now.Sub(t.lastZoom) < zoomScrollInterval {
-		return
-	}
-	t.lastZoom = now
-	step := float32(zoomScrollStep)
-	if dy < 0 {
-		step = -step
-	}
-	t.adjustZoom(step)
 }
 
 // adjustZoom changes the terminal text size, clamped to a readable range.
@@ -128,7 +99,6 @@ func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *
 	t := &termWidget{
 		emulator: terminal.New(cols, rows),
 		fontSize: theme.TextSize(),
-		ctrlHeld: ctrlHeld,
 		send:     send,
 		onResize: onResize,
 		styles:   map[uint32]widget.TextGridStyle{},
@@ -292,14 +262,9 @@ func (t *termWidget) viewStart() ([]string, int) {
 	return lines, start
 }
 
-// Scrolled moves the view through the scrollback; with Ctrl held it zooms the
-// console instead.
+// Scrolled moves the view through the scrollback.
 func (t *termWidget) Scrolled(event *fyne.ScrollEvent) {
 	if event.Scrolled.DY == 0 {
-		return
-	}
-	if t.ctrlDown() {
-		t.zoomByScroll(event.Scrolled.DY)
 		return
 	}
 

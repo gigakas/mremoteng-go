@@ -3,7 +3,6 @@ package ui
 import (
 	"io"
 	"testing"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
@@ -119,10 +118,9 @@ func TestZoomFocusedTerminal_ShortcutPath_ChangesTextSize(t *testing.T) {
 	}
 }
 
-// TestScrolled_CtrlHeld_ZoomsInsteadOfScrolling covers wheel zoom, which Fyne
-// cannot detect on its own: ScrollEvent carries no modifiers, so the terminal
-// asks the windowing system through the injectable ctrlHeld seam.
-func TestScrolled_CtrlHeld_ZoomsInsteadOfScrolling(t *testing.T) {
+// TestScrolled_MovesThroughScrollbackWithoutChangingZoom guards the plain wheel:
+// scrolling must browse the history, never touch the text size.
+func TestScrolled_MovesThroughScrollbackWithoutChangingZoom(t *testing.T) {
 	s := newTestScreen(t, &fakeStore{})
 	reader, writer := io.Pipe()
 	t.Cleanup(func() { _ = writer.Close() })
@@ -138,43 +136,19 @@ func TestScrolled_CtrlHeld_ZoomsInsteadOfScrolling(t *testing.T) {
 	window.Resize(fyne.NewSize(1000, 700))
 
 	term := panel.term
-	// The emulator records scrollback by aligning consecutive screens, so it needs
-	// incremental output rather than one big chunk.
-	fillHistory := func() {
-		for i := 0; i < 120; i++ {
-			panel.applyOutput([]byte("scrolled history\r\n"))
-		}
+	// Incremental output, because the emulator records scrollback by aligning
+	// consecutive screens rather than scanning one large chunk.
+	for i := 0; i < 120; i++ {
+		panel.applyOutput([]byte("scrolled history\r\n"))
 	}
-	fillHistory()
 	before := rowHeight(term)
+	size := term.textSize()
 
-	term.ctrlHeld = func() bool { return true }
-	term.lastZoom = time.Time{}
-	term.Scrolled(&fyne.ScrollEvent{Scrolled: fyne.NewDelta(0, 1)})
-	zoomed := rowHeight(term)
-	if zoomed <= before {
-		t.Errorf("Ctrl+scroll did not zoom: before %.0f, after %.0f", before, zoomed)
-	}
-	if term.scrollOffset != 0 {
-		t.Errorf("Ctrl+scroll moved the view: offset %d", term.scrollOffset)
-	}
-
-	// A second notch inside the throttle window is ignored, so a spinning wheel
-	// does not rebuild the grid on every event.
-	term.Scrolled(&fyne.ScrollEvent{Scrolled: fyne.NewDelta(0, 1)})
-	if got := rowHeight(term); got != zoomed {
-		t.Errorf("notches inside the throttle window stacked: %.0f -> %.0f", zoomed, got)
-	}
-
-	// Releasing Ctrl returns the wheel to the scrollback. The grid refit during the
-	// zoom drops the history, so fill it again first.
-	fillHistory()
-	term.ctrlHeld = func() bool { return false }
 	term.Scrolled(&fyne.ScrollEvent{Scrolled: fyne.NewDelta(0, 1)})
 	if term.scrollOffset == 0 {
 		t.Error("plain wheel did not move the view")
 	}
-	if got := rowHeight(term); got != zoomed {
-		t.Errorf("plain wheel changed the text size: %.0f -> %.0f", zoomed, got)
+	if term.textSize() != size || rowHeight(term) != before {
+		t.Errorf("plain wheel changed the zoom: text %.0f row %.0f", term.textSize(), rowHeight(term))
 	}
 }

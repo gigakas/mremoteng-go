@@ -364,8 +364,9 @@ func (s *screen) registerControlShortcuts() {
 		canvas.AddShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: fyne.KeyModifierControl},
 			func(fyne.Shortcut) { s.sendControlToFocused(key) })
 	}
-	// Discrete shortcuts stay the portable path: wheel zoom needs to ask the X
-	// server for the Ctrl state, which a native Wayland session cannot answer.
+	// Zoom stays on discrete shortcuts: Fyne scroll events carry no modifiers,
+	// and reading the Ctrl state from X misreported it on Wayland/XWayland, so a
+	// plain wheel zoomed instead of scrolling.
 	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyEqual, Modifier: fyne.KeyModifierControl},
 		func(fyne.Shortcut) { s.zoomFocusedTerminal(2) })
 	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyMinus, Modifier: fyne.KeyModifierControl},
