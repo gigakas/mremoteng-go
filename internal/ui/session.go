@@ -88,6 +88,11 @@ type sessionPanel struct {
 	rdpStart time.Time
 	embedded embeddedArea
 	note     *widget.Label
+	// terminalTheme and terminalWrap are the single theme override this panel
+	// keeps for zoom. The override takes effect during layout, so every zoom step
+	// mutates the theme and then re-lays the slot.
+	terminalTheme *zoomTheme
+	terminalWrap  *container.ThemeOverride
 	// rdpDetached is set when the user closes the session, so the watcher
 	// goroutine never touches the UI (or a shutting-down app) afterwards.
 	rdpDetached atomic.Bool
@@ -426,6 +431,7 @@ func (p *sessionPanel) startSession(shell shellSession, result sshclient.Result)
 	p.term = newTermWidget(80, 24, func(data []byte) { _ = shell.Input(data) }, func(cols, rows int) {
 		_ = shell.Resize(sshclient.TermSize{Cols: cols, Rows: rows})
 	})
+	p.forgetTerminalOverride()
 	p.wireTerminal(p.term)
 	p.installTerminal()
 	// Take the keyboard on the first layout pass; the tab selection also
@@ -551,8 +557,26 @@ func (p *sessionPanel) installTerminal() {
 	if p.term == nil {
 		return
 	}
-	traceZoom("install size=%.0f", p.term.textSize())
-	p.installSlot(p.term)
+	if p.terminalWrap != nil {
+		p.terminalTheme.size = p.term.textSize()
+		// The override applies its theme only while laying out its content, so a
+		// theme change needs a layout pass, not just a refresh.
+		p.slot.Refresh()
+		p.term.fit(p.term.Size())
+		p.term.render()
+		return
+	}
+	p.terminalTheme = &zoomTheme{base: fyne.CurrentApp().Settings().Theme(), size: p.term.textSize()}
+	p.terminalWrap = container.NewThemeOverride(p.term, p.terminalTheme)
+	p.installSlot(p.terminalWrap)
+}
+
+// forgetTerminalOverride drops the zoom override of the session that ended. A
+// new session installs a new terminal widget, and the previous wrapper still
+// wraps the old one.
+func (p *sessionPanel) forgetTerminalOverride() {
+	p.terminalWrap = nil
+	p.terminalTheme = nil
 }
 
 // wireTerminal connects clipboard and interrupt actions to a terminal view.
@@ -566,6 +590,7 @@ func (p *sessionPanel) wireTerminal(term *termWidget) {
 		p.setStatus("Selection copied to the clipboard.")
 	}
 	term.onInterrupt = func() { term.sendBytes([]byte{0x03}) }
+	term.onZoom = p.installTerminal
 }
 
 // copyTerminalScreen copies the terminal contents to the clipboard.

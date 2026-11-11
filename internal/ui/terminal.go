@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -23,7 +22,6 @@ type termWidget struct {
 
 	emulator *terminal.Emulator
 	grid     *widget.TextGrid
-	renderer *termRenderer
 	send     func([]byte)
 	onResize func(cols, rows int)
 	styles   map[uint32]widget.TextGridStyle
@@ -51,11 +49,8 @@ type termWidget struct {
 	autoFocus bool
 	// fontSize is the terminal-only text size (zoom shortcuts and Ctrl+scroll).
 	fontSize float32
-	// gridTheme and gridWrap give the text grid its own theme override. The grid
-	// caches the theme it resolves, so inheriting one from the panel was not
-	// reliable: the glyphs kept the old size while the emulator refitted.
-	gridTheme *zoomTheme
-	gridWrap  fyne.CanvasObject
+	// onZoom lets the panel rebuild the theme override after a zoom change.
+	onZoom func()
 }
 
 const (
@@ -87,10 +82,9 @@ func (t *termWidget) adjustZoom(delta float32) {
 	}
 	traceZoom("adjust old=%.0f new=%.0f", t.textSize(), size)
 	t.fontSize = size
-	if t.gridTheme != nil {
-		t.gridTheme.size = size
+	if t.onZoom != nil {
+		t.onZoom()
 	}
-	t.rebuildGrid(t.Size())
 	t.fit(t.Size())
 	t.render()
 }
@@ -110,38 +104,10 @@ func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *
 }
 
 func (t *termWidget) CreateRenderer() fyne.WidgetRenderer {
-	t.renderer = &termRenderer{parent: t, font: t.textSize()}
-	t.renderer.objects = []fyne.CanvasObject{t.installGrid(fyne.NewSize(1, 1))}
+	t.grid = widget.NewTextGrid()
+	t.grid.Scroll = fyne.ScrollNone
 	t.render()
-	return t.renderer
-}
-
-// installGrid builds the text grid together with the theme override that carries
-// the terminal text size, and returns the object the renderer must draw.
-func (t *termWidget) installGrid(size fyne.Size) fyne.CanvasObject {
-	grid := widget.NewTextGrid()
-	grid.Scroll = fyne.ScrollNone
-	if t.gridTheme == nil {
-		t.gridTheme = &zoomTheme{base: fyne.CurrentApp().Settings().Theme(), size: t.textSize()}
-	}
-	t.grid = grid
-	t.gridWrap = container.NewThemeOverride(grid, t.gridTheme)
-	t.gridWrap.Resize(size)
-	return t.gridWrap
-}
-
-// rebuildGrid replaces the text grid and its override with fresh ones.
-//
-// widget.TextGrid caches the theme text size in its row renderers and its
-// ApplyTheme is empty, so a theme change alone does not resize the glyphs. A new
-// grid with its own override is what makes both axes follow the new size.
-func (t *termWidget) rebuildGrid(size fyne.Size) {
-	object := t.installGrid(size)
-	if t.renderer != nil {
-		t.renderer.font = t.textSize()
-		t.renderer.objects[0] = object
-	}
-	t.render()
+	return &termRenderer{parent: t, objects: []fyne.CanvasObject{t.grid}, font: t.textSize()}
 }
 
 type termRenderer struct {
@@ -155,7 +121,11 @@ type termRenderer struct {
 func (r *termRenderer) Layout(size fyne.Size) {
 	if r.font != r.parent.textSize() || r.parent.grid == nil {
 		r.font = r.parent.textSize()
-		r.parent.rebuildGrid(size)
+		grid := widget.NewTextGrid()
+		grid.Scroll = fyne.ScrollNone
+		r.parent.grid = grid
+		r.objects[0] = grid
+		grid.Resize(size)
 		r.parent.fit(size)
 		r.parent.render()
 	} else {

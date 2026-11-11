@@ -387,7 +387,10 @@ func (s *screen) zoomFocusedTerminal(delta float32) {
 // resetFocusedTerminalZoom returns the focused terminal to the default size.
 func (s *screen) resetFocusedTerminalZoom() {
 	if term, ok := s.focusedTerminal(); ok {
-		term.adjustZoom(theme.TextSize() - term.textSize())
+		term.fontSize = theme.TextSize()
+		if term.onZoom != nil {
+			term.onZoom()
+		}
 	}
 }
 
