@@ -212,14 +212,10 @@ func (s *screen) save() {
 		}
 		profile.ID = id
 	}
-	next := s.ws.upsert(profile)
-	folders := addFolderPath(s.ws.folders, profile.Folder)
-	if err := s.ws.store.Save(s.ws.document(next, folders)); err != nil {
+	if err := s.ws.putProfile(profile); err != nil {
 		s.setProblem("Could not save: " + err.Error())
 		return
 	}
-	s.ws.profiles = next
-	s.ws.folders = folders
 	s.selected = profile.ID
 	s.selectedUID = connectionUID(profile.ID)
 	s.populate(profile)
@@ -249,17 +245,10 @@ func (s *screen) requestDelete() {
 }
 
 func (s *screen) deleteProfile(target profiles.Profile) {
-	next := make([]profiles.Profile, 0, len(s.ws.profiles))
-	for _, existing := range s.ws.profiles {
-		if existing.ID != target.ID {
-			next = append(next, existing)
-		}
-	}
-	if err := s.ws.store.Save(s.ws.document(next, s.ws.folders)); err != nil {
+	if err := s.ws.deleteProfile(target.ID); err != nil {
 		s.setProblem("Could not delete: " + err.Error())
 		return
 	}
-	s.ws.profiles = next
 	if tab, open := s.openTabs[target.ID]; open {
 		for _, panel := range s.tabPanels(target.ID) {
 			panel.shutdown()

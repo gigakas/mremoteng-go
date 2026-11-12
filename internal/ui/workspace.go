@@ -98,6 +98,34 @@ func (w *workspace) upsert(profile profiles.Profile) []profiles.Profile {
 	return next
 }
 
+// commit writes the candidate state and only then replaces the in-memory one, so
+// a failed write leaves the workspace exactly as it was.
+func (w *workspace) commit(profs []profiles.Profile, folders []string) error {
+	if err := w.store.Save(w.document(profs, folders)); err != nil {
+		return err
+	}
+	w.profiles = profs
+	w.folders = folders
+	return nil
+}
+
+// putProfile stores profile and, when needed, its folder entry. The write goes
+// first: if the store rejects it, nothing changes in memory.
+func (w *workspace) putProfile(profile profiles.Profile) error {
+	return w.commit(w.upsert(profile), addFolderPath(w.folders, profile.Folder))
+}
+
+// deleteProfile removes the profile with the given id.
+func (w *workspace) deleteProfile(id string) error {
+	next := make([]profiles.Profile, 0, len(w.profiles))
+	for _, existing := range w.profiles {
+		if existing.ID != id {
+			next = append(next, existing)
+		}
+	}
+	return w.commit(next, w.folders)
+}
+
 // collapsedList turns the set into a sorted slice, so the document is stable
 // across runs.
 func collapsedList(set map[string]bool) []string {

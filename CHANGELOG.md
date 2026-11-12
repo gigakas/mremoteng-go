@@ -142,6 +142,13 @@
   - `internal/ui/tree_test.go`
   - `internal/ui/workspace.go`
   - _2026-11-12 01:20:03 UTC — mimocode_
+- Move the profile save and delete mutations into the workspace
+
+  Phase B1 of the screen extraction. save and deleteProfile each computed the next profile slice, wrote the document, assigned the new slices and then refreshed the widgets, all in the same method. The workspace now owns the mutation: commit writes the candidate document and only replaces the in-memory state after the store accepts it, and putProfile and deleteProfile are built on top of commit, with putProfile also adding the profile folder entry. The screen keeps what is genuinely its own: form validation, id generation, selection, tree refresh, tab teardown and the status line. Behaviour is unchanged, including the invariant that a rejected write leaves the workspace and the UI exactly as they were. actions.go loses its two inline writes and one assignment block. Validated with ./scripts/check.sh.
+
+  - `internal/ui/actions.go`
+  - `internal/ui/workspace.go`
+  - _2026-11-12 01:21:26 UTC — mimocode_
 - Extract the connection default table into connection.Defaults()
 
   The default values for a connection lived as an inline literal inside NewConnectionInfoWithID, which made them unreachable for any other consumer and left the XML deserializer with a second, contradictory table of its own. Extracted the literal into an exported Defaults() function that the constructor now calls, so there is a single place that defines what a fresh connection looks like. This is a pure extraction: the values are identical, the constructor behaves the same and no caller changed.
