@@ -273,6 +273,8 @@ func (s *screen) menu() *fyne.MainMenu {
 		fyne.NewMenuItem("Toggle Config panel", s.toggleProperties),
 	)
 	tools := fyne.NewMenu("Tools",
+		fyne.NewMenuItem("Remote files (SFTP)", s.requestRemoteFiles),
+		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Connection file location", s.showStoreLocation),
 		fyne.NewMenuItem("Diagnostics", s.requestDiagnostics),
 		fyne.NewMenuItem("Repair connection file", s.requestRepairStore),
