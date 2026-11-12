@@ -364,8 +364,9 @@ func (s *screen) registerControlShortcuts() {
 		canvas.AddShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: fyne.KeyModifierControl},
 			func(fyne.Shortcut) { s.sendControlToFocused(key) })
 	}
-	// Terminal zoom stays on discrete shortcuts: a wheel gesture kept Ctrl held
-	// and rebuilt the grid on every event, which flickered and reset the size.
+	// Zoom is keys only: Fyne scroll events carry no modifiers, and reading the
+	// Ctrl state from X misreported it on Wayland/XWayland, so a plain wheel
+	// zoomed instead of scrolling and froze the console.
 	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyEqual, Modifier: fyne.KeyModifierControl},
 		func(fyne.Shortcut) { s.zoomFocusedTerminal(2) })
 	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyMinus, Modifier: fyne.KeyModifierControl},

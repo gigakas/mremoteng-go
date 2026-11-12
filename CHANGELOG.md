@@ -6,6 +6,14 @@
 
 ## 2026-11-12
 
+- Remove Ctrl+scroll zoom; its X query froze the console on Wayland
+
+  Freezing plus the need to defocus the console while scrolling pointed at controlPressed: it asks the X server whether Ctrl is held on every wheel event, but on Wayland/XWayland it misreports, so a plain scroll was treated as zoom and every notch rebuilt the whole text grid. Fyne scroll events carry no modifier information, so there is no reliable way to distinguish Ctrl+scroll here. The wheel is now always scrollback again, and zoom stays on the discrete shortcuts Ctrl+=, Ctrl+-, Ctrl+0 and the View menu, which need no modifier detection. The grid-owned text size from the previous change is kept, so a zoom done via the keys persists across typing, scroll and selection. Removed the controlPressed X query and its imports. Validated with ./scripts/check.sh.
+
+  - `internal/ui/shell.go`
+  - `internal/ui/terminal.go`
+  - `internal/ui/zoom.go`
+  - _2026-11-12 00:00:35 UTC — mimocode_
 - Extract the connection default table into connection.Defaults()
 
   The default values for a connection lived as an inline literal inside NewConnectionInfoWithID, which made them unreachable for any other consumer and left the XML deserializer with a second, contradictory table of its own. Extracted the literal into an exported Defaults() function that the constructor now calls, so there is a single place that defines what a fresh connection looks like. This is a pure extraction: the values are identical, the constructor behaves the same and no caller changed.

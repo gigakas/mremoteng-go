@@ -56,8 +56,6 @@ type termWidget struct {
 	// renderer is the termRenderer built in CreateRenderer, so the grid can be
 	// swapped in place on a zoom step.
 	renderer *termRenderer
-	// ctrlHeld reports whether Ctrl is down; tests replace it.
-	ctrlHeld func() bool
 }
 
 const (
@@ -106,7 +104,6 @@ func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *
 		rows:     rows,
 	}
 	t.zoom = &zoomTheme{base: fyne.CurrentApp().Settings().Theme(), size: t.textSize()}
-	t.ctrlHeld = controlPressed
 	t.ExtendBaseWidget(t)
 	return t
 }
@@ -264,16 +261,6 @@ func (t *termWidget) Scrolled(event *fyne.ScrollEvent) {
 	if event.Scrolled.DY == 0 {
 		return
 	}
-	// Ctrl+scroll zooms the console instead of scrolling it.
-	if t.ctrlHeld != nil && t.ctrlHeld() {
-		if event.Scrolled.DY > 0 {
-			t.adjustZoom(1)
-		} else {
-			t.adjustZoom(-1)
-		}
-		return
-	}
-
 	maxOffset := t.emulator.HistoryLen()
 	t.scrollOffset += int(event.Scrolled.DY)
 	if t.scrollOffset < 0 {
