@@ -10,18 +10,22 @@ import (
 // Palette: a calm dark surface set with one accent, and a light variant that
 // keeps the same hierarchy.
 var (
-	darkBackground  = color.NRGBA{R: 0x1b, G: 0x1d, B: 0x21, A: 0xff}
-	darkPanel       = color.NRGBA{R: 0x23, G: 0x26, B: 0x2b, A: 0xff}
-	darkInput       = color.NRGBA{R: 0x2c, G: 0x30, B: 0x36, A: 0xff}
-	darkHover       = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0x0d}
-	darkSeparator   = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0x12}
-	darkForeground  = color.NRGBA{R: 0xe6, G: 0xe8, B: 0xeb, A: 0xff}
+	darkBackground = color.NRGBA{R: 0x1b, G: 0x1d, B: 0x21, A: 0xff}
+	darkPanel      = color.NRGBA{R: 0x23, G: 0x26, B: 0x2b, A: 0xff}
+	darkInput      = color.NRGBA{R: 0x2c, G: 0x30, B: 0x36, A: 0xff}
+	darkHover      = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0x0d}
+	darkSeparator  = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0x12}
+	darkForeground = color.NRGBA{R: 0xe6, G: 0xe8, B: 0xeb, A: 0xff}
+	// Muted text: hints, endpoints, placeholders. Solid instead of Fyne's
+	// translucent default, which on this palette reads as barely visible.
+	darkMuted       = color.NRGBA{R: 0x9a, G: 0xa1, B: 0xa9, A: 0xff}
 	lightBackground = color.NRGBA{R: 0xf4, G: 0xf5, B: 0xf7, A: 0xff}
 	lightPanel      = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
 	lightInput      = color.NRGBA{R: 0xf0, G: 0xf1, B: 0xf4, A: 0xff}
 	lightHover      = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x0a}
 	lightSeparator  = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x12}
 	lightForeground = color.NRGBA{R: 0x1f, G: 0x23, B: 0x28, A: 0xff}
+	lightMuted      = color.NRGBA{R: 0x5f, G: 0x66, B: 0x70, A: 0xff}
 	accentColor     = color.NRGBA{R: 0x3d, G: 0x7e, B: 0xff, A: 0xff}
 	accentSoft      = color.NRGBA{R: 0x3d, G: 0x7e, B: 0xff, A: 0x33}
 )
@@ -48,6 +52,8 @@ func (t soberTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) c
 		return pick(dark, darkInput, lightInput)
 	case theme.ColorNameForeground:
 		return pick(dark, darkForeground, lightForeground)
+	case theme.ColorNameDisabled, theme.ColorNamePlaceHolder:
+		return pick(dark, darkMuted, lightMuted)
 	case theme.ColorNameHover:
 		return pick(dark, darkHover, lightHover)
 	case theme.ColorNameSeparator:
