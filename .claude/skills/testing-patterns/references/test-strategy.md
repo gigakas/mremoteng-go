@@ -18,6 +18,8 @@ Different tests buy different confidence at different cost. Choose the cheapest 
 
 Default shape: **many unit, some integration, few E2E**. Do not invert it unless the system is mostly glue (then integration tests carry more value).
 
+Performance, security and contract testing have their own playbook: [`non-functional-testing.md`](non-functional-testing.md) — budgets, cadence, tooling and reporting.
+
 ## The four required layers
 
 This collection expects four layers. `unit`, `integration`, and `system` are **scopes**; `regression` is a **purpose** that can live in any of the other three. What makes a test a regression test is that it locks a bug fix or existing behavior so it cannot silently break again.
@@ -60,22 +62,25 @@ When the language convention keeps tests next to the code (Go, Rust, Java, C#), 
 | C# | category traits | `[Category("Integration")]` |
 | Ruby | directories or RSpec tags | `spec/integration/` |
 | PHP | PHPUnit testsuites | `<testsuite name="integration">` |
+| Dart/Flutter | tags (`@Tags(["integration"])`) or directories | `dart test --tags integration` / `flutter test test/integration` |
 
 The runner below understands both directory-based and tag-based setups; override the command with `TEST_<LAYER>_CMD` when your project uses a different convention.
 
 ### Runner
 
-This repository maps the layers onto Go tooling:
+The repository maps the layers onto Go tooling:
 
 ```bash
 # from the repository root
-./scripts/check.sh                      # formatting check → vet → go test ./... (all layers)
+./scripts/check.sh                      # formatting check -> vet -> go test ./... (all layers)
 go test ./internal/...                  # unit only
 go test ./integration/                  # integration: C# compatibility corpus
 ./scripts/smoke.sh                      # system: build, skeleton startup, changelog check
 go test ./integration/ -run '^TestCSharpCorpus_' -count=1 -v   # regression
 go test ./internal/serialize/xml/ -run '^TestName$' -count=1   # one test
 ```
+
+Extra args after `--` apply to a **single-layer** run only; multi-layer runs reject them so a filter cannot silently skip a layer.
 
 Environment overrides:
 
@@ -203,8 +208,11 @@ The exception: if the "trivial" seam is where a real failure happens (auth, mone
 | C# | `XxxTests.cs` | `Returns_zero_for_new_account` |
 | Ruby | `*_spec.rb` / `*_test.rb` | `it "returns zero for a new account"` |
 | PHP | `*Test.php` | `testReturnsZeroForNewAccount` |
+| Dart/Flutter | `<module>_test.dart` | `test('returns zero for a new account', ...)` |
 
 Follow the project's existing convention first; consistency beats this table.
+
+Dart/Flutter specifics — widget, golden, generated-code and device-bound integration tests: [`dart-flutter.md`](dart-flutter.md).
 
 ## Runners per language
 
@@ -218,6 +226,7 @@ Follow the project's existing convention first; consistency beats this table.
 | C# | `dotnet test` | `dotnet test --no-build` | coverlet |
 | Ruby | `bundle exec rspec` | `bundle exec rspec` | SimpleCov |
 | PHP | `vendor/bin/phpunit` | `vendor/bin/phpunit` | PHPUnit coverage |
+| Dart/Flutter | `dart test` / `flutter test` | same | `flutter test --coverage` (lcov) |
 | Frappe | `bench --site <site> run-tests --module <module>` | `bench --site <site> run-tests --app <app>` | — |
 
 Run the **focused** test while developing; run the **full** suite before committing.
@@ -240,3 +249,5 @@ Run the **focused** test while developing; run the **full** suite before committ
 - `testing-patterns/references/test-smells.md` — flaky, fragile, slow, tautological tests
 - `refactoring` — characterization tests as the safety net before refactoring
 - `frappe-testing` — Frappe-specific commands, fixtures, permissions, Cypress
+- `testing-patterns/references/non-functional-testing.md` — load, security, contract, accessibility and reliability tests
+- `testing-patterns/references/dart-flutter.md` — Dart/Flutter layers, widget/golden/integration tests, coverage and CI

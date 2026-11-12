@@ -127,7 +127,7 @@ pytest                    # full suite
 If the project uses the four-layer runner:
 
 ```bash
-./scripts/check.sh          # formatting check → vet → all tests
+./scripts/check.sh          # formatting check -> vet -> all tests
 go test ./integration/ -count=1
 ```
 

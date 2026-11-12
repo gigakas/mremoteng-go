@@ -1,6 +1,6 @@
 ---
 name: solid-principles
-description: Apply the five SOLID design principles (SRP, OCP, LSP, ISP, DIP) to keep code modular, decoupled, and easy to change. Use when designing classes/modules, reviewing architecture, or when code is rigid, fragile, or hard to extend. Language-agnostic.
+description: Use when designing classes/modules, reviewing architecture, or when code is rigid, fragile, or hard to extend. Applies SRP, OCP, LSP, ISP and DIP with the smallest fix, the smells that signal each violation, and how to decouple modules. Language-agnostic.
 ---
 
 # SOLID Principles
@@ -13,6 +13,13 @@ Five design principles that make code easier to understand, change, and test. Th
 - Reviewing code for rigidity, fragility, or tight coupling
 - Deciding how to split responsibilities or reduce dependencies
 - Diagnosing *why* a design keeps breaking when requirements change
+
+## When NOT to use
+
+- Trivial scripts, glue, and value objects with one implementation and no expected variation.
+- Before the second variation exists — speculative abstraction is the exact failure this skill warns about.
+- A local smell that a small refactoring already removes — use `refactoring` first.
+- The framework dictates the seams (an ORM model, a generated client, a framework controller) — respect the boundary before applying DIP.
 
 ## The five principles
 
@@ -89,7 +96,7 @@ class OrderService:
 - **One reason to change is a guideline, not a metric** — use it to spot clusters, not to split every class into atoms.
 - **Don't violate DIP for trivial value objects** — depend on abstractions where behavior varies, not everywhere.
 
-## Common Mistakes
+## Common mistakes
 
 | Mistake | Why It Fails | Fix |
 |---------|--------------|-----|
@@ -99,6 +106,20 @@ class OrderService:
 | Fat interfaces (violating ISP) | Clients coupled to unused methods | Split interfaces by role/consumer |
 | Depending on concretions (violating DIP) | Rigid, untestable code | Depend on abstractions; inject dependencies |
 | Treating SOLID as rules to obey always | Dogmatic, over-engineered code | Use as heuristics; prioritize clarity |
+
+## Done when
+
+- [ ] The principle is named, and the violation is pointed at in a file and line.
+- [ ] The fix is the smallest change that restores substitutability or separation.
+- [ ] Tests stayed green; new seams are covered by at least one test or architecture rule.
+- [ ] No abstraction was added without a second variation to justify it.
+
+## References
+
+- `../design-patterns/references/language-idioms.md` — how each principle is expressed idiomatically per language
+- `../refactoring/references/code-smells.md` — the smells that signal a violation
+- `../testing-patterns/references/architecture-tests.md` — executable rules that keep DIP/SRP from regressing
+- `../refactoring/SKILL.md` — the mechanics (Extract Class, Move Method, Replace Inheritance with Delegation)
 
 ## Repo adjustments (mremoteng-go)
 

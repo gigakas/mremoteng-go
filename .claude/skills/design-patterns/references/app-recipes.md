@@ -287,7 +287,7 @@ UseCase -> Repository (port) <- SqlRepository (adapter)
 2. Implement adapters at the boundary; keep domain types free of SDK types.
 3. Inject ports into the use case; construct them in a composition root.
 4. Test the use case with an in-memory fake; test the adapter with an integration test.
-5. Enforce the dependency direction with an architecture test (see `../testing-patterns/references/architecture-tests.md`).
+5. Enforce the dependency direction with an architecture test (see `../../testing-patterns/references/architecture-tests.md`).
 
 **Avoid when**: the "infrastructure" is a pure function or a value object. Not everything needs a port.
 

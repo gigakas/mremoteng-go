@@ -51,6 +51,7 @@ Rule of thumb: **stub queries, mock commands** (in the CQS sense) — stub thing
 |----------|---------------------|------------------|
 | Python | `unittest.mock` (stdlib), `pytest-mock` | `Mock`, `MagicMock`, `patch`, auto-speccing |
 | JavaScript/TS | Jest, Vitest, Sinon | `jest.fn()`, `jest.mock()`, spies, timers |
+| Dart/Flutter | `mocktail`, `mockito` (+ `build_runner`), `fake_async` | no-codegen mocks, `when().thenReturn()`, `verify()` |
 | Java | Mockito, EasyMock | `mock()`, `when().thenReturn()`, `verify()` |
 | C# | Moq, NSubstitute, FakeItEasy | LINQ-to-Mocks, `It.IsAny<T>()` |
 | Go | `gomock`, `testify/mock` | generated mocks via `mockgen` |

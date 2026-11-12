@@ -28,6 +28,7 @@ These are **review triggers, not quality targets**. They flag files worth inspec
 | Java | 400 | 700 | 60 | 10 |
 | C# | 400 | 700 | 60 | 10 |
 | PHP | 400 | 700 | 60 | 10 |
+| Dart/Flutter | 300 | 500 | 50 | 10 |
 | Kotlin | 400 | 700 | 60 | 10 |
 | Swift | 400 | 700 | 60 | 10 |
 | Rust | 400 | 700 | 60 | 10 |

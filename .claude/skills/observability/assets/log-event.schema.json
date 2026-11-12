@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/log-event.schema.json",
+  "title": "Structured log event",
+  "description": "One JSON object per line. Field names align with the OpenTelemetry log data model where possible.",
+  "type": "object",
+  "required": ["timestamp", "level", "service", "event", "message"],
+  "additionalProperties": true,
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC with milliseconds, e.g. 2026-11-11T14:03:21.482Z"
+    },
+    "level": {
+      "type": "string",
+      "enum": ["debug", "info", "warn", "error", "fatal"]
+    },
+    "service": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "env": {
+      "type": "string",
+      "enum": ["dev", "staging", "prod"]
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "event": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$",
+      "maxLength": 64,
+      "description": "object.action in lowercase, at least one dot: order.created"
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\r\\n]*$",
+      "description": "Human sentence; no newlines or control characters"
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "span_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "request_id": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "user_id": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Pseudonymous identifier only; never email, name, phone or address"
+    },
+    "duration_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "error": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "maxLength": 128 },
+        "message": { "type": "string", "maxLength": 500 },
+        "stack": { "type": "string", "maxLength": 8000 }
+      },
+      "additionalProperties": false
+    },
+    "attributes": {
+      "type": "object",
+      "description": "Flat domain data. Scalar values only; no nested payloads.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "level": { "enum": ["error", "fatal"] } }, "required": ["level"] },
+      "then": { "required": ["error"] }
+    }
+  ]
+}

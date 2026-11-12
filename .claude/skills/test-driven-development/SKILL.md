@@ -1,6 +1,6 @@
 ---
 name: test-driven-development
-description: Write tests before implementation in short red-green-refactor cycles. Use when building new features, fixing bugs (write a failing test first), or adding tests to legacy code without coverage. Language-agnostic.
+description: Use when building a feature, fixing a bug (failing test first), or adding behavior to untested legacy code. Short red-green-refactor cycles, characterization tests, and the test-first protocol for agents. Language-agnostic.
 ---
 
 # Test-Driven Development (TDD)
@@ -13,6 +13,13 @@ A discipline where you write a failing test first, make it pass with the minimal
 - Fixing a bug — first write a test that reproduces it, then fix
 - Adding behavior to existing code (each new rule starts as a failing test)
 - Legacy code with no tests — start with *characterization tests* (see below)
+
+## When NOT to use
+
+- Exploring an unknown domain: write a spike, throw it away, then TDD the rule you learned.
+- Generated code, pure configuration, and one-line glue (see *When NOT to test* in `testing-patterns/references/test-strategy.md`).
+- Legacy code with no seam — write characterization tests first (below), then TDD the new behavior.
+- Purely visual work where "correct" is aesthetic and not assertable.
 
 ## Core principles
 
@@ -114,11 +121,7 @@ The red-green-refactor cycle produces **unit** tests. The full portfolio — uni
 | **System** | One critical journey, not every path |
 | **Regression** | Every bug fix starts with a failing regression test |
 
-Before finishing a task, run the gate:
-
-```bash
-./scripts/check.sh                                  # formatting check → vet → all tests
-```
+Before finishing a task, run the fast layer (`./scripts/check.sh`, which runs the formatting check, `go vet` and the full test suite). Layer definitions, environment variables, and CI cadence live in [`../testing-patterns/references/test-strategy.md`](../testing-patterns/references/test-strategy.md).
 
 ## Characterization tests (legacy code)
 
@@ -145,7 +148,7 @@ When code has no tests, capture its *current* behavior before changing it:
 - **Refactor only on green** — never refactor with failing tests.
 - **Keep the cycle short** — minutes, not hours.
 
-## Common Mistakes
+## Common mistakes
 
 | Mistake | Why It Fails | Fix |
 |---------|--------------|-----|
@@ -155,6 +158,14 @@ When code has no tests, capture its *current* behavior before changing it:
 | Big steps in the cycle | Hard to isolate what's wrong | Smallest red/green step each time |
 | Skipping refactor phase | Technical debt accumulates silently | Refactor every cycle, on green |
 | No characterization tests on legacy code | Unsafe changes to unknown behavior | Encode current behavior first |
+
+## Done when
+
+- [ ] You saw the new test fail for the expected reason before writing production code.
+- [ ] The minimal code made it pass; refactoring happened only on green.
+- [ ] The fast suite is still green and still fast.
+- [ ] A bug fix has a regression test that fails on the old code.
+- [ ] No test asserts implementation details introduced in this cycle.
 
 ## Repo adjustments (mremoteng-go)
 

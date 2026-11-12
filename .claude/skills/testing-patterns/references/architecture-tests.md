@@ -188,3 +188,38 @@ cargo tree -p domain | grep infrastructure && exit 1 || true
 - [ ] Runs in the fast suite/PR.
 - [ ] Exceptions documented.
 - [ ] Linked from the architecture doc/README.
+
+## Dart / Flutter — package boundaries
+
+Dart has no universal architecture-test tool; a plain VM test works and runs with `dart test`/`flutter test` (not widget tests):
+
+```dart
+// test/architecture_test.dart
+import "dart:io";
+import "package:test/test.dart";
+
+void main() {
+  test("domain does not import Flutter or infrastructure", () {
+    final offenders = Directory("lib/domain")
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith(".dart"))
+        .where((f) {
+          final source = f.readAsStringSync();
+          return source.contains("package:flutter/") ||
+              source.contains("package:http/") ||
+              source.contains("package:dio/");
+        })
+        .map((f) => f.path)
+        .toList();
+
+    expect(offenders, isEmpty, reason: "keep lib/domain free of Flutter and I/O: $offenders");
+  });
+}
+```
+
+Rules:
+
+- One test per boundary (`domain` cannot import `data`/`flutter`; `data` may import `domain`).
+- Keep the rule list explicit; a regex over imports is easier to review than a custom analyzer plugin.
+- For larger codebases, `custom_lint` can enforce the same rule at analysis time with better editor feedback.

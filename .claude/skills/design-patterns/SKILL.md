@@ -1,11 +1,13 @@
 ---
 name: design-patterns
-description: Choose and apply the right Gang of Four design pattern for a real problem without over-engineering. Use when designing class/object structure, comparing patterns ("Strategy or State?"), reviewing a design that feels rigid or fragile, or planning a feature that needs extensibility. Includes intent-based selection tables, pattern relationships, language idioms, and app-development recipes. Source: https://refactoring.guru/design-patterns
+description: Use when designing class/object structure, comparing patterns ("Strategy or State?"), reviewing a rigid or fragile design, or planning a feature that needs extensibility or swappable implementations. Intent-based selection tables, pattern relations, language idioms, and app recipes.
 ---
 
 # Design Patterns
 
 Design patterns are typical solutions to common problems in software design. Each one is a blueprint you adapt to your language and problem — not code you paste. Source: [refactoring.guru](https://refactoring.guru/design-patterns).
+
+**Catalog scope**: the 22 patterns catalogued by refactoring.guru — 5 creational, 7 structural, 10 behavioral. The GoF book lists 23; the site (and this skill) omits **Interpreter**, which modern languages usually cover with `match`/`switch` expressions. Terminology, grouping and intent follow the source; language idioms, app recipes and the selection workflow are our additions.
 
 ## When to use
 
@@ -131,15 +133,6 @@ Common application scenarios and the pattern set that fits them live in [referen
 
 What is idiomatic — and what is already built in — per language is in [references/language-idioms.md](references/language-idioms.md): Python, TypeScript/JavaScript, Java, C#, Go, Rust. Read it before translating a pattern literally.
 
-## References
-
-- [references/creational-patterns.md](references/creational-patterns.md) — Factory Method, Abstract Factory, Builder, Prototype, Singleton
-- [references/structural-patterns.md](references/structural-patterns.md) — Adapter, Bridge, Composite, Decorator, Facade, Flyweight, Proxy
-- [references/behavioral-patterns.md](references/behavioral-patterns.md) — Chain of Responsibility, Command, Iterator, Mediator, Memento, Observer, State, Strategy, Template Method, Visitor
-- [references/pattern-relations.md](references/pattern-relations.md) — decision tree, look-alike comparisons, common combinations
-- [references/app-recipes.md](references/app-recipes.md) — pattern sets for common application features
-- [references/language-idioms.md](references/language-idioms.md) — built-in equivalents and idiomatic variants per language
-
 ## Implementation checklist
 
 - [ ] The problem is stated without naming a pattern.
@@ -174,6 +167,23 @@ What is idiomatic — and what is already built in — per language is in [refer
 | Strategy for two fixed branches | More code than an `if` | Keep the conditional until variation is real |
 | Decorator stack with implicit order | Behavior depends on invisible ordering | Make order explicit and test it |
 | Observer without unsubscribe | Leaks and double notifications | Define lifecycle/ownership of subscriptions |
+
+## Done when
+
+- [ ] The problem statement names the variation that must be isolated.
+- [ ] A simpler alternative (function, composition, language idiom) was rejected with a reason.
+- [ ] The chosen pattern maps to an intent, not a copied class diagram.
+- [ ] Tests still describe behavior after the change.
+- [ ] No extension point exists that the current requirements do not use.
+
+## References
+
+- [references/creational-patterns.md](references/creational-patterns.md) — Factory Method, Abstract Factory, Builder, Prototype, Singleton
+- [references/structural-patterns.md](references/structural-patterns.md) — Adapter, Bridge, Composite, Decorator, Facade, Flyweight, Proxy
+- [references/behavioral-patterns.md](references/behavioral-patterns.md) — Chain of Responsibility, Command, Iterator, Mediator, Memento, Observer, State, Strategy, Template Method, Visitor
+- [references/pattern-relations.md](references/pattern-relations.md) — decision tree, look-alike comparisons, common combinations
+- [references/app-recipes.md](references/app-recipes.md) — pattern sets for common application features
+- [references/language-idioms.md](references/language-idioms.md) — built-in equivalents and idiomatic variants per language
 
 ## Repo adjustments (mremoteng-go)
 

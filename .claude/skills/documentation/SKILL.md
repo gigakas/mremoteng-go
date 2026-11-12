@@ -1,6 +1,6 @@
 ---
 name: documentation
-description: Write and maintain project documentation as code. Covers README, ADRs, API reference, runbooks, user guides, diagrams, comments and docstrings. Use when starting a project, documenting an API or architecture decision, onboarding contributors, writing a runbook, or preventing documentation drift. Language-agnostic.
+description: Use when starting a project, adding or changing a public API, recording an architecture decision, writing a runbook, onboarding contributors, or when existing docs may have drifted. Covers README, ADRs, API reference and endpoints, runbooks, guides, diagrams and docstrings.
 ---
 
 # Documentation
@@ -209,8 +209,8 @@ One-sentence description.
 - [references/user-guides.md](references/user-guides.md) — task-oriented guides and troubleshooting
 - [references/diagrams.md](references/diagrams.md) — C4 and Mermaid diagrams
 - [references/docstrings.md](references/docstrings.md) — docstrings, comments, per-language conventions
-- `changelog` — this repository's fragment workflow: `changelog.d/`, `go run ./cmd/changelog new`, `CHANGELOG.md` never edited by hand
-- `audit` — stage closing audit: `auditory/` with `TEMPLATE.md`, immutable once committed
+- `multi-agent-changelog` — `CHANGELOG.md` format and per-agent fragments
+- `code-audit` — audit history and improvement backlog
 
 ## Repo adjustments (mremoteng-go)
 

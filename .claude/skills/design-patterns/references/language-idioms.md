@@ -4,20 +4,20 @@ Patterns are intents, not class diagrams. Before translating a GoF structure lit
 
 ## Pattern → idiom at a glance
 
-| Pattern | Python | TypeScript/JS | Java | C# | Go | Rust |
-|---------|--------|---------------|------|----|----|------|
-| **Iterator** | `__iter__`/`__next__` | `Symbol.iterator` | `Iterator`/`Iterable` | `IEnumerable`/`yield` | `range`/channels | `Iterator`/`IntoIterator` |
-| **Strategy** | function / `Protocol` | function / interface | functional interface | delegate / interface | function / interface | closure / trait |
-| **Decorator** | `@decorator`, wrapper | higher-order function, middleware | interface wrapper | delegate/middleware | interface wrapper | trait wrapper |
-| **Singleton** | module object | module object | enum / DI | DI container | package var / `sync.Once` | `OnceLock` / module |
-| **Observer** | callbacks / signals | `EventTarget`, EventEmitter | listeners / `Flow` | `event`/`IObservable` | channels | channels / `tokio::sync` |
-| **Command** | closure / dataclass | closure / object | lambda / class | `Action`/class | func value | closure / enum |
-| **State** | `Enum` + `match` | discriminated union | sealed + switch | enum + switch | interface + struct | enum + `match` |
-| **Visitor** | `functools.singledispatch` / `match` | discriminated union + exhaustive switch | sealed + pattern matching | pattern matching / switch | interface | enum + `match` |
-| **Adapter** | wrapper / `Protocol` | wrapper | wrapper | wrapper | interface implementation | trait impl |
-| **Builder** | keyword args / fluent class | object literal / fluent | builder class | object initializer / builder | functional options | builder / struct update |
-| **Proxy** | `__getattr__`, descriptor | built-in `Proxy` | dynamic proxy | `DispatchProxy` | interface wrapper | `Deref` / wrapper |
-| **Composite** | recursive dataclass | recursive type | recursive class | recursive class | recursive struct | recursive enum |
+| Pattern | Python | TypeScript/JS | Java | C# | Go | Rust | Dart | Ruby | PHP |
+|---------|--------|---------------|------|----|----|------|------|------|-----|
+| **Iterator** | `__iter__`/`__next__` | `Symbol.iterator` | `Iterator`/`Iterable` | `IEnumerable`/`yield` | `range`/channels | `Iterator`/`IntoIterator` | `Iterable`/`sync*` | `each`/`Enumerable` | `Iterator`/`Generator` (`yield`) |
+| **Strategy** | function / `Protocol` | function / interface | functional interface | delegate / interface | function / interface | closure / trait | function type / `interface class` | proc / module | callable/`Closure` or interface |
+| **Decorator** | `@decorator`, wrapper | higher-order function, middleware | interface wrapper | delegate/middleware | interface wrapper | trait wrapper | wrapper / mixin | `SimpleDelegator` / `prepend` | wrapper / `__call` |
+| **Singleton** | module object | module object | enum / DI | DI container | package var / `sync.Once` | `OnceLock` / module | top-level `final` / `factory` | module methods / `Singleton` | static instance / DI container |
+| **Observer** | callbacks / signals | `EventTarget`, EventEmitter | listeners / `Flow` | `event`/`IObservable` | channels | channels / `tokio::sync` | `Stream`/`ValueNotifier` | `Observable` / `ActiveSupport::Notifications` | SPL `SplSubject`/`SplObserver` |
+| **Command** | closure / dataclass | closure / object | lambda / class | `Action`/class | func value | closure / enum | closure / class | `Proc` / object with `call` | invokable class (`__invoke`) |
+| **State** | `Enum` + `match` | discriminated union | sealed + switch | enum + switch | interface + struct | enum + `match` | sealed class + `switch` | `case` / state objects | `enum` + `match` |
+| **Visitor** | `functools.singledispatch` / `match` | discriminated union + exhaustive switch | sealed + pattern matching | pattern matching / switch | interface | enum + `match` | sealed class + exhaustive `switch` | `case` / `in` pattern matching | `match` / double dispatch |
+| **Adapter** | wrapper / `Protocol` | wrapper | wrapper | wrapper | interface implementation | trait impl | wrapper / `implements` | wrapper / delegator | wrapper / `implements` |
+| **Builder** | keyword args / fluent class | object literal / fluent | builder class | object initializer / builder | functional options | builder / struct update | named params / cascade `..` | keyword args / block DSL | named args / fluent builder |
+| **Proxy** | `__getattr__`, descriptor | built-in `Proxy` | dynamic proxy | `DispatchProxy` | interface wrapper | `Deref` / wrapper | `noSuchMethod` / wrapper | `method_missing` / `SimpleDelegator` | `__call`/`__get` |
+| **Composite** | recursive dataclass | recursive type | recursive class | recursive class | recursive struct | recursive enum | recursive class | recursive array/hash | recursive class |
 
 ## Python
 
@@ -42,6 +42,49 @@ Patterns are intents, not class diagrams. Before translating a GoF structure lit
 - **Builder**: object literals with a typed config; use a fluent builder only for query/DSL APIs.
 - **Adapter**: a wrapper object implementing your interface; keep the SDK type out of public signatures.
 - **Proxy**: the built-in `Proxy` is for dynamic interception; a class proxy is for typed access control.
+
+## Dart
+
+Dart 3 gives you sealed classes, records, patterns and extension types; Flutter adds streams and notifiers. Reach for those before a GoF structure.
+
+- **Iterator**: implement `Iterable` with a `sync*` generator; use `for (final x in ...)`.
+- **Strategy**: a function type (`String Function(int)`) or an `abstract interface class`; no class per algorithm unless it holds state.
+- **State/Visitor**: a `sealed class` plus an exhaustive `switch` (Dart 3) is usually clearer than a hierarchy; the compiler enforces exhaustiveness.
+- **Observer**: `Stream`/`StreamController` in pure Dart; `ValueNotifier`/`ChangeNotifier` with `ListenableBuilder` in Flutter. Return/cancel the subscription.
+- **Decorator**: a wrapper class, or a `mixin` when the behavior composes into a type rather than around an instance.
+- **Singleton**: a top-level `final` is already a singleton; a `factory` constructor when lazy init is required. Prefer constructor injection for testability.
+- **Builder**: named parameters and cascade notation (`..`) replace most builders; a fluent class only for query/DSL APIs.
+- **Adapter**: `implements` your own interface and keep the SDK type out of public signatures.
+- **Proxy**: `noSuchMethod` for dynamic forwarding, a wrapper class for typed access control.
+- **Factory Method**: a factory constructor (`factory Foo.fromJson(...)`) or a registry function; no subclass hierarchy needed.
+- **Composite**: a recursive class with `children`; pair it with a `sealed` node type for exhaustive traversal.
+
+## Ruby
+
+- **Iterator**: include `Enumerable` and define `each`; callers use `map`/`select`/`each`.
+- **Strategy**: a `Proc`/lambda or a module; call it with `.call`. A class per algorithm only when it has state.
+- **Decorator**: `SimpleDelegator` from stdlib, or `Module#prepend` when the behavior wraps the type.
+- **Singleton**: `require "singleton"` or module functions; prefer dependency injection for testability.
+- **Observer**: stdlib `Observable` or `ActiveSupport::Notifications`; unsubscribe explicitly.
+- **State/Visitor**: `case`/`in` pattern matching (Ruby 3) over a class hierarchy for closed sets.
+- **Builder**: keyword arguments and a block DSL (`instance_eval`) for configuration.
+- **Adapter**: a wrapper or delegator; avoid monkey-patching third-party classes.
+- **Proxy**: `method_missing` with `respond_to_missing?`, or `SimpleDelegator` for static forwarding.
+- **Composite**: recursive arrays/hashes are often enough; a class when nodes carry behavior.
+
+## PHP
+
+- **Iterator**: implement `Iterator`/`IteratorAggregate`, or return a generator (`yield`).
+- **Strategy**: a `callable`/`Closure` or an interface; inject it explicitly.
+- **Decorator**: a wrapper implementing the same interface; `__call` for dynamic forwarding.
+- **Singleton**: a static instance or the framework container (Laravel/Symfony); prefer container injection.
+- **Observer**: SPL `SplSubject`/`SplObserver`, or framework events.
+- **Command**: an invokable class (`__invoke`) or a closure queued for later.
+- **State/Visitor**: `enum` + `match` (PHP 8.1) or double dispatch for a closed hierarchy.
+- **Builder**: named arguments (PHP 8) cover most cases; fluent builder for query/DSL APIs.
+- **Adapter**: a wrapper class implementing your interface; keep SDK types out of signatures.
+- **Proxy**: `__get`/`__call` for dynamic access, a wrapper class for typed control.
+- **Composite**: recursive class with `children`; pair it with an interface for uniform traversal.
 
 ## Java
 

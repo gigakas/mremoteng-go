@@ -133,6 +133,78 @@ Rustdoc:
 pub fn charge(amount: i64, idempotency_key: &str) -> Result<Receipt, Error>
 ```
 
+### Ruby
+
+YARD conventions with `#` comments directly above the method:
+
+```ruby
+# Applies the member discount to an order total.
+#
+# @param amount [Integer] order total in cents
+# @param member [Boolean] whether the customer is a member
+# @return [Integer] discounted total in cents
+# @raise [ArgumentError] when amount is negative
+# @example
+#   discount(10_000, member: true) # => 9_000
+def discount(amount, member:)
+  raise ArgumentError, "amount must be >= 0" if amount.negative?
+  member ? amount * 90 / 100 : amount
+end
+```
+
+- Tags: `@param [Type]`, `@return [Type]`, `@raise`, `@example`, `@see`, `@deprecated`.
+- Generate with `yard doc`; keep the tag types consistent with the signature.
+- RuboCop's `Style/Documentation` can enforce the class/module summary, not the tags.
+
+### PHP
+
+PHPDoc blocks above classes, methods and properties:
+
+```php
+/**
+ * Apply the member discount to an order total.
+ *
+ * @param int $amount Order total in cents.
+ * @param bool $member Whether the customer is a member.
+ * @return int Discounted total in cents.
+ * @throws \InvalidArgumentException When the amount is negative.
+ */
+function discount(int $amount, bool $member): int
+{
+    if ($amount < 0) {
+        throw new \InvalidArgumentException('amount must be >= 0');
+    }
+    return $member ? intdiv($amount * 90, 100) : $amount;
+}
+```
+
+- Tags: `@param`, `@return`, `@throws`, `@var`, `@deprecated`; Psalm/PHPStan add `@psalm-*`/`@phpstan-*` for generics.
+- Generate with phpDocumentor; static analyzers read the same tags, so a wrong type is a bug.
+- Enforce block presence with `phpcs`/`php-cs-fixer` (e.g., `Squiz.Commenting.FunctionComment`).
+
+### Dart
+
+Dartdoc uses `///` above the declaration; the first paragraph is the summary:
+
+```dart
+/// Applies the member discount to an order amount in cents.
+///
+/// Returns the discounted total in cents. Throws an [ArgumentError] when
+/// [amount] is negative.
+///
+/// ```dart
+/// discount(10000, member: true); // 9000
+/// ```
+int discount(int amount, {required bool member}) {
+  if (amount < 0) throw ArgumentError.value(amount, 'amount', 'must be >= 0');
+  return member ? amount * 90 ~/ 100 : amount;
+}
+```
+
+- Reference other declarations with `[Name]`; use `{@template}`/`{@macro}` for repeated blocks.
+- Generate with `dart doc`; the `public_member_api_docs` lint enforces presence on public APIs.
+- There are no `@param` tags: document parameters in prose or as `[param]` references.
+
 ## TODO format
 
 ```text

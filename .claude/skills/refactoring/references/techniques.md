@@ -99,7 +99,7 @@ Move methods/fields up and down an inheritance hierarchy; add or remove classes.
 
 1. **Make the smallest mechanical change** that expresses the technique.
 2. **Compile/lint** if the language needs it.
-3. **Run the focused tests** (see `../testing-patterns/references/test-strategy.md`).
+3. **Run the focused tests** (see `../../testing-patterns/references/test-strategy.md`).
 4. **Inspect the diff** — only structure should change.
 5. **Commit** when green; undo immediately when red.
 

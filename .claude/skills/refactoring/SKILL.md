@@ -1,6 +1,6 @@
 ---
 name: refactoring
-description: Improve existing code safely without changing behavior. Use when cleaning up code, removing code smells, simplifying methods/conditionals/classes, preparing code for a feature, or reducing technical debt. Includes smell→technique triage, step-by-step recipes, per-language tooling, and the safety net. Source: https://refactoring.guru/refactoring
+description: Use when cleaning up code, removing duplication and code smells, simplifying methods/conditionals/classes, preparing code for a feature, or reducing technical debt. Smell→technique triage, extraction and move recipes, per-language tooling, and the test safety net.
 ---
 
 # Refactoring
@@ -51,16 +51,10 @@ Refactoring is **not** rewriting. A rewrite changes behavior and structure at on
 ```bash
 # Before touching anything, confirm the tests pass
 pytest .
-# or
-bench --site <site> run-tests --app <app>
+# or the runner of your stack: npm test / go test ./... / cargo test / flutter test
 ```
 
-Use the four-layer strategy in [`../testing-patterns/references/test-strategy.md`](../testing-patterns/references/test-strategy.md): unit tests for the loop, and regression/characterization tests for the behavior you are about to change. Run the gate before and after each step:
-
-```bash
-./scripts/check.sh                                    # formatting check → vet → all tests
-go test ./internal/serialize/xml/ -run '^TestName$' -count=1
-```
+Use the four-layer strategy in [`../testing-patterns/references/test-strategy.md`](../testing-patterns/references/test-strategy.md): unit tests for the loop, and regression/characterization tests for the behavior you are about to change. Run the fast layer before and after each step (`./scripts/check.sh`, which runs the formatting check, `go vet` and the full test suite); that file also defines the layers and their environment variables.
 
 If no test covers the area, write a **characterization test** that pins the current behavior (including bugs) before refactoring. See `test-driven-development`.
 
@@ -187,7 +181,7 @@ If none of these are possible, limit the refactor to mechanical, obviously safe 
 
 ## Tooling
 
-See [references/file-responsibility-rules.md](references/file-responsibility-rules.md) for per-language size and complexity thresholds. In this repository the tooling is fixed: `gofmt` for formatting, `go vet` for lints, `go test -bench` for measurements, `./scripts/check.sh` for the whole gate. No additional linter is configured, so do not introduce one inside a refactoring change. Automation helps with the mechanical part; it does not choose the refactoring for you.
+See [references/tooling.md](references/tooling.md) for per-language formatters, linters, complexity tools, and commands. Automation helps with the mechanical part; it does not choose the refactoring for you.
 
 ## Failure modes / debugging
 
@@ -218,11 +212,20 @@ See [references/file-responsibility-rules.md](references/file-responsibility-rul
 | Refactoring everything at once | Unreviewable diff, merge conflicts | Stay within the task's blast radius |
 | Renaming instead of restructuring | Cosmetic change, same design | Move/extract the responsibility |
 
+## Done when
+
+- [ ] Behavior is unchanged: the same tests pass before and after.
+- [ ] The fast suite was green after every step, not only at the end.
+- [ ] Each commit is small, reversible, and named after the technique.
+- [ ] No new feature, test, or dependency entered the change.
+- [ ] Coverage of the touched area did not drop.
+
 ## References
 
 - [references/code-smells.md](references/code-smells.md) — 23 smells in 6 groups, with signs, detection signals and treatments
 - [references/techniques.md](references/techniques.md) — 60+ techniques in 6 groups, plus mechanics and before/after examples
 - [references/refactoring-recipes.md](references/refactoring-recipes.md) — step-by-step playbooks for common app-development situations
+- [references/tooling.md](references/tooling.md) — formatters, linters, complexity and duplication tools per language
 - [references/file-responsibility-rules.md](references/file-responsibility-rules.md) — per-language size/complexity thresholds
 - [`../testing-patterns/references/test-strategy.md`](../testing-patterns/references/test-strategy.md) — safety net, four test layers, Definition of Done
 

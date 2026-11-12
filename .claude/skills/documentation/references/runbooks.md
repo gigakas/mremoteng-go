@@ -36,57 +36,54 @@ If you have explained the same procedure twice in chat, write a runbook.
 Deploy version X to production safely.
 
 ## Scope
-Production site `<site>`, app `<app>`.
+Production `<environment>`, service `<service>`.
 
 ## Prerequisites
-- Access to the bastion / bench host.
+- Access to the deploy host or cluster.
 - Approval from the release owner.
-- Backup completed in the last 24h.
+- Backup/snapshot completed in the last 24h.
 
 ## Health checks (before)
 ```bash
-curl -fsS https://<host>/api/method/ping
-bench --site <site> doctor
+curl -fsS https://<host>/health
+systemctl status <service>        # or: docker compose ps
 ```
 
 ## Procedure
 1. Announce the maintenance window.
-2. Take a backup:
+2. Take a backup or snapshot:
    ```bash
-   bench --site <site> backup --with-files
+   <backup command>
    ```
-3. Enable maintenance mode (optional):
+3. Enable maintenance mode or stop traffic (optional):
    ```bash
-   bench --site <site> set-maintenance-mode on
+   <maintenance command>
    ```
 4. Deploy:
    ```bash
-   bench --site <site> migrate
-   bench build
-   bench restart
+   git fetch --tags && git checkout <tag>
+   <build command>
+   systemctl restart <service>      # or: docker compose up -d
    ```
 5. Verify:
    ```bash
-   curl -fsS https://<host>/api/method/ping
-   bench --site <site> doctor
+   curl -fsS https://<host>/health
+   systemctl status <service>
    ```
-6. Disable maintenance mode.
+6. Disable maintenance mode / restore traffic.
 
 ## Rollback
-1. Restore the pre-deploy backup:
-   ```bash
-   bench --site <site> restore <backup-file> --force
-   ```
-2. Re-deploy the previous commit/tag.
+1. Re-deploy the previous tag.
+2. Restore the pre-deploy backup or snapshot if state changed.
 3. Run the health checks.
 
 ## Common incidents
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| 502 after deploy | Workers not restarted | `bench restart` |
-| Migration error | Patch failure | Read traceback, fix patch, re-run migrate |
-| Stale UI | Cache | `bench --site <site> clear-cache`, hard reload |
+| 502 after deploy | Workers not restarted | Restart the service/workers |
+| Migration error | Failed migration | Read the traceback, fix forward or restore |
+| Stale UI or assets | Cache | Clear the app/CDN cache, hard reload |
 
 ## Escalation
 - Primary: <name/contact>
@@ -97,6 +94,8 @@ bench --site <site> doctor
 - Capture logs and metrics.
 - Open a postmortem if user impact > 15 min.
 ```
+
+Framework packs may replace these commands with their own: for Frappe/ERPNext, use `bench` (see `frappe-manager/references/bench-commands.md` in the Frappe pack).
 
 ## Rules
 

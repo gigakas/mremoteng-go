@@ -2,12 +2,7 @@
 
 Step-by-step playbooks for the situations that appear most often in application development. Each recipe is small, testable, and behavior-preserving.
 
-Use with `../testing-patterns/references/test-strategy.md` and run the fast layer after every step:
-
-```bash
-./scripts/check.sh                 # formatting check → vet → all tests
-go test ./internal/ui/ -count=1    # one package, fast loop
-```
+Use with `../../testing-patterns/references/test-strategy.md` and run the fast layer after every step (`./scripts/check.sh`, which runs the formatting check, `go vet` and the full test suite).
 
 ---
 

@@ -33,6 +33,13 @@ Do not run it on glue code, generated code, or UI layout.
 | Ruby | `mutant` |
 | PHP | Infection |
 
+**Dart/Flutter**: there is no mature mutation-testing tool. `mutation_test` (community) exists but is not maintained enough to gate a pipeline on. Fallback:
+
+- mutate the critical pure-Dart logic manually — flip a condition, move a boundary (`<` to `<=`), replace a return with a constant — and confirm a test fails;
+- keep Flutter widget tests out of mutation runs (slow, framework-bound); extract the logic into a testable function first;
+- record the manual mutations and their results in the audit pass, so the gap is visible rather than assumed.
+
+
 ## Workflow
 
 1. **Baseline**: run mutation testing on the target module. Record the mutation score and the surviving mutants.
