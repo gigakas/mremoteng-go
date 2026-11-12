@@ -236,6 +236,12 @@
   - `internal/ui/properties.go`
   - `internal/ui/welcome_test.go`
   - _2026-11-12 02:20:30 UTC — mimocode_
+- Bump the preview to 0.6.3
+
+  Version bump for the release that carries the button hints, the readable secondary text and the welcome page button reference. 0.6.2 was already packaged from commit 8aa9217 and seven more commits landed since, so keeping the number would leave two different archives with the same name.
+
+  - `VERSION`
+  - _2026-11-12 02:22:17 UTC — mimocode_
 
 ## 2026-11-11
 
