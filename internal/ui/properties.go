@@ -140,7 +140,10 @@ func (p *propertiesPanel) setEnabled(enabled bool) {
 // welcomeHelpRow is one line of the button reference on the start page. The icon
 // is the one the button actually shows, so the page and the bar match.
 type welcomeHelpRow struct {
-	icon fyne.Resource
+	// icon is resolved when the page is built, not at package init: the theme
+	// accessors need a running Fyne app, and a package-level call logs an error
+	// for every accessor before the app exists.
+	icon func() fyne.Resource
 	name string
 	what string
 }
@@ -150,31 +153,37 @@ type welcomeHelpRow struct {
 // at once, with the icon beside it, which is the only way to learn the icons you
 // have not hovered yet.
 var welcomeHelp = []welcomeHelpRow{
-	{theme.MenuIcon(), "Connection tree", "Show or hide the tree (status bar, left)."},
-	{theme.SettingsIcon(), "Config panel", "Show or hide the panel (status bar, middle)."},
-	{theme.InfoIcon(), "Activity log", "Show or hide the log (status bar, right)."},
-	{theme.ContentAddIcon(), "Quick connect", "Open a session without saving it (tree header)."},
-	{theme.MediaPlayIcon(), "Connect", "Open the session of the selected connection."},
-	{theme.MediaStopIcon(), "Disconnect", "End the session and keep the connection saved."},
-	{theme.SearchIcon(), "Test", "Check RDP credentials without opening a desktop."},
-	{theme.CheckButtonCheckedIcon(), "Ignore cert", "Accept a changed or self-signed RDP certificate."},
-	{theme.CheckButtonCheckedIcon(), "Legacy TLS", "Use legacy RDP security for servers without TLS."},
-	{theme.SettingsIcon(), "RDP options", "Redirect devices, choose resolution and audio, edit credentials."},
-	{theme.ContentCopyIcon(), "Copy terminal", "Copy the terminal contents to the clipboard."},
+	{theme.MenuIcon, "Connection tree", "Show or hide the tree (status bar, left)."},
+	{theme.SettingsIcon, "Config panel", "Show or hide the panel (status bar, middle)."},
+	{theme.InfoIcon, "Activity log", "Show or hide the log (status bar, right)."},
+	{theme.ContentAddIcon, "Quick connect", "Open a session without saving it (tree header)."},
+	{theme.MediaPlayIcon, "Connect", "Open the session of the selected connection."},
+	{theme.MediaStopIcon, "Disconnect", "End the session and keep the connection saved."},
+	{theme.SearchIcon, "Test", "Check RDP credentials without opening a desktop."},
+	{theme.CheckButtonCheckedIcon, "Ignore cert", "Accept a changed or self-signed RDP certificate."},
+	{theme.CheckButtonCheckedIcon, "Legacy TLS", "Use legacy RDP security for servers without TLS."},
+	{theme.SettingsIcon, "RDP options", "Redirect devices, choose resolution and audio, edit credentials."},
+	{theme.ContentCopyIcon, "Copy terminal", "Copy the terminal contents to the clipboard."},
 	{nil, "Ctrl-C / Ctrl-D", "Send the control bytes Fyne cannot deliver as key combinations."},
-	{theme.NavigateNextIcon(), "Split right", "Put a second pane beside this terminal."},
-	{theme.MoveDownIcon(), "Split down", "Put a second pane below this terminal."},
-	{theme.CancelIcon(), "Close pane", "Close this pane and keep the others."},
-	{theme.DocumentSaveIcon(), "Save password", "Store this password in the encrypted vault."},
-	{theme.DeleteIcon(), "Delete", "Remove the selected connection (Config panel)."},
+	{theme.NavigateNextIcon, "Split right", "Put a second pane beside this terminal."},
+	{theme.MoveDownIcon, "Split down", "Put a second pane below this terminal."},
+	{theme.CancelIcon, "Close pane", "Close this pane and keep the others."},
+	{theme.DocumentSaveIcon, "Save password", "Store this password in the encrypted vault."},
+	{theme.DeleteIcon, "Delete", "Remove the selected connection (Config panel)."},
 }
+
+// welcomeIconSize is the box the reference icons are drawn in. Fyne's default
+// icon size is too heavy for a list, where the icon is a reminder and not a
+// control.
+const welcomeIconSize = 16
 
 // welcomeHelpRowContent renders one reference line: the icon in a fixed box so
 // the names line up, then the name with its explanation under it.
 func welcomeHelpRowContent(row welcomeHelpRow) fyne.CanvasObject {
-	var leading fyne.CanvasObject = container.NewGridWrap(fyne.NewSize(28, 28))
+	box := fyne.NewSize(welcomeIconSize, welcomeIconSize)
+	var leading fyne.CanvasObject = container.NewGridWrap(box)
 	if row.icon != nil {
-		leading = container.NewGridWrap(fyne.NewSize(28, 28), widget.NewIcon(row.icon))
+		leading = container.NewGridWrap(box, widget.NewIcon(row.icon()))
 	}
 	name := widget.NewLabel(row.name)
 	what := widget.NewLabel(row.what)
