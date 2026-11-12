@@ -13,7 +13,6 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 	"github.com/mRemoteNG/mremoteng-go/internal/transfer"
 )
 
@@ -128,34 +127,11 @@ func (s *screen) applyImport(preview transfer.Preview, replace bool) {
 	if !s.requireWritable("Importing") {
 		return
 	}
-	profilesOut := make([]profiles.Profile, 0, len(s.ws.profiles)+len(preview.Profiles))
-	foldersOut := make([]string, 0, len(s.ws.folders)+len(preview.Folders))
-	seen := map[string]bool{}
-	if !replace {
-		profilesOut = append(profilesOut, s.ws.profiles...)
-		foldersOut = append(foldersOut, s.ws.folders...)
-		for _, profile := range s.ws.profiles {
-			seen[strings.ToLower(profile.Name)+"\x00"+profile.Folder] = true
-		}
-	}
-	added, skipped := 0, 0
-	for _, profile := range preview.Profiles {
-		key := strings.ToLower(profile.Name) + "\x00" + profile.Folder
-		if seen[key] {
-			skipped++
-			continue
-		}
-		seen[key] = true
-		profilesOut = append(profilesOut, profile)
-		added++
-	}
-	foldersOut = unionFolders(foldersOut, preview.Folders)
-	if err := s.ws.store.Save(s.ws.document(profilesOut, foldersOut)); err != nil {
+	added, skipped, err := s.ws.importInto(preview.Profiles, preview.Folders, replace)
+	if err != nil {
 		s.setProblem("Could not save the imported connections: " + err.Error())
 		return
 	}
-	s.ws.profiles = profilesOut
-	s.ws.folders = foldersOut
 	s.refreshTree()
 	s.tree.OpenAllBranches()
 	mode := "merged"

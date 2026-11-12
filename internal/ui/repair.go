@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"time"
-
-	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 )
 
 // requestRepairStore offers to move a damaged connection file aside and start
@@ -29,17 +27,11 @@ func (s *screen) repairStore(path string) {
 		s.setProblem("Could not move the damaged file aside: " + err.Error())
 		return
 	}
-	if err := s.ws.store.Save(emptyDocument()); err != nil {
+	if err := s.ws.reset(); err != nil {
 		s.setProblem("Could not write a new connection file: " + err.Error())
 		return
 	}
-	s.ws.writable = true
 	s.setWritable(true)
 	s.reload()
 	s.setStatus("Connection file repaired. The previous content is in " + backup + ".")
-}
-
-// emptyDocument is the starting point after a repair.
-func emptyDocument() profiles.Document {
-	return profiles.Document{Profiles: []profiles.Profile{}}
 }

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 )
@@ -219,6 +220,56 @@ func (w *workspace) putConnection(profile profiles.Profile) error {
 		folders = addFolderPath(w.folders, profile.Folder)
 	}
 	return w.commit(w.upsert(profile), folders)
+}
+
+// importInto merges the imported profiles and folders, or replaces the whole
+// workspace when replace is true. The merge key is the lowercased name plus the
+// folder, which is what the preview counts as a duplicate.
+//
+// It returns the counts the status line reports. On a rejected write nothing
+// changes and the counts are discarded by the caller, matching the previous
+// behaviour.
+func (w *workspace) importInto(incoming []profiles.Profile, incomingFolders []string, replace bool) (added, skipped int, err error) {
+	nextProfiles := make([]profiles.Profile, 0, len(w.profiles)+len(incoming))
+	nextFolders := make([]string, 0, len(w.folders)+len(incomingFolders))
+	seen := map[string]bool{}
+	if !replace {
+		nextProfiles = append(nextProfiles, w.profiles...)
+		nextFolders = append(nextFolders, w.folders...)
+		for _, profile := range w.profiles {
+			seen[strings.ToLower(profile.Name)+"\x00"+profile.Folder] = true
+		}
+	}
+	for _, profile := range incoming {
+		key := strings.ToLower(profile.Name) + "\x00" + profile.Folder
+		if seen[key] {
+			skipped++
+			continue
+		}
+		seen[key] = true
+		nextProfiles = append(nextProfiles, profile)
+		added++
+	}
+	nextFolders = unionFolders(nextFolders, incomingFolders)
+	if err := w.commit(nextProfiles, nextFolders); err != nil {
+		return 0, 0, err
+	}
+	return added, skipped, nil
+}
+
+// reset writes an empty document and re-enables writes. It is the only way out
+// of the read-only state a failed load enters.
+func (w *workspace) reset() error {
+	if err := w.store.Save(emptyDocument()); err != nil {
+		return err
+	}
+	w.writable = true
+	return nil
+}
+
+// emptyDocument is the starting point after a repair.
+func emptyDocument() profiles.Document {
+	return profiles.Document{Profiles: []profiles.Profile{}}
 }
 
 // collapsedList turns the set into a sorted slice, so the document is stable
