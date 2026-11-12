@@ -162,41 +162,46 @@ func NewConnectionInfoWithID(id string) (*ConnectionInfo, error) {
 	if strings.TrimSpace(id) == "" {
 		return nil, ErrInvalidID
 	}
-	return &ConnectionInfo{
-		id: id,
-		Raw: ConnectionValues{
-			Name:                                "New Connection",
-			Icon:                                "mRemoteNG",
-			Panel:                               "General",
-			ConnectionFrameColor:                FrameColorNone,
-			ExternalCredentialProvider:          CredentialProviderNone,
-			VaultOpenbaoSecretEngine:            VaultEngineKV,
-			ExternalAddressProvider:             AddressProviderNone,
-			EC2Region:                           "eu-central-1",
-			Protocol:                            ProtocolRDP,
-			RDPVersion:                          RDPVersion10,
-			Port:                                DefaultPort(ProtocolRDP),
-			PuttySession:                        "Default Settings",
-			RDPAuthenticationLevel:              AuthenticationNone,
-			RenderingEngine:                     RenderingEngineEdgeChromium,
-			UseCredSsp:                          true,
-			RDGatewayUsageMethod:                RDGatewayNever,
-			RDGatewayUseConnectionCredentials:   RDGatewayCredentialsSame,
-			RDGatewayExternalCredentialProvider: CredentialProviderNone,
-			Resolution:                          RDPResolutionSmartSize,
-			AutomaticResize:                     true,
-			Colors:                              RDPColors16Bit,
-			RedirectDiskDrives:                  RDPDiskDrivesNone,
-			RedirectSound:                       RDPSoundsNone,
-			SoundQuality:                        RDPSoundQualityDynamic,
-			VNCCompression:                      VNCCompressionNone,
-			VNCEncoding:                         VNCEncodingHextile,
-			VNCAuthMode:                         VNCAuthVNC,
-			VNCProxyType:                        VNCProxyNone,
-			VNCColors:                           VNCColorsNormal,
-			VNCSmartSizeMode:                    VNCSmartSizeAspect,
-		},
-	}, nil
+	return &ConnectionInfo{id: id, Raw: Defaults()}, nil
+}
+
+// Defaults returns the values mRemoteNG ships for a new connection. It is the
+// single source of truth for defaults: deserializers use it when an XML
+// attribute is absent so that missing attributes retain their C# value instead
+// of collapsing to the Go zero value.
+func Defaults() ConnectionValues {
+	return ConnectionValues{
+		Name:                                "New Connection",
+		Icon:                                "mRemoteNG",
+		Panel:                               "General",
+		ConnectionFrameColor:                FrameColorNone,
+		ExternalCredentialProvider:          CredentialProviderNone,
+		VaultOpenbaoSecretEngine:            VaultEngineKV,
+		ExternalAddressProvider:             AddressProviderNone,
+		EC2Region:                           "eu-central-1",
+		Protocol:                            ProtocolRDP,
+		RDPVersion:                          RDPVersion10,
+		Port:                                DefaultPort(ProtocolRDP),
+		PuttySession:                        "Default Settings",
+		RDPAuthenticationLevel:              AuthenticationNone,
+		RenderingEngine:                     RenderingEngineEdgeChromium,
+		UseCredSsp:                          true,
+		RDGatewayUsageMethod:                RDGatewayNever,
+		RDGatewayUseConnectionCredentials:   RDGatewayCredentialsSame,
+		RDGatewayExternalCredentialProvider: CredentialProviderNone,
+		Resolution:                          RDPResolutionSmartSize,
+		AutomaticResize:                     true,
+		Colors:                              RDPColors16Bit,
+		RedirectDiskDrives:                  RDPDiskDrivesNone,
+		RedirectSound:                       RDPSoundsNone,
+		SoundQuality:                        RDPSoundQualityDynamic,
+		VNCCompression:                      VNCCompressionNone,
+		VNCEncoding:                         VNCEncodingHextile,
+		VNCAuthMode:                         VNCAuthVNC,
+		VNCProxyType:                        VNCProxyNone,
+		VNCColors:                           VNCColorsNormal,
+		VNCSmartSizeMode:                    VNCSmartSizeAspect,
+	}
 }
 
 // ID returns the stable identifier persisted as the mRemoteNG Id attribute.

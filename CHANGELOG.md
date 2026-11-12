@@ -4,6 +4,15 @@
 <!-- Source: fragments in changelog.d/*.md -->
 <!-- Regenerate: make changelog  (or: go run ./cmd/changelog compile) -->
 
+## 2026-11-12
+
+- Extract the connection default table into connection.Defaults()
+
+  The default values for a connection lived as an inline literal inside NewConnectionInfoWithID, which made them unreachable for any other consumer and left the XML deserializer with a second, contradictory table of its own. Extracted the literal into an exported Defaults() function that the constructor now calls, so there is a single place that defines what a fresh connection looks like. This is a pure extraction: the values are identical, the constructor behaves the same and no caller changed.
+
+  - `internal/connection/model.go`
+  - _2026-11-12 01:38:26 UTC — mimocode_
+
 ## 2026-11-11
 
 - Bump the preview to 0.5.0
@@ -33,6 +42,61 @@
   - `VERSION`
   - `README.md`
   - _2026-11-11 20:22:05 UTC — opencode_
+- Add the generic engineering skills adapted to this repository
+
+  Copy the language-agnostic skills (refactoring, solid-principles, design-patterns, testing-patterns, test-driven-development, documentation) from scripts/ClaudeCode-OpenCode/generic-skills into .claude/skills so Claude Code and MiMoCode share one tree, and add .mimocode/mimocode.jsonc with skills.paths pointing at it.
+
+  Adaptation done in the copies, not upstream: every generic runner invocation (./.claude/scripts/test.sh, ./.opencode/scripts/test.sh) was replaced with the repository gates (./scripts/check.sh, go test <package>, ./scripts/smoke.sh) and the four test layers were mapped onto go test ./internal/..., go test ./integration/, scripts/smoke.sh and the C# corpus. Each SKILL.md gained a 'Repo adjustments (mremoteng-go)' section with Go 1.23+, the check.sh gate (and its no-format caveat), the 50-line size rule, TestFunction_Scenario_ExpectedResult naming, headless Fyne tests, the fixture-provenance rule, the external-process boundary for RDP/AnyDesk, the auditory/ audit conventions and the fragment-only changelog workflow. The documentation skill now points at this repository's changelog and audit skills instead of the generic multi-agent-changelog and code-audit, which were deliberately not copied because they write CHANGELOG.md by hand and docs/audit/, both of which contradict AGENTS.md. The dangling references/tooling.md link (absent from the source collection) was replaced with the actual tooling of this repository.
+
+  Validated with ./scripts/check.sh.
+
+  - `.claude/skills/design-patterns/SKILL.md`
+  - `.claude/skills/design-patterns/references/app-recipes.md`
+  - `.claude/skills/design-patterns/references/behavioral-patterns.md`
+  - `.claude/skills/design-patterns/references/creational-patterns.md`
+  - `.claude/skills/design-patterns/references/language-idioms.md`
+  - `.claude/skills/design-patterns/references/pattern-relations.md`
+  - `.claude/skills/design-patterns/references/structural-patterns.md`
+  - `.claude/skills/documentation/SKILL.md`
+  - `.claude/skills/documentation/references/adr.md`
+  - `.claude/skills/documentation/references/api-docs.md`
+  - `.claude/skills/documentation/references/diagrams.md`
+  - `.claude/skills/documentation/references/docstrings.md`
+  - `.claude/skills/documentation/references/readme.md`
+  - `.claude/skills/documentation/references/runbooks.md`
+  - `.claude/skills/documentation/references/user-guides.md`
+  - `.claude/skills/refactoring/SKILL.md`
+  - `.claude/skills/refactoring/references/code-smells.md`
+  - `.claude/skills/refactoring/references/file-responsibility-rules.md`
+  - `.claude/skills/refactoring/references/refactoring-recipes.md`
+  - `.claude/skills/refactoring/references/techniques.md`
+  - `.claude/skills/solid-principles/SKILL.md`
+  - `.claude/skills/test-driven-development/SKILL.md`
+  - `.claude/skills/testing-patterns/SKILL.md`
+  - `.claude/skills/testing-patterns/references/architecture-tests.md`
+  - `.claude/skills/testing-patterns/references/mutation-testing.md`
+  - `.claude/skills/testing-patterns/references/test-doubles.md`
+  - `.claude/skills/testing-patterns/references/test-smells.md`
+  - `.claude/skills/testing-patterns/references/test-strategy.md`
+  - `.mimocode/mimocode.jsonc`
+  - _2026-11-11 21:24:29 UTC — mimocode_
+- Correct documentation that contradicted the implemented code
+
+  blueprint/linux-preview.md: L2 now names the real gaps (modifier-key input, embedded webview, serial) instead of the already delivered RDP embedding and scrollback, and the table marks L2 and L3 in progress and L4 partially done, each only where the code proves it; L1 stays open for the pending human run, the L2 ownership bullet adds internal/terminal and the post-L4 packages, the moved-connection path no longer points at a File menu item that does not exist, and the terminal history, zoom and copy behaviour is documented with its limits.
+  AGENTS.md: the toolchain floor is Go 1.25+ because go.mod declares go 1.25.0, so the old 1.23+ line sent readers to a version the module cannot build with.
+  docs/linux-preview-usability.md: scenarios 11-18 cover folders (create, subfolder, subtree rename, recursive delete with its count, drag and Move to), the import/export round trip on scratch files, quick connect, terminal zoom, scrollback and copy, and the master-password vault, each with an observable pass condition; the -profiles preparation block and scenarios 1-10 are kept, and the script stays a pending human checklist that keeps L1 open instead of claiming the old session out-of-scope preview.
+  .claude/skills/{refactoring,solid-principles,design-patterns,testing-patterns,test-driven-development,documentation}/SKILL.md: the repo-adjustment sections repeat the toolchain fact as Go 1.25+ with the go.mod declaration, so the six generic engineering skills stop restating a floor the module no longer supports.
+
+  - `AGENTS.md`
+  - `blueprint/linux-preview.md`
+  - `docs/linux-preview-usability.md`
+  - `.claude/skills/refactoring/SKILL.md`
+  - `.claude/skills/solid-principles/SKILL.md`
+  - `.claude/skills/design-patterns/SKILL.md`
+  - `.claude/skills/testing-patterns/SKILL.md`
+  - `.claude/skills/test-driven-development/SKILL.md`
+  - `.claude/skills/documentation/SKILL.md`
+  - _2026-11-11 21:50:14 UTC — mimocode-docs_
 
 ## 2026-11-10
 
