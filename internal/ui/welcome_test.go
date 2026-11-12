@@ -31,6 +31,11 @@ func TestWelcomeHelp_DocumentsEveryIconButton(t *testing.T) {
 			t.Errorf("row %q appears twice", row.name)
 		}
 		seen[row.name] = true
+		// Every button with an icon shows it here, so the page and the bar match.
+		// Ctrl-C/Ctrl-D are text buttons and have no icon to sample.
+		if row.icon == nil && row.name != "Ctrl-C / Ctrl-D" {
+			t.Errorf("row %q has no icon sample", row.name)
+		}
 	}
 
 	joined := strings.ToLower(strings.Join(namesAndText(), " "))

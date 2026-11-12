@@ -137,30 +137,51 @@ func (p *propertiesPanel) setEnabled(enabled bool) {
 	}
 }
 
-// welcomeHelpRow is one line of the button reference on the start page.
+// welcomeHelpRow is one line of the button reference on the start page. The icon
+// is the one the button actually shows, so the page and the bar match.
 type welcomeHelpRow struct {
+	icon fyne.Resource
 	name string
 	what string
 }
 
-// welcomeHelp documents the icon-only buttons. Hovering an icon repeats its line
-// in the status bar; the start page is where the whole set can be read at once,
-// which is the only way to learn the icons you have not hovered yet.
+// welcomeHelp documents the buttons of the three bars. Hovering a button repeats
+// its line in the status bar; the start page is where the whole set can be read
+// at once, with the icon beside it, which is the only way to learn the icons you
+// have not hovered yet.
 var welcomeHelp = []welcomeHelpRow{
-	{"Status bar: menu icon", "Show or hide the connection tree."},
-	{"Status bar: gear icon", "Show or hide the Config panel."},
-	{"Status bar: info icon", "Show or hide the activity log."},
-	{"Tree header: plus icon", "Quick connect to an endpoint without saving it."},
-	{"Connect / Disconnect", "Open or end the session of the selected connection."},
-	{"Test", "Check RDP credentials without opening a desktop."},
-	{"Ignore cert", "Accept a changed or self-signed RDP certificate."},
-	{"Legacy TLS", "Use legacy RDP security for servers without TLS."},
-	{"Session bar: gear icon", "RDP options: redirection, resolution, audio and credentials."},
-	{"Session bar: copy icon", "Copy the terminal contents to the clipboard."},
-	{"Ctrl-C / Ctrl-D", "Send the control bytes Fyne cannot deliver as key combinations."},
-	{"Session bar: arrow and cross icons", "Split the terminal right, split down, close the pane."},
-	{"Session bar: save icon", "Store this password in the encrypted vault."},
-	{"Delete", "Remove the selected connection."},
+	{theme.MenuIcon(), "Connection tree", "Show or hide the tree (status bar, left)."},
+	{theme.SettingsIcon(), "Config panel", "Show or hide the panel (status bar, middle)."},
+	{theme.InfoIcon(), "Activity log", "Show or hide the log (status bar, right)."},
+	{theme.ContentAddIcon(), "Quick connect", "Open a session without saving it (tree header)."},
+	{theme.MediaPlayIcon(), "Connect", "Open the session of the selected connection."},
+	{theme.MediaStopIcon(), "Disconnect", "End the session and keep the connection saved."},
+	{theme.SearchIcon(), "Test", "Check RDP credentials without opening a desktop."},
+	{theme.CheckButtonCheckedIcon(), "Ignore cert", "Accept a changed or self-signed RDP certificate."},
+	{theme.CheckButtonCheckedIcon(), "Legacy TLS", "Use legacy RDP security for servers without TLS."},
+	{theme.SettingsIcon(), "RDP options", "Redirect devices, choose resolution and audio, edit credentials."},
+	{theme.ContentCopyIcon(), "Copy terminal", "Copy the terminal contents to the clipboard."},
+	{nil, "Ctrl-C / Ctrl-D", "Send the control bytes Fyne cannot deliver as key combinations."},
+	{theme.NavigateNextIcon(), "Split right", "Put a second pane beside this terminal."},
+	{theme.MoveDownIcon(), "Split down", "Put a second pane below this terminal."},
+	{theme.CancelIcon(), "Close pane", "Close this pane and keep the others."},
+	{theme.DocumentSaveIcon(), "Save password", "Store this password in the encrypted vault."},
+	{theme.DeleteIcon(), "Delete", "Remove the selected connection (Config panel)."},
+}
+
+// welcomeHelpRowContent renders one reference line: the icon in a fixed box so
+// the names line up, then the name with its explanation under it.
+func welcomeHelpRowContent(row welcomeHelpRow) fyne.CanvasObject {
+	var leading fyne.CanvasObject = container.NewGridWrap(fyne.NewSize(28, 28))
+	if row.icon != nil {
+		leading = container.NewGridWrap(fyne.NewSize(28, 28), widget.NewIcon(row.icon))
+	}
+	name := widget.NewLabel(row.name)
+	what := widget.NewLabel(row.what)
+	what.Wrapping = fyne.TextWrapWord
+	what.Importance = widget.LowImportance
+	return container.NewBorder(nil, nil, container.NewCenter(leading), nil,
+		container.NewVBox(name, what))
 }
 
 // welcomeSessionNotice states what works today. It used to claim that sessions
@@ -182,13 +203,14 @@ func welcomeContent() fyne.CanvasObject {
 	notice.Wrapping = fyne.TextWrapWord
 	notice.Importance = widget.LowImportance
 
-	items := make([]*widget.FormItem, 0, len(welcomeHelp))
-	for _, row := range welcomeHelp {
-		what := widget.NewLabel(row.what)
-		what.Wrapping = fyne.TextWrapWord
-		items = append(items, widget.NewFormItem(row.name, what))
+	rows := make([]fyne.CanvasObject, 0, len(welcomeHelp)*2)
+	for i, row := range welcomeHelp {
+		if i > 0 {
+			rows = append(rows, widget.NewSeparator())
+		}
+		rows = append(rows, welcomeHelpRowContent(row))
 	}
-	buttons := widget.NewCard("Buttons", "Hover any icon to see the same line in the status bar.", widget.NewForm(items...))
+	buttons := widget.NewCard("Buttons", "Hover any icon to see the same line in the status bar.", container.NewVBox(rows...))
 
 	cards := container.NewVBox(
 		container.NewPadded(widget.NewCard("Getting started", "", container.NewVBox(steps, notice))),
