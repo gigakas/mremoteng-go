@@ -49,13 +49,9 @@ type confirm func(title, message string, onConfirm, onDecline func())
 type screen struct {
 	app     fyne.App
 	win     fyne.Window
-	store   Store
+	ws      *workspace
 	confirm confirm
 
-	all               []profiles.Profile
-	folders           []string
-	defaults          []profiles.FolderDefault
-	collapsed         map[string]bool
 	suppressBranch    bool
 	rows              map[string]*treeRow
 	index             *treeIndex
@@ -128,11 +124,10 @@ func NewWindow(app fyne.App, store Store) fyne.Window {
 func newScreen(app fyne.App, store Store) *screen {
 	s := &screen{
 		app:               app,
-		store:             store,
+		ws:                newWorkspace(store),
 		win:               app.NewWindow(windowTitle()),
 		openTabs:          map[string]*container.TabItem{},
 		rows:              map[string]*treeRow{},
-		collapsed:         map[string]bool{},
 		panels:            map[string]*sessionPanel{},
 		openShell:         defaultShellOpener,
 		launchRDP:         defaultRDPLauncher,
@@ -498,7 +493,7 @@ func (s *screen) treeHighlighted(uid widget.TreeNodeID) {
 
 func (s *screen) showStoreLocation() {
 	path := "(store does not expose a path)"
-	if aware, ok := s.store.(pathStore); ok {
+	if aware, ok := s.ws.store.(pathStore); ok {
 		path = aware.Path()
 	}
 	dialog.ShowInformation("Connection file", path, s.win)
@@ -557,7 +552,7 @@ func aboutText() string {
 
 func (s *screen) setCounts() {
 	folders := map[string]bool{}
-	for _, profile := range s.all {
+	for _, profile := range s.ws.profiles {
 		segments, err := profiles.FolderSegments(profile.Folder)
 		if err != nil {
 			continue
@@ -572,7 +567,7 @@ func (s *screen) setCounts() {
 			folders[path] = true
 		}
 	}
-	s.counts.SetText(fmt.Sprintf("%d / %d", len(s.all), len(folders)))
+	s.counts.SetText(fmt.Sprintf("%d / %d", len(s.ws.profiles), len(folders)))
 }
 
 func (s *screen) indexHas(uid string) bool {

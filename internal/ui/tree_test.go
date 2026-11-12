@@ -120,12 +120,12 @@ func TestMoveToMenu_ListsRootAndFoldersAndMoves(t *testing.T) {
 		t.Fatalf("items = %v", menu.Items)
 	}
 	menu.Items[1].Action()
-	if s.all[0].Folder != "Ops" {
-		t.Fatalf("folder = %q, want Ops after the menu move", s.all[0].Folder)
+	if s.ws.profiles[0].Folder != "Ops" {
+		t.Fatalf("folder = %q, want Ops after the menu move", s.ws.profiles[0].Folder)
 	}
 	menu.Items[0].Action()
-	if s.all[0].Folder != "" {
-		t.Fatalf("folder = %q, want the root after the menu move", s.all[0].Folder)
+	if s.ws.profiles[0].Folder != "" {
+		t.Fatalf("folder = %q, want the root after the menu move", s.ws.profiles[0].Folder)
 	}
 }
 

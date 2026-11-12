@@ -71,7 +71,7 @@ func (s *screen) moveToMenu(profile profiles.Profile) *fyne.Menu {
 			s.withDiscardGuard(func() { s.moveConnection(profile, "") })
 		}),
 	}
-	folders := append([]string(nil), s.folders...)
+	folders := append([]string(nil), s.ws.folders...)
 	sort.Strings(folders)
 	for _, folder := range folders {
 		folder := folder
@@ -103,7 +103,7 @@ func (s *screen) createFolderInside(parent string) {
 }
 
 func (s *screen) folderExists(path string) bool {
-	for _, folder := range s.folders {
+	for _, folder := range s.ws.folders {
 		if folder == path {
 			return true
 		}

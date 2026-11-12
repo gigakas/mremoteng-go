@@ -11,7 +11,7 @@ import (
 // requestRepairStore offers to move a damaged connection file aside and start
 // with an empty store, which is the only safe way to unblock writes.
 func (s *screen) requestRepairStore() {
-	aware, ok := s.store.(pathStore)
+	aware, ok := s.ws.store.(pathStore)
 	if !ok {
 		s.setStatus("This store does not expose a file to repair.")
 		return
@@ -29,11 +29,11 @@ func (s *screen) repairStore(path string) {
 		s.setProblem("Could not move the damaged file aside: " + err.Error())
 		return
 	}
-	if err := s.store.Save(emptyDocument()); err != nil {
+	if err := s.ws.store.Save(emptyDocument()); err != nil {
 		s.setProblem("Could not write a new connection file: " + err.Error())
 		return
 	}
-	s.writable = true
+	s.ws.writable = true
 	s.setWritable(true)
 	s.reload()
 	s.setStatus("Connection file repaired. The previous content is in " + backup + ".")

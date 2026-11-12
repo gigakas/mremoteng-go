@@ -230,16 +230,16 @@ func TestRepairStore_BacksUpAndStartsEmpty(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	s := newTestScreen(t, profiles.NewStore(path))
-	if s.writable {
+	if s.ws.writable {
 		t.Fatal("writes are enabled although the store is corrupt")
 	}
 	s.repairStore(path)
 
-	if !s.writable {
+	if !s.ws.writable {
 		t.Fatal("repair did not re-enable writes")
 	}
-	if len(s.all) != 0 {
-		t.Errorf("profiles after repair = %d, want 0", len(s.all))
+	if len(s.ws.profiles) != 0 {
+		t.Errorf("profiles after repair = %d, want 0", len(s.ws.profiles))
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -305,8 +305,8 @@ func TestWorkspace_RestoresCollapsedFolders(t *testing.T) {
 		collapsed: []string{"Team"},
 	}
 	s := newTestScreen(t, store)
-	if s.collapsed["Team"] != true {
-		t.Fatalf("collapsed = %v, want Team restored", s.collapsed)
+	if s.ws.collapsed["Team"] != true {
+		t.Fatalf("collapsed = %v, want Team restored", s.ws.collapsed)
 	}
 	if s.tree.IsBranchOpen(folderUID("Team")) {
 		t.Error("Team is expanded although it was collapsed last time")
@@ -318,10 +318,10 @@ func TestBranchChanged_TracksCollapseAndPersistsOnClose(t *testing.T) {
 	store := &fakeStore{profiles: []profiles.Profile{connection}, folders: []string{"Team"}}
 	s := newTestScreen(t, store)
 	s.branchChanged(folderUID("Team"), true)
-	if !s.collapsed["Team"] {
+	if !s.ws.collapsed["Team"] {
 		t.Fatal("collapse was not tracked")
 	}
-	if err := s.store.Save(s.document(s.all, s.folders)); err != nil {
+	if err := s.ws.store.Save(s.ws.document(s.ws.profiles, s.ws.folders)); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 	document, err := store.Load()

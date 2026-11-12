@@ -83,7 +83,7 @@ func (s *screen) showTextDialog(title, confirm string, entry *widget.Entry, onCo
 func (s *screen) requestFolderDefaults(path string) {
 	username := widget.NewEntry()
 	port := widget.NewEntry()
-	for _, item := range s.defaults {
+	for _, item := range s.ws.defaults {
 		if item.Path == path {
 			username.SetText(item.Username)
 			if item.Port != 0 {
@@ -114,8 +114,8 @@ func (s *screen) saveFolderDefaults(path, username, portText string) {
 	if !s.requireWritable("Editing folder defaults") {
 		return
 	}
-	defaults := make([]profiles.FolderDefault, 0, len(s.defaults)+1)
-	for _, item := range s.defaults {
+	defaults := make([]profiles.FolderDefault, 0, len(s.ws.defaults)+1)
+	for _, item := range s.ws.defaults {
 		if item.Path != path {
 			defaults = append(defaults, item)
 		}
@@ -132,11 +132,11 @@ func (s *screen) saveFolderDefaults(path, username, portText string) {
 	if item.Username != "" || item.Port != 0 {
 		defaults = append(defaults, item)
 	}
-	if err := s.store.Save(s.documentWithDefaults(s.all, s.folders, defaults)); err != nil {
+	if err := s.ws.store.Save(s.ws.documentWithDefaults(s.ws.profiles, s.ws.folders, defaults)); err != nil {
 		s.setProblem("Could not save the folder defaults: " + err.Error())
 		return
 	}
-	s.defaults = defaults
+	s.ws.defaults = defaults
 	if s.selected != "" {
 		if profile, known := s.profileByID(s.selected); known {
 			s.populate(profile)
@@ -163,16 +163,16 @@ func (s *screen) renameFolder(old, raw string) {
 		s.setProblem("Cannot rename " + old + " into itself.")
 		return
 	}
-	for _, existing := range s.folders {
+	for _, existing := range s.ws.folders {
 		if existing == folder || strings.HasPrefix(existing, folder+"/") && !withinFolder(existing, old) {
 			s.setProblem("Cannot rename folder: " + folder + " already exists.")
 			return
 		}
 	}
 
-	nextFolders := make([]string, 0, len(s.folders))
+	nextFolders := make([]string, 0, len(s.ws.folders))
 	seen := map[string]bool{}
-	for _, existing := range s.folders {
+	for _, existing := range s.ws.folders {
 		renamed := existing
 		if withinFolder(existing, old) {
 			renamed = replaceFolderPrefix(existing, old, folder)
@@ -182,19 +182,19 @@ func (s *screen) renameFolder(old, raw string) {
 			nextFolders = append(nextFolders, renamed)
 		}
 	}
-	nextProfiles := make([]profiles.Profile, len(s.all))
-	copy(nextProfiles, s.all)
+	nextProfiles := make([]profiles.Profile, len(s.ws.profiles))
+	copy(nextProfiles, s.ws.profiles)
 	for i, profile := range nextProfiles {
 		if withinFolder(profile.Folder, old) {
 			nextProfiles[i].Folder = replaceFolderPrefix(profile.Folder, old, folder)
 		}
 	}
-	if err := s.store.Save(s.document(nextProfiles, nextFolders)); err != nil {
+	if err := s.ws.store.Save(s.ws.document(nextProfiles, nextFolders)); err != nil {
 		s.setProblem("Could not rename folder: " + err.Error())
 		return
 	}
-	s.all = nextProfiles
-	s.folders = nextFolders
+	s.ws.profiles = nextProfiles
+	s.ws.folders = nextFolders
 	if s.selected != "" {
 		if profile, known := s.profileByID(s.selected); known {
 			s.baseline = profile
@@ -213,7 +213,7 @@ func (s *screen) requestDeleteFolder() {
 		return
 	}
 	affected := 0
-	for _, profile := range s.all {
+	for _, profile := range s.ws.profiles {
 		if withinFolder(profile.Folder, current) {
 			affected++
 		}
@@ -229,27 +229,27 @@ func (s *screen) deleteFolder(folder string) {
 	if !s.requireWritable("Deleting folders") {
 		return
 	}
-	nextProfiles := make([]profiles.Profile, 0, len(s.all))
-	for _, profile := range s.all {
+	nextProfiles := make([]profiles.Profile, 0, len(s.ws.profiles))
+	for _, profile := range s.ws.profiles {
 		if withinFolder(profile.Folder, folder) {
 			s.closeSessionTab(profile.ID)
 			continue
 		}
 		nextProfiles = append(nextProfiles, profile)
 	}
-	nextFolders := make([]string, 0, len(s.folders))
-	for _, existing := range s.folders {
+	nextFolders := make([]string, 0, len(s.ws.folders))
+	for _, existing := range s.ws.folders {
 		if withinFolder(existing, folder) {
 			continue
 		}
 		nextFolders = append(nextFolders, existing)
 	}
-	if err := s.store.Save(s.document(nextProfiles, nextFolders)); err != nil {
+	if err := s.ws.store.Save(s.ws.document(nextProfiles, nextFolders)); err != nil {
 		s.setProblem("Could not delete folder: " + err.Error())
 		return
 	}
-	s.all = nextProfiles
-	s.folders = nextFolders
+	s.ws.profiles = nextProfiles
+	s.ws.folders = nextFolders
 	s.resetEditor()
 	s.refreshTree()
 	s.setStatus("Folder " + folder + " deleted.")
@@ -281,12 +281,12 @@ func (s *screen) renameConnection(profile profiles.Profile, raw string) {
 		s.setProblem("Cannot rename connection: " + err.Error())
 		return
 	}
-	next := s.upsert(updated)
-	if err := s.store.Save(s.document(next, s.folders)); err != nil {
+	next := s.ws.upsert(updated)
+	if err := s.ws.store.Save(s.ws.document(next, s.ws.folders)); err != nil {
 		s.setProblem("Could not rename connection: " + err.Error())
 		return
 	}
-	s.all = next
+	s.ws.profiles = next
 	if tab, open := s.openTabs[profile.ID]; open {
 		tab.Text = updated.Name
 		s.tabs.Refresh()
@@ -313,17 +313,17 @@ func (s *screen) moveConnection(profile profiles.Profile, raw string) {
 	}
 	updated := profile
 	updated.Folder = folder
-	next := s.upsert(updated)
-	folders := s.folders
+	next := s.ws.upsert(updated)
+	folders := s.ws.folders
 	if folder != "" {
-		folders = addFolderPath(s.folders, folder)
+		folders = addFolderPath(s.ws.folders, folder)
 	}
-	if err := s.store.Save(s.document(next, folders)); err != nil {
+	if err := s.ws.store.Save(s.ws.document(next, folders)); err != nil {
 		s.setProblem("Could not move the connection: " + err.Error())
 		return
 	}
-	s.all = next
-	s.folders = folders
+	s.ws.profiles = next
+	s.ws.folders = folders
 	if s.selected == profile.ID {
 		s.populate(updated)
 	}

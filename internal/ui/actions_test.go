@@ -90,8 +90,8 @@ func TestSave_StoreFailure_KeepsEditsAndReports(t *testing.T) {
 	fillConfig(s, "Prod", "", "web", "22")
 	test.Tap(s.props.save)
 
-	if len(s.all) != 0 {
-		t.Fatalf("in-memory profiles = %d, want 0 after a failed save", len(s.all))
+	if len(s.ws.profiles) != 0 {
+		t.Fatalf("in-memory profiles = %d, want 0 after a failed save", len(s.ws.profiles))
 	}
 	if !strings.Contains(s.status.Text, "Could not save") || !strings.Contains(s.status.Text, "disk full") {
 		t.Errorf("status = %q, want save error", s.status.Text)
@@ -137,8 +137,8 @@ func TestDelete_Confirmed_RemovesProfileTabAndTreeEntry(t *testing.T) {
 	if len(store.profiles) != 0 {
 		t.Fatalf("store = %+v, want no profiles", store.profiles)
 	}
-	if len(s.all) != 0 || s.index.connections != 0 {
-		t.Errorf("ui still holds %d profiles", len(s.all))
+	if len(s.ws.profiles) != 0 || s.index.connections != 0 {
+		t.Errorf("ui still holds %d profiles", len(s.ws.profiles))
 	}
 	if _, open := s.openTabs[existing.ID]; open {
 		t.Error("session tab survived the deletion")
@@ -218,7 +218,7 @@ func TestSave_ProfileFolder_IsPersistedWithTheTree(t *testing.T) {
 
 func TestRequireWritable_ReadOnlyStore_ReportsProblemAndBlocks(t *testing.T) {
 	s := newTestScreen(t, &fakeStore{})
-	s.writable = false
+	s.ws.writable = false
 	if s.requireWritable("Saving") {
 		t.Fatal("requireWritable allowed a write on a read-only store")
 	}

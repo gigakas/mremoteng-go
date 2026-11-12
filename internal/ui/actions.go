@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -11,39 +10,27 @@ import (
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 )
 
-// reload loads the store once at startup. A load failure keeps the window
-// readable but disables every write so broken data is never overwritten.
+// reload loads the store once at startup and applies it to the widgets. The
+// data itself lives in the workspace; a load failure keeps the window readable
+// but disables every write so broken data is never overwritten.
 func (s *screen) reload() {
-	loaded, err := s.store.Load()
-	if err != nil {
-		s.writable = false
+	if err := s.ws.load(); err != nil {
 		s.setWritable(false)
-		s.all = nil
-		s.folders = nil
-		s.defaults = nil
 		s.refreshTree()
 		s.resetEditor()
 		s.setProblem("Could not read saved connections: " + err.Error() + ". Saving is disabled until the file is fixed.")
 		return
 	}
-	s.all = loaded.Profiles
-	s.folders = loaded.Folders
-	s.defaults = loaded.Defaults
-	s.collapsed = map[string]bool{}
-	for _, folder := range loaded.Collapsed {
-		s.collapsed[folder] = true
-	}
-	s.writable = true
 	s.setWritable(true)
 	s.refreshTree()
 	s.suppressBranch = true
-	if len(loaded.Profiles) > 0 {
+	if len(s.ws.profiles) > 0 {
 		s.tree.OpenAllBranches()
 	}
 	s.applyCollapsed()
 	s.suppressBranch = false
 	s.resetEditor()
-	if len(loaded.Profiles) == 0 {
+	if len(s.ws.profiles) == 0 {
 		s.setStatus("No connections yet. Choose File > New connection to create one.")
 	}
 }
@@ -55,16 +42,16 @@ func (s *screen) branchChanged(uid string, collapsed bool) {
 	}
 	path := s.index.folderPath(uid)
 	if collapsed {
-		s.collapsed[path] = true
+		s.ws.collapsed[path] = true
 	} else {
-		delete(s.collapsed, path)
+		delete(s.ws.collapsed, path)
 	}
 
 }
 
 // applyCollapsed closes the folders that were collapsed last time.
 func (s *screen) applyCollapsed() {
-	for folder := range s.collapsed {
+	for folder := range s.ws.collapsed {
 		uid := folderUID(folder)
 		if s.indexHas(uid) {
 			s.tree.CloseBranch(uid)
@@ -72,41 +59,11 @@ func (s *screen) applyCollapsed() {
 	}
 }
 
-// document builds a store document with the current workspace state.
-func (s *screen) document(profs []profiles.Profile, folders []string) profiles.Document {
-	return profiles.Document{
-		Profiles:  profs,
-		Folders:   folders,
-		Defaults:  s.defaults,
-		Collapsed: collapsedList(s.collapsed),
-	}
-}
-
-// documentWithDefaults is document() with an explicit defaults slice.
-func (s *screen) documentWithDefaults(profs []profiles.Profile, folders []string, defaults []profiles.FolderDefault) profiles.Document {
-	document := s.document(profs, folders)
-	document.Defaults = defaults
-	return document
-}
-
 // persistWorkspace saves profiles, folders, defaults and collapsed state.
 func (s *screen) persistWorkspace() {
-	if !s.writable || s.store == nil {
-		return
-	}
-	if err := s.store.Save(s.document(s.all, s.folders)); err != nil {
+	if err := s.ws.save(); err != nil {
 		s.setProblem("Could not save the workspace state: " + err.Error())
 	}
-}
-
-// collapsedList turns the set into a sorted slice.
-func collapsedList(set map[string]bool) []string {
-	result := make([]string, 0, len(set))
-	for folder := range set {
-		result = append(result, folder)
-	}
-	sort.Strings(result)
-	return result
 }
 
 func (s *screen) setWritable(writable bool) {
@@ -115,7 +72,7 @@ func (s *screen) setWritable(writable bool) {
 
 func (s *screen) refreshTree() {
 	query := strings.ToLower(strings.TrimSpace(s.filter.Text))
-	s.index = buildTreeIndex(s.all, s.folders, query)
+	s.index = buildTreeIndex(s.ws.profiles, s.ws.folders, query)
 	s.rows = map[string]*treeRow{}
 	s.tree.Refresh()
 	s.setCounts()
@@ -165,7 +122,7 @@ func (s *screen) selectFolder(uid string) {
 
 // resolve returns the profile with folder defaults applied.
 func (s *screen) resolve(profile profiles.Profile) profiles.Profile {
-	return profiles.Resolve(profile, s.defaults)
+	return profiles.Resolve(profile, s.ws.defaults)
 }
 
 func (s *screen) openConnection(profile profiles.Profile) {
@@ -255,14 +212,14 @@ func (s *screen) save() {
 		}
 		profile.ID = id
 	}
-	next := s.upsert(profile)
-	folders := addFolderPath(s.folders, profile.Folder)
-	if err := s.store.Save(s.document(next, folders)); err != nil {
+	next := s.ws.upsert(profile)
+	folders := addFolderPath(s.ws.folders, profile.Folder)
+	if err := s.ws.store.Save(s.ws.document(next, folders)); err != nil {
 		s.setProblem("Could not save: " + err.Error())
 		return
 	}
-	s.all = next
-	s.folders = folders
+	s.ws.profiles = next
+	s.ws.folders = folders
 	s.selected = profile.ID
 	s.selectedUID = connectionUID(profile.ID)
 	s.populate(profile)
@@ -270,23 +227,6 @@ func (s *screen) save() {
 	s.selectUID(s.selectedUID)
 	s.openSessionTab(profile)
 	s.setStatus("Saved " + s.endpointSummary(profile) + ".")
-}
-
-func (s *screen) upsert(profile profiles.Profile) []profiles.Profile {
-	next := make([]profiles.Profile, 0, len(s.all)+1)
-	replaced := false
-	for _, existing := range s.all {
-		if existing.ID == profile.ID {
-			next = append(next, profile)
-			replaced = true
-			continue
-		}
-		next = append(next, existing)
-	}
-	if !replaced {
-		next = append(next, profile)
-	}
-	return next
 }
 
 func (s *screen) revert() {
@@ -309,17 +249,17 @@ func (s *screen) requestDelete() {
 }
 
 func (s *screen) deleteProfile(target profiles.Profile) {
-	next := make([]profiles.Profile, 0, len(s.all))
-	for _, existing := range s.all {
+	next := make([]profiles.Profile, 0, len(s.ws.profiles))
+	for _, existing := range s.ws.profiles {
 		if existing.ID != target.ID {
 			next = append(next, existing)
 		}
 	}
-	if err := s.store.Save(s.document(next, s.folders)); err != nil {
+	if err := s.ws.store.Save(s.ws.document(next, s.ws.folders)); err != nil {
 		s.setProblem("Could not delete: " + err.Error())
 		return
 	}
-	s.all = next
+	s.ws.profiles = next
 	if tab, open := s.openTabs[target.ID]; open {
 		for _, panel := range s.tabPanels(target.ID) {
 			panel.shutdown()
@@ -378,16 +318,16 @@ func (s *screen) addFolder(raw string) {
 		s.setProblem("Cannot create folder: use names like Production or Production/Web.")
 		return
 	}
-	folders := addFolderPath(s.folders, folder)
-	if len(folders) == len(s.folders) {
+	folders := addFolderPath(s.ws.folders, folder)
+	if len(folders) == len(s.ws.folders) {
 		s.setStatus("Folder " + folder + " already exists.")
 		return
 	}
-	if err := s.store.Save(s.document(s.all, folders)); err != nil {
+	if err := s.ws.store.Save(s.ws.document(s.ws.profiles, folders)); err != nil {
 		s.setProblem("Could not create folder: " + err.Error())
 		return
 	}
-	s.folders = folders
+	s.ws.folders = folders
 	s.refreshTree()
 	// Selecting the new node makes Fyne scroll it into view, which shows the
 	// tree's horizontal scrollbar on narrow panes; the status bar reports it
@@ -396,7 +336,7 @@ func (s *screen) addFolder(raw string) {
 }
 
 func (s *screen) profileByID(id string) (profiles.Profile, bool) {
-	for _, profile := range s.all {
+	for _, profile := range s.ws.profiles {
 		if profile.ID == id {
 			return profile, true
 		}
@@ -437,7 +377,7 @@ func (s *screen) setProblem(text string) {
 // user learns that the loaded file failed to read rather than that a button is
 // broken.
 func (s *screen) requireWritable(action string) bool {
-	if s.writable {
+	if s.ws.writable {
 		return true
 	}
 	s.setProblem(action + " is disabled because the existing file could not be read.")

@@ -47,10 +47,10 @@ func boolText(value bool) string {
 // requestDiagnostics shows the support summary and copies it on request.
 func (s *screen) requestDiagnostics() {
 	storePath := "(store does not expose a path)"
-	if aware, ok := s.store.(pathStore); ok {
+	if aware, ok := s.ws.store.(pathStore); ok {
 		storePath = aware.Path()
 	}
-	text := diagnosticsText(windowTitle(), storePath, len(s.all), len(s.folders), s.vaultState(), len(s.panels))
+	text := diagnosticsText(windowTitle(), storePath, len(s.ws.profiles), len(s.ws.folders), s.vaultState(), len(s.panels))
 	label := widget.NewLabel(text)
 	label.TextStyle = fyne.TextStyle{Monospace: true}
 	var popup *widget.PopUp

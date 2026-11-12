@@ -111,7 +111,7 @@ func importSummary(preview transfer.Preview, duplicates int) string {
 // folder, which is what merging skips.
 func (s *screen) duplicateCount(preview transfer.Preview) int {
 	existing := map[string]bool{}
-	for _, profile := range s.all {
+	for _, profile := range s.ws.profiles {
 		existing[strings.ToLower(profile.Name)+"\x00"+profile.Folder] = true
 	}
 	count := 0
@@ -128,13 +128,13 @@ func (s *screen) applyImport(preview transfer.Preview, replace bool) {
 	if !s.requireWritable("Importing") {
 		return
 	}
-	profilesOut := make([]profiles.Profile, 0, len(s.all)+len(preview.Profiles))
-	foldersOut := make([]string, 0, len(s.folders)+len(preview.Folders))
+	profilesOut := make([]profiles.Profile, 0, len(s.ws.profiles)+len(preview.Profiles))
+	foldersOut := make([]string, 0, len(s.ws.folders)+len(preview.Folders))
 	seen := map[string]bool{}
 	if !replace {
-		profilesOut = append(profilesOut, s.all...)
-		foldersOut = append(foldersOut, s.folders...)
-		for _, profile := range s.all {
+		profilesOut = append(profilesOut, s.ws.profiles...)
+		foldersOut = append(foldersOut, s.ws.folders...)
+		for _, profile := range s.ws.profiles {
 			seen[strings.ToLower(profile.Name)+"\x00"+profile.Folder] = true
 		}
 	}
@@ -150,12 +150,12 @@ func (s *screen) applyImport(preview transfer.Preview, replace bool) {
 		added++
 	}
 	foldersOut = unionFolders(foldersOut, preview.Folders)
-	if err := s.store.Save(s.document(profilesOut, foldersOut)); err != nil {
+	if err := s.ws.store.Save(s.ws.document(profilesOut, foldersOut)); err != nil {
 		s.setProblem("Could not save the imported connections: " + err.Error())
 		return
 	}
-	s.all = profilesOut
-	s.folders = foldersOut
+	s.ws.profiles = profilesOut
+	s.ws.folders = foldersOut
 	s.refreshTree()
 	s.tree.OpenAllBranches()
 	mode := "merged"
@@ -185,16 +185,16 @@ func unionFolders(existing []string, incoming []string) []string {
 func (s *screen) requestExportXML() {
 	s.saveExport(".xml", func(password string) ([]byte, error) {
 		if password == "" {
-			return transfer.WriteXML(s.all, s.folders, "")
+			return transfer.WriteXML(s.ws.profiles, s.ws.folders, "")
 		}
-		return transfer.WriteXML(s.all, s.folders, password)
+		return transfer.WriteXML(s.ws.profiles, s.ws.folders, password)
 	})
 }
 
 // requestExportCSV writes the current connections as CSV.
 func (s *screen) requestExportCSV() {
 	s.saveExport(".csv", func(string) ([]byte, error) {
-		return transfer.WriteCSV(s.all, s.folders)
+		return transfer.WriteCSV(s.ws.profiles, s.ws.folders)
 	})
 }
 
@@ -219,7 +219,7 @@ func (s *screen) saveExport(extension string, build func(password string) ([]byt
 				s.setProblem("Could not write the export: " + writeErr.Error())
 				return
 			}
-			s.setStatus("Exported " + fmt.Sprintf("%d connection(s) to %s.", len(s.all), filepath.Base(path)))
+			s.setStatus("Exported " + fmt.Sprintf("%d connection(s) to %s.", len(s.ws.profiles), filepath.Base(path)))
 		}
 		if extension == ".xml" {
 			s.showSecretDialog("Password for the export (optional)", "Export", write)
