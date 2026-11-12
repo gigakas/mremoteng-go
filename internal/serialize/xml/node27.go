@@ -26,7 +26,7 @@ func (d nodeDecoder) decode27(info *connection.ConnectionInfo, a attributes) {
 	raw.VaultOpenbaoRole = a.string("VaultOpenbaoRole")
 	raw.VaultOpenbaoSecretEngine = vaultEngineValue(a, "VaultOpenbaoSecretEngine")
 	raw.EC2InstanceID = a.string("EC2InstanceId")
-	raw.EC2Region = a.string("EC2Region")
+	raw.EC2Region = a.stringDefault("EC2Region", connection.Defaults().EC2Region)
 	raw.UseRestrictedAdmin = a.boolean("UseRestrictedAdmin")
 	raw.UseRCG = a.boolean("UseRCG")
 	raw.UseRedirectionServerName = a.boolean("UseRedirectionServerName")

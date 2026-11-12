@@ -38,6 +38,31 @@ func (a attributes) integer(name string) int {
 	return value
 }
 
+// The *Default accessors return the supplied default only when the attribute is
+// absent. A present attribute, even an empty or malformed one, keeps using the
+// parsing path above so the handling of damaged files stays unchanged.
+
+func (a attributes) stringDefault(name string, fallback string) string {
+	if _, ok := a[name]; !ok {
+		return fallback
+	}
+	return a.string(name)
+}
+
+func (a attributes) booleanDefault(name string, fallback bool) bool {
+	if _, ok := a[name]; !ok {
+		return fallback
+	}
+	return a.boolean(name)
+}
+
+func (a attributes) integerDefault(name string, fallback int) int {
+	if _, ok := a[name]; !ok {
+		return fallback
+	}
+	return a.integer(name)
+}
+
 func enumValue[T ~string](a attributes, name string, fallback T, allowed ...T) T {
 	value := a[name]
 	for _, candidate := range allowed {
@@ -59,7 +84,7 @@ func protocolValue(a attributes, name string) connection.ProtocolType {
 }
 
 func rdpVersionValue(a attributes, name string) connection.RDPVersion {
-	return enumValue(a, name, connection.RDPVersionHighest,
+	return enumValue(a, name, connection.Defaults().RDPVersion,
 		connection.RDPVersion6, connection.RDPVersion7, connection.RDPVersion8,
 		connection.RDPVersion9, connection.RDPVersion10, connection.RDPVersion11,
 		connection.RDPVersionHighest)
@@ -77,7 +102,7 @@ func authenticationValue(a attributes, name string) connection.AuthenticationLev
 }
 
 func renderingValue(a attributes, name string) connection.RenderingEngine {
-	return enumValue(a, name, connection.RenderingEngine(""),
+	return enumValue(a, name, connection.Defaults().RenderingEngine,
 		connection.RenderingEngineIE, connection.RenderingEngineEdgeChromium)
 }
 
@@ -87,7 +112,7 @@ func gatewayUsageValue(a attributes, name string) connection.RDGatewayUsageMetho
 }
 
 func gatewayCredentialValue(a attributes, name string) connection.RDGatewayCredentialMode {
-	return enumValue(a, name, connection.RDGatewayCredentialsDifferent,
+	return enumValue(a, name, connection.Defaults().RDGatewayUseConnectionCredentials,
 		connection.RDGatewayCredentialsDifferent, connection.RDGatewayCredentialsSame,
 		connection.RDGatewayCredentialsSmartCard, connection.RDGatewayCredentialsExternal,
 		connection.RDGatewayCredentialsToken)
@@ -100,7 +125,7 @@ func resolutionValue(a attributes, name string) connection.RDPResolution {
 }
 
 func colorsValue(a attributes, name string) connection.RDPColors {
-	return enumValue(a, name, connection.RDPColors(""),
+	return enumValue(a, name, connection.Defaults().Colors,
 		connection.RDPColors256, connection.RDPColors15Bit, connection.RDPColors16Bit,
 		connection.RDPColors24Bit, connection.RDPColors32Bit)
 }
@@ -112,7 +137,7 @@ func diskDrivesValue(a attributes, name string) connection.RDPDiskDrives {
 }
 
 func soundsValue(a attributes, name string) connection.RDPSounds {
-	return enumValue(a, name, connection.RDPSoundsLocal,
+	return enumValue(a, name, connection.Defaults().RedirectSound,
 		connection.RDPSoundsLocal, connection.RDPSoundsRemote, connection.RDPSoundsNone)
 }
 
@@ -123,7 +148,7 @@ func soundQualityValue(a attributes, name string) connection.RDPSoundQuality {
 }
 
 func vncCompressionValue(a attributes, name string) connection.VNCCompression {
-	return enumValue(a, name, connection.VNCCompression0,
+	return enumValue(a, name, connection.Defaults().VNCCompression,
 		connection.VNCCompressionNone, connection.VNCCompression0, connection.VNCCompression1,
 		connection.VNCCompression2, connection.VNCCompression3, connection.VNCCompression4,
 		connection.VNCCompression5, connection.VNCCompression6, connection.VNCCompression7,
@@ -131,7 +156,7 @@ func vncCompressionValue(a attributes, name string) connection.VNCCompression {
 }
 
 func vncEncodingValue(a attributes, name string) connection.VNCEncoding {
-	return enumValue(a, name, connection.VNCEncodingRaw,
+	return enumValue(a, name, connection.Defaults().VNCEncoding,
 		connection.VNCEncodingRaw, connection.VNCEncodingRRE, connection.VNCEncodingCorre,
 		connection.VNCEncodingHextile, connection.VNCEncodingZlib, connection.VNCEncodingTight,
 		connection.VNCEncodingZLibHex, connection.VNCEncodingZRLE)
@@ -151,7 +176,7 @@ func vncColorsValue(a attributes, name string) connection.VNCColors {
 }
 
 func vncSmartSizeValue(a attributes, name string) connection.VNCSmartSizeMode {
-	return enumValue(a, name, connection.VNCSmartSizeNone,
+	return enumValue(a, name, connection.Defaults().VNCSmartSizeMode,
 		connection.VNCSmartSizeNone, connection.VNCSmartSizeFree, connection.VNCSmartSizeAspect)
 }
 

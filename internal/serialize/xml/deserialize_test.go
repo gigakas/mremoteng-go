@@ -89,7 +89,7 @@ func TestDeserialize_VersionSpecificDiskDriveHandling(t *testing.T) {
 	}
 }
 
-func TestDeserialize_MissingAndMalformedAttributes_UseCSharpDefaults(t *testing.T) {
+func TestDeserialize_MalformedAttributes_UseDocumentedFallbacks(t *testing.T) {
 	inner := `<Node Type="Connection" Port="bad" UseCredSsp="bad" Colors="bad" VNCCompression="bad" />`
 	document, err := Deserialize(testXML(t, "2.6", nil, 1000, false, inner), Options{})
 	if err != nil {
@@ -99,11 +99,45 @@ func TestDeserialize_MissingAndMalformedAttributes_UseCSharpDefaults(t *testing.
 	if leaf.ID() == "" {
 		t.Error("missing ID was not generated")
 	}
-	if leaf.Raw.Port != 0 || leaf.Raw.UseCredSsp || leaf.Raw.Colors != "" {
-		t.Errorf("malformed values = port %d credssp %v colors %q", leaf.Raw.Port, leaf.Raw.UseCredSsp, leaf.Raw.Colors)
+	// Malformed scalars keep the zero value of the strict parsers.
+	if leaf.Raw.Port != 0 || leaf.Raw.UseCredSsp {
+		t.Errorf("malformed scalars = port %d credssp %v", leaf.Raw.Port, leaf.Raw.UseCredSsp)
 	}
-	if leaf.Raw.Protocol != connection.ProtocolRDP || leaf.Raw.Resolution != connection.RDPResolutionSmartSize || leaf.Raw.VNCCompression != connection.VNCCompression0 {
-		t.Errorf("enum defaults = protocol %q resolution %q compression %q", leaf.Raw.Protocol, leaf.Raw.Resolution, leaf.Raw.VNCCompression)
+	// Malformed enums share the C# default that missing enums fall back to.
+	if leaf.Raw.Colors != connection.RDPColors16Bit || leaf.Raw.VNCCompression != connection.VNCCompressionNone {
+		t.Errorf("malformed enums = colors %q compression %q", leaf.Raw.Colors, leaf.Raw.VNCCompression)
+	}
+	if leaf.Raw.Protocol != connection.ProtocolRDP || leaf.Raw.Resolution != connection.RDPResolutionSmartSize {
+		t.Errorf("enum defaults = protocol %q resolution %q", leaf.Raw.Protocol, leaf.Raw.Resolution)
+	}
+}
+
+func TestDeserialize_AbsentAttributes_RetainCSharpDefaults(t *testing.T) {
+	for _, version := range []string{"2.6", "2.7", "2.8"} {
+		inner := `<Node Type="Connection" Id="leaf" />`
+		document, err := Deserialize(testXML(t, version, nil, 1000, false, inner), Options{})
+		if err != nil {
+			t.Fatalf("version %s: %v", version, err)
+		}
+		raw := document.Root.Children()[0].Base().Raw
+		if raw.Port != 3389 || !raw.UseCredSsp || !raw.AutomaticResize {
+			t.Errorf("version %s: connection defaults = port %d credssp %v resize %v", version, raw.Port, raw.UseCredSsp, raw.AutomaticResize)
+		}
+		if raw.Colors != connection.RDPColors16Bit || raw.RDPVersion != connection.RDPVersion10 {
+			t.Errorf("version %s: appearance defaults = colors %q version %q", version, raw.Colors, raw.RDPVersion)
+		}
+		if raw.RenderingEngine != connection.RenderingEngineEdgeChromium || raw.RedirectSound != connection.RDPSoundsNone {
+			t.Errorf("version %s: rendering defaults = %q/%q", version, raw.RenderingEngine, raw.RedirectSound)
+		}
+		if raw.VNCCompression != connection.VNCCompressionNone || raw.VNCEncoding != connection.VNCEncodingHextile || raw.VNCSmartSizeMode != connection.VNCSmartSizeAspect {
+			t.Errorf("version %s: VNC defaults = %q/%q/%q", version, raw.VNCCompression, raw.VNCEncoding, raw.VNCSmartSizeMode)
+		}
+		if raw.RDGatewayUseConnectionCredentials != connection.RDGatewayCredentialsSame {
+			t.Errorf("version %s: gateway credentials = %q", version, raw.RDGatewayUseConnectionCredentials)
+		}
+		if raw.Name != "New Connection" || raw.Icon != "mRemoteNG" || raw.Panel != "General" || raw.PuttySession != "Default Settings" || raw.EC2Region != "eu-central-1" {
+			t.Errorf("version %s: string defaults = %q/%q/%q/%q/%q", version, raw.Name, raw.Icon, raw.Panel, raw.PuttySession, raw.EC2Region)
+		}
 	}
 }
 
