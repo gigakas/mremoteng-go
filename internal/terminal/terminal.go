@@ -64,14 +64,69 @@ func New(cols, rows int) *Emulator {
 	return &Emulator{term: vt10x.New(vt10x.WithSize(cols, rows))}
 }
 
+// writeChunkBytes caps how much of a run without newlines is fed per step, so a
+// single enormous line cannot make one step unbounded.
+const writeChunkBytes = 8 * 1024
+
 // Write feeds terminal output into the emulator and records scrolled lines.
+//
+// The scrollback is rebuilt by comparing consecutive screens, and that
+// comparison can only recognise a shift smaller than the screen is tall. A block
+// larger than the screen - a build log, a cat of a big file - would therefore
+// scroll past unnoticed, so the input is fed in steps that end at a newline and
+// carry at most rows-1 of them. Splitting there never cuts an escape sequence: a
+// newline is not part of one, and a CRLF stays together.
 func (e *Emulator) Write(p []byte) (int, error) {
-	n, err := e.term.Write(p)
-	e.trackScroll()
-	if bytes.Contains(p, eraseScrollback) {
+	dropsHistory := bytes.Contains(p, eraseScrollback)
+	written := 0
+	for len(p) > 0 {
+		chunk := e.nextChunk(p)
+		n, err := e.term.Write(chunk)
+		written += n
+		if n > 0 {
+			p = p[n:]
+		}
+		e.trackScroll()
+		if err != nil {
+			return written, err
+		}
+		if n == 0 {
+			// No progress: stop instead of spinning on the same bytes.
+			return written, nil
+		}
+	}
+	if dropsHistory {
 		e.history, e.historyCells = nil, nil
 	}
-	return n, err
+	return written, nil
+}
+
+// nextChunk returns the next slice to feed: it ends at a newline and carries at
+// most rows-1 newlines, which keeps every step alignable by trackScroll.
+func (e *Emulator) nextChunk(p []byte) []byte {
+	_, rows := e.term.Size()
+	// Half a screen per step: the alignment needs real rows on both sides, and a
+	// step of rows-1 leaves only one row to compare, which is usually blank right
+	// after a scroll.
+	perStep := rows / 2
+	if perStep < 1 {
+		perStep = 1
+	}
+	limit := len(p)
+	if limit > writeChunkBytes {
+		limit = writeChunkBytes
+	}
+	newlines := 0
+	for i := 0; i < limit; i++ {
+		if p[i] != '\n' {
+			continue
+		}
+		newlines++
+		if newlines >= perStep {
+			return p[:i+1]
+		}
+	}
+	return p[:limit]
 }
 
 // eraseScrollback is ESC[3J, which `clear` sends to drop the scrollback too.

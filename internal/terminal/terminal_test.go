@@ -105,6 +105,87 @@ func TestEmulator_Scrollback_KeepsLinesThatLeaveTheScreen(t *testing.T) {
 	}
 }
 
+func TestEmulator_WriteLargeBlock_RecordsTheWholeScrollback(t *testing.T) {
+	// One write, many screens: a compiled build or a cat of a large file arrives
+	// as a single block. The scrollback must record every line that left the
+	// screen, not just the ones a small step could align.
+	emulator := New(20, 3)
+	var block strings.Builder
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&block, "line %03d\r\n", i)
+	}
+	if _, err := emulator.Write([]byte(block.String())); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got := emulator.HistoryLen(); got == 0 {
+		t.Fatal("a single large write recorded no scrollback")
+	}
+	// A three-row screen keeps the last line and the one above it, so the lines
+	// that left the screen are N - rows + 1.
+	if got, want := emulator.HistoryLen(), 200-3+1; got != want {
+		t.Errorf("history = %d, want %d scrolled lines", got, want)
+	}
+	text := emulator.BufferText()
+	if !strings.Contains(text, "line 000") {
+		t.Errorf("buffer does not hold the first line: %q", text)
+	}
+	if !strings.Contains(text, "line 199") {
+		t.Errorf("buffer does not hold the last line: %q", text)
+	}
+}
+
+func TestEmulator_WriteFittingOnScreen_RecordsNoHistory(t *testing.T) {
+	emulator := New(20, 3)
+	if _, err := emulator.Write([]byte("first\r\nsecond\r\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got := emulator.HistoryLen(); got != 0 {
+		t.Errorf("history = %d, want nothing recorded when the output fits", got)
+	}
+}
+
+func TestEmulator_WriteHugeBlock_KeepsHistoryBounded(t *testing.T) {
+	emulator := New(20, 3)
+	var block strings.Builder
+	// Numbered lines: a run of identical lines makes every screen look the same,
+	// which the tracker reads as a redraw and correctly ignores.
+	for i := 0; i < historyLimit+500; i++ {
+		fmt.Fprintf(&block, "line %04d\r\n", i)
+	}
+	if _, err := emulator.Write([]byte(block.String())); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if got := emulator.HistoryLen(); got != historyLimit {
+		t.Errorf("history = %d, want it capped at %d", got, historyLimit)
+	}
+}
+
+func TestEmulator_History_ReturnsScrollbackWithoutVisibleScreen(t *testing.T) {
+	emulator := New(20, 3)
+	var block strings.Builder
+	for i := 0; i < 10; i++ {
+		fmt.Fprintf(&block, "line %d\r\n", i)
+	}
+	if _, err := emulator.Write([]byte(block.String())); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	history := emulator.History()
+	if len(history) != emulator.HistoryLen() {
+		t.Fatalf("History() = %d lines, HistoryLen() = %d", len(history), emulator.HistoryLen())
+	}
+	if len(history) != 10-3+1 {
+		t.Errorf("history = %d lines, want the eight that left the screen", len(history))
+	}
+	for _, line := range history {
+		if strings.Contains(line, "line 9") {
+			t.Errorf("history contains %q, which is still on screen", line)
+		}
+	}
+	if got, want := len(emulator.Lines()), len(history)+3; got != want {
+		t.Errorf("Lines() = %d, want history plus the three screen rows (%d)", got, want)
+	}
+}
+
 func TestEmulator_Scrollback_IsBoundedAndClearScreenDoesNotDump(t *testing.T) {
 	emulator := New(20, 3)
 	for i := 0; i < historyLimit+50; i++ {
