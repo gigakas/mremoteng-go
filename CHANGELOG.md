@@ -229,6 +229,13 @@
   The icon samples in the button reference were drawn in a 28 pixel box, which is closer to a toolbar control than to a reminder, and they dominated the text next to them. The box is now 16 pixels, defined as welcomeIconSize so the list stays consistent, and Fyne scales the resource down to fit. This rode inside the previous commit instead of its own; the fragment is added separately so the change is recorded.
 
   - _2026-11-12 02:16:25 UTC — mimocode_
+- Compact the welcome reference so the page fits without scrolling
+
+  The button reference made the start page taller than the window, so it opened with a scrollbar and the getting-started steps were pushed out of sight. Three changes: each reference row now puts the bold name and its explanation on the same line instead of stacking them, the rows are laid out in two columns, and every text on the page was shortened, including the getting started steps, the intro and the session notice. The reference still carries one row per button with its icon. TestWelcomeHelp_DocumentsEveryIconButton now rejects an explanation longer than 60 characters, because a long line is exactly what wraps and starts the scrolling again. Validated with ./scripts/check.sh.
+
+  - `internal/ui/properties.go`
+  - `internal/ui/welcome_test.go`
+  - _2026-11-12 02:20:30 UTC — mimocode_
 
 ## 2026-11-11
 

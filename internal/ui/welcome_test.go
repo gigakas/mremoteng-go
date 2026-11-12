@@ -24,6 +24,11 @@ func TestWelcomeHelp_DocumentsEveryIconButton(t *testing.T) {
 		if strings.EqualFold(strings.TrimSpace(row.name), strings.TrimSpace(row.what)) {
 			t.Errorf("row %q does not explain anything", row.name)
 		}
+		// Short descriptions keep each reference line on one row; long ones wrap
+		// and push the page into scrolling, which is what was reported.
+		if len(row.what) > 60 {
+			t.Errorf("row %q explanation is %d chars, want at most 60", row.name, len(row.what))
+		}
 		if !strings.HasSuffix(row.what, ".") {
 			t.Errorf("row %q does not end its sentence: %q", row.name, row.what)
 		}
