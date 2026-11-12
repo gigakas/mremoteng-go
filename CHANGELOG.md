@@ -165,6 +165,12 @@
   - `internal/ui/transfer.go`
   - `internal/ui/workspace.go`
   - _2026-11-12 01:24:16 UTC — mimocode_
+- Cover the workspace persistence rules without a window
+
+  Phase C and the close of the screen extraction. The persistence rules were only reachable through a screen driven by Fyne's test driver, so the invariants this extraction depends on were untested in isolation: what happens when the store fails to load, whether a rejected write really leaves the state untouched, how a rename rewrites a subtree, or what replace mode does to duplicate names. Added workspace_test.go, which imports no Fyne package and drives the workspace directly with the existing fakeStore: thirteen cases covering a failed load leaving the workspace read-only and empty, a successful load rebuilding the collapsed set, a rejected write keeping the previous profiles, putProfile adding its parent folders, deleteProfile, repeated addFolder, defaults stored and cleared, renameFolder rewriting the whole subtree while leaving unrelated connections alone, deleteFolder dropping contained connections but keeping siblings, the difference between renameProfile and putConnection, import merge counting one added and one skipped, import replace keeping everything incoming after dropping the old data, and reset re-enabling writes after a failed load. All of them pass; the package now has 144 tests, up from 131. Validated with ./scripts/check.sh.
+
+  - `internal/ui/workspace_test.go`
+  - _2026-11-12 01:25:48 UTC — mimocode_
 - Extract the connection default table into connection.Defaults()
 
   The default values for a connection lived as an inline literal inside NewConnectionInfoWithID, which made them unreachable for any other consumer and left the XML deserializer with a second, contradictory table of its own. Extracted the literal into an exported Defaults() function that the constructor now calls, so there is a single place that defines what a fresh connection looks like. This is a pure extraction: the values are identical, the constructor behaves the same and no caller changed.
