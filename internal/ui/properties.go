@@ -137,6 +137,37 @@ func (p *propertiesPanel) setEnabled(enabled bool) {
 	}
 }
 
+// welcomeHelpRow is one line of the button reference on the start page.
+type welcomeHelpRow struct {
+	name string
+	what string
+}
+
+// welcomeHelp documents the icon-only buttons. Hovering an icon repeats its line
+// in the status bar; the start page is where the whole set can be read at once,
+// which is the only way to learn the icons you have not hovered yet.
+var welcomeHelp = []welcomeHelpRow{
+	{"Status bar: menu icon", "Show or hide the connection tree."},
+	{"Status bar: gear icon", "Show or hide the Config panel."},
+	{"Status bar: info icon", "Show or hide the activity log."},
+	{"Tree header: plus icon", "Quick connect to an endpoint without saving it."},
+	{"Connect / Disconnect", "Open or end the session of the selected connection."},
+	{"Test", "Check RDP credentials without opening a desktop."},
+	{"Ignore cert", "Accept a changed or self-signed RDP certificate."},
+	{"Legacy TLS", "Use legacy RDP security for servers without TLS."},
+	{"Session bar: gear icon", "RDP options: redirection, resolution, audio and credentials."},
+	{"Session bar: copy icon", "Copy the terminal contents to the clipboard."},
+	{"Ctrl-C / Ctrl-D", "Send the control bytes Fyne cannot deliver as key combinations."},
+	{"Session bar: arrow and cross icons", "Split the terminal right, split down, close the pane."},
+	{"Session bar: save icon", "Store this password in the encrypted vault."},
+	{"Delete", "Remove the selected connection."},
+}
+
+// welcomeSessionNotice states what works today. It used to claim that sessions
+// were unimplemented, which stopped being true several stages ago.
+var welcomeSessionNotice = "SSH, RDP (embedded FreeRDP), VNC, Telnet, RAW, rlogin and HTTP work today. " +
+	"RDP needs xfreerdp3 on the PATH; HTTP opens in your browser."
+
 // welcomeContent is the start page shown when no session tab is open.
 func welcomeContent() fyne.CanvasObject {
 	heading := widget.NewLabelWithStyle("Welcome to mRemoteNG Go", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
@@ -147,15 +178,25 @@ func welcomeContent() fyne.CanvasObject {
 		"3. Choose Save: the connection appears in the tree and is stored locally.\n" +
 		"4. Select it in the tree to open its session tab.")
 	steps.Alignment = fyne.TextAlignLeading
-	notice := widget.NewLabel("Session support is not implemented yet: this preview manages connection profiles only. " +
-		"SSH and RDP sessions are the next delivery stage.")
+	notice := widget.NewLabel(welcomeSessionNotice)
 	notice.Wrapping = fyne.TextWrapWord
-	notice.Importance = widget.WarningImportance
+	notice.Importance = widget.LowImportance
 
-	card := widget.NewCard("Getting started", "", container.NewVBox(steps, notice))
+	items := make([]*widget.FormItem, 0, len(welcomeHelp))
+	for _, row := range welcomeHelp {
+		what := widget.NewLabel(row.what)
+		what.Wrapping = fyne.TextWrapWord
+		items = append(items, widget.NewFormItem(row.name, what))
+	}
+	buttons := widget.NewCard("Buttons", "Hover any icon to see the same line in the status bar.", widget.NewForm(items...))
+
+	cards := container.NewVBox(
+		container.NewPadded(widget.NewCard("Getting started", "", container.NewVBox(steps, notice))),
+		container.NewPadded(buttons),
+	)
 	return container.NewBorder(
 		container.NewVBox(container.NewPadded(heading), intro, widget.NewSeparator()),
 		nil, nil, nil,
-		container.NewPadded(card),
+		container.NewVScroll(cards),
 	)
 }
