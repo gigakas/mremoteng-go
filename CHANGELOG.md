@@ -224,6 +224,11 @@
 
   - `internal/ui/properties.go`
   - _2026-11-12 02:16:15 UTC — mimocode_
+- Shrink the welcome reference icons to 16 pixels
+
+  The icon samples in the button reference were drawn in a 28 pixel box, which is closer to a toolbar control than to a reminder, and they dominated the text next to them. The box is now 16 pixels, defined as welcomeIconSize so the list stays consistent, and Fyne scales the resource down to fit. This rode inside the previous commit instead of its own; the fragment is added separately so the change is recorded.
+
+  - _2026-11-12 02:16:25 UTC — mimocode_
 
 ## 2026-11-11
 
