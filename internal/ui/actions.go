@@ -307,16 +307,14 @@ func (s *screen) addFolder(raw string) {
 		s.setProblem("Cannot create folder: use names like Production or Production/Web.")
 		return
 	}
-	folders := addFolderPath(s.ws.folders, folder)
-	if len(folders) == len(s.ws.folders) {
+	if len(addFolderPath(s.ws.folders, folder)) == len(s.ws.folders) {
 		s.setStatus("Folder " + folder + " already exists.")
 		return
 	}
-	if err := s.ws.store.Save(s.ws.document(s.ws.profiles, folders)); err != nil {
+	if err := s.ws.addFolder(folder); err != nil {
 		s.setProblem("Could not create folder: " + err.Error())
 		return
 	}
-	s.ws.folders = folders
 	s.refreshTree()
 	// Selecting the new node makes Fyne scroll it into view, which shows the
 	// tree's horizontal scrollbar on narrow panes; the status bar reports it
