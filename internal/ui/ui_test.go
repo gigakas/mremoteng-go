@@ -1343,22 +1343,30 @@ func TestZoomTheme_OverridesOnlyTextSize(t *testing.T) {
 	}
 }
 
-func TestTermWidget_Zoom_RebuildsTheGridForBothAxes(t *testing.T) {
+func TestTermWidget_Zoom_ScalesBothAxesWithoutRebuildingTheWidget(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 	term := newTermWidget(20, 4, nil, nil)
-	term.CreateRenderer()
+	// test.WidgetRenderer goes through Fyne's own renderer cache, like the
+	// real driver does; calling term.CreateRenderer() directly here would
+	// bypass that cache, so the t.Refresh() inside rebuildGrid would find
+	// nothing cached and build yet another renderer (and grid) itself,
+	// masking whether the zoom step did.
+	test.WidgetRenderer(term)
 	before := term.grid
 	term.Resize(fyne.NewSize(400, 200))
 	oldCols, oldRows := term.cols, term.rows
 
 	term.adjustZoom(6)
 	term.fit(fyne.NewSize(400, 200))
-	renderer := term.CreateRenderer()
-	renderer.Layout(fyne.NewSize(400, 200))
+	term.renderer.Layout(fyne.NewSize(400, 200))
 
-	if term.grid == before {
-		t.Fatal("grid was not rebuilt after the zoom change")
+	// Fyne's TextGrid re-measures its cell size from the theme on every
+	// Refresh, so a zoom step reuses the same grid instance instead of
+	// tearing down and rebuilding the widget (which is what made each zoom
+	// step visibly stall on the GPU painter).
+	if term.grid != before {
+		t.Fatal("zoom replaced the grid instance instead of refreshing it in place")
 	}
 	if term.cols >= oldCols || term.rows >= oldRows {
 		t.Errorf("grid = %dx%d, want fewer columns and rows at a larger font (%dx%d)", term.cols, term.rows, oldCols, oldRows)
@@ -2359,5 +2367,27 @@ func TestApplyConnect_DeclinedUnknownHostKey_ReEnablesConnect(t *testing.T) {
 		&sshclient.UnknownHostKeyError{Fingerprint: "SHA256:abc"})
 	if p.connect.Disabled() {
 		t.Error("Connect stays disabled after the user declined the host key")
+	}
+}
+
+func TestTermWidget_EnterWhileScrolledBack_ReturnsToTheLiveLine(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	var sent []byte
+	term := newTermWidget(20, 3, func(data []byte) { sent = append(sent, data...) }, nil)
+	term.CreateRenderer()
+	for i := 0; i < 12; i++ {
+		term.write([]byte("line " + string(rune('a'+i)) + "\r\n"))
+	}
+	term.Resize(fyne.NewSize(300, 120))
+	term.scrollOffset = 3
+
+	term.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEnter})
+
+	if term.scrollOffset != 0 {
+		t.Errorf("scrollOffset = %d, want 0 after Enter", term.scrollOffset)
+	}
+	if string(sent) != "\r" {
+		t.Errorf("sent = %q, want the Enter byte", sent)
 	}
 }

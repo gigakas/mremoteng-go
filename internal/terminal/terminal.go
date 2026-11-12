@@ -6,6 +6,7 @@
 package terminal
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/hinshun/vt10x"
@@ -46,6 +47,10 @@ type Emulator struct {
 	term    vt10x.Terminal
 	history []string
 	last    []string
+	// historyCells and lastCells mirror history and last with colours, so
+	// scrolled-back lines keep the styling they had on screen.
+	historyCells [][]Cell
+	lastCells    [][]Cell
 }
 
 // New creates an emulator sized in character cells.
@@ -63,21 +68,28 @@ func New(cols, rows int) *Emulator {
 func (e *Emulator) Write(p []byte) (int, error) {
 	n, err := e.term.Write(p)
 	e.trackScroll()
+	if bytes.Contains(p, eraseScrollback) {
+		e.history, e.historyCells = nil, nil
+	}
 	return n, err
 }
+
+// eraseScrollback is ESC[3J, which `clear` sends to drop the scrollback too.
+var eraseScrollback = []byte("\x1b[3J")
 
 // trackScroll appends lines that left the screen. Shell output scrolls one or a
 // few rows at a time; the detection compares the previous screen with the new
 // one and is deliberately conservative.
 func (e *Emulator) trackScroll() {
-	current := e.screenLines()
+	snapshot := e.Snapshot()
+	current := linesOf(snapshot)
 	if e.last == nil {
-		e.last = current
+		e.last, e.lastCells = current, snapshot.Cells
 		return
 	}
 	rows := len(current)
 	if len(e.last) != rows {
-		e.last = current
+		e.last, e.lastCells = current, snapshot.Cells
 		return
 	}
 	// An unchanged screen is a redraw (prompt, cursor move), not a scroll:
@@ -105,12 +117,14 @@ func (e *Emulator) trackScroll() {
 			continue
 		}
 		e.history = append(e.history, e.last[:shift]...)
+		e.historyCells = append(e.historyCells, e.lastCells[:shift]...)
 		if len(e.history) > historyLimit {
 			e.history = append([]string(nil), e.history[len(e.history)-historyLimit:]...)
+			e.historyCells = append([][]Cell(nil), e.historyCells[len(e.historyCells)-historyLimit:]...)
 		}
 		break
 	}
-	e.last = current
+	e.last, e.lastCells = current, snapshot.Cells
 }
 
 // equalLines compares two screens row by row.
@@ -128,7 +142,11 @@ func equalLines(left, right []string) bool {
 
 // screenLines returns the visible screen as plain text rows.
 func (e *Emulator) screenLines() []string {
-	snapshot := e.Snapshot()
+	return linesOf(e.Snapshot())
+}
+
+// linesOf converts a snapshot into plain text rows with trailing blanks trimmed.
+func linesOf(snapshot Snapshot) []string {
 	lines := make([]string, 0, snapshot.Rows)
 	for _, row := range snapshot.Cells {
 		var builder []rune
@@ -156,6 +174,21 @@ func (e *Emulator) HistoryLen() int {
 		return 0
 	}
 	return len(e.history)
+}
+
+// History returns the scrollback lines, without the visible screen. Unlike
+// Lines, this needs no Snapshot: the UI calls it on every scroll and render,
+// and a second full screen copy there was expensive enough to visibly stall
+// the terminal during a fast scroll burst. Callers must not mutate the
+// result.
+func (e *Emulator) History() []string {
+	return e.history
+}
+
+// HistoryCells returns the scrollback with colours, parallel to History.
+// Callers must not mutate the result.
+func (e *Emulator) HistoryCells() [][]Cell {
+	return e.historyCells
 }
 
 // BufferText is the whole buffer: scrollback plus screen, trailing blanks

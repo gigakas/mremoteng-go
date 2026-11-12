@@ -14,6 +14,78 @@
   - `internal/ui/terminal.go`
   - `internal/ui/zoom.go`
   - _2026-11-12 00:00:35 UTC — mimocode_
+- Fix terminal zoom shortcuts swallowed by the focused widget's own TypedShortcut handler
+
+  Ctrl+=, Ctrl+- and Ctrl+0 never reached screen.zoomFocusedTerminal: Fyne's glfw driver hands every matching CustomShortcut straight to the focused widget's own TypedShortcut when it implements desktop.Shortcutable, before ever calling canvas.TypedShortcut where shell.go's registerControlShortcuts lives. termWidget implements TypedShortcut (for Ctrl-C/Ctrl-A/etc control bytes) and is focused whenever the console has the keyboard, which is exactly when zoom is wanted, so the canvas-level registration was unreachable and the keys were silently dropped. Fixed by handling KeyEqual/KeyMinus/Key0 inside termWidget.TypedShortcut's CustomShortcut case directly, calling adjustZoom the same way the (still-kept, for non-terminal focus) canvas shortcuts do. Found while investigating a separate reported SSH/Telnet console freeze on scroll, already fixed by 3b57861; this is the follow-up zoom-keys regression surfaced once that fix was verified. Validated with gofmt, go vet ./internal/ui/..., and a manual rebuild via scripts/dev.sh.
+
+  - `internal/ui/terminal.go`
+  - _2026-11-12 00:11:03 UTC — claude-code_
+- Sync the repository skills with the current collection and adapt two new ones
+
+  The skill collection this repository copied from has moved on: it now ships ten skills, restored refactoring/references/tooling.md, and rewrote the descriptions with When NOT to use and Done when sections. Resynced the six skills the repository already had (refactoring, solid-principles, design-patterns, testing-patterns, test-driven-development, documentation) from the new master, keeping their Repo adjustments sections and translating the collection test-runner commands into this repository gate (./scripts/check.sh, go test, ./scripts/smoke.sh). Added commit-conventions and observability, both adapted rather than copied: commit-conventions documents that this repository uses plain imperative subjects instead of Conventional Commits types, forbids every trailer because AGENTS.md does, and routes verification through the changelog tool instead of a commit-msg hook, which is why the collection check-commit-msg.sh and commit-template.txt are deliberately not installed; observability documents the activity console, the status bar and the diagnostics dialog, and drops the JSONL schema checker because this desktop app has no structured log stream. Kept code-audit and multi-agent-changelog out on purpose: the repository has its own audit and changelog skills, and loading both would give the agent two competing workflows. Verified with ./scripts/check.sh.
+
+  - `.claude/skills/commit-conventions/SKILL.md`
+  - `.claude/skills/commit-conventions/references/examples.md`
+  - `.claude/skills/commit-conventions/references/history-policy.md`
+  - `.claude/skills/design-patterns/SKILL.md`
+  - `.claude/skills/design-patterns/references/app-recipes.md`
+  - `.claude/skills/design-patterns/references/language-idioms.md`
+  - `.claude/skills/documentation/SKILL.md`
+  - `.claude/skills/documentation/references/docstrings.md`
+  - `.claude/skills/documentation/references/readme.md`
+  - `.claude/skills/documentation/references/runbooks.md`
+  - `.claude/skills/observability/SKILL.md`
+  - `.claude/skills/observability/assets/log-event.schema.json`
+  - `.claude/skills/observability/references/observability-model.md`
+  - `.claude/skills/observability/references/structured-logging.md`
+  - `.claude/skills/refactoring/SKILL.md`
+  - `.claude/skills/refactoring/references/file-responsibility-rules.md`
+  - `.claude/skills/refactoring/references/refactoring-recipes.md`
+  - `.claude/skills/refactoring/references/techniques.md`
+  - `.claude/skills/refactoring/references/tooling.md`
+  - `.claude/skills/solid-principles/SKILL.md`
+  - `.claude/skills/test-driven-development/SKILL.md`
+  - `.claude/skills/testing-patterns/SKILL.md`
+  - `.claude/skills/testing-patterns/references/architecture-tests.md`
+  - `.claude/skills/testing-patterns/references/dart-flutter.md`
+  - `.claude/skills/testing-patterns/references/mutation-testing.md`
+  - `.claude/skills/testing-patterns/references/non-functional-testing.md`
+  - `.claude/skills/testing-patterns/references/test-doubles.md`
+  - `.claude/skills/testing-patterns/references/test-strategy.md`
+  - `internal/terminal/terminal.go`
+  - `internal/ui/terminal.go`
+  - _2026-11-12 00:43:15 UTC — mimocode_
+- Refresh the terminal grid in place on zoom instead of rebuilding the widget
+
+  Each zoom step tore down and recreated the TextGrid and its theme override, on the belief that TextGrid caches its row height. In fyne v2.8.2 textGridContentRenderer.Refresh re-measures the cell size from the theme on every refresh (verified with a throwaway test: changing the override size and calling grid.Refresh alone scaled MinSize), so rebuildGrid now refreshes the existing grid and only builds one when none exists. It also refreshes the widget itself, because without that a keyboard zoom stayed invisible until a focus change forced a repaint. adjustZoom and termRenderer.Layout dropped a redundant trailing render, and adjustZoom keeps the renderer font bookkeeping in step. Separately, render no longer takes a second full Snapshot per call: viewStart is now historyLen minus scrollOffset and history rows come from the new Emulator.History accessor, since on-screen runes already come from the snapshot. The zoom test was renamed and now asserts the grid instance is reused, going through test.WidgetRenderer so the renderer cache matches the real driver. Measured headless, a zoom step costs about 8 ms of Go work, so the remaining stall the user reported is on the real GPU painter and is NOT yet confirmed fixed on screen; the user also reports the mouse wheel does not move the view, which is still open. Validated with gofmt, go vet and go test for internal/ui and internal/terminal; full check.sh not run.
+
+  - `internal/terminal/terminal.go`
+  - `internal/ui/terminal.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-12 00:50:16 UTC — claude-code_
+- Keep text colours on lines scrolled back into the terminal history
+
+  The scrollback stored only plain text, so lines scrolled back into history rendered with the default colours. The emulator now keeps a parallel historyCells buffer (trimmed together with history) captured from the same snapshot used for scroll detection, trackScroll takes one snapshot instead of two, and render paints history rows from HistoryCells. Added TestEmulator_ScrolledLines_KeepTheirColours. Validated with gofmt, go vet and go test for internal/ui and internal/terminal.
+
+  - `internal/terminal/terminal.go`
+  - `internal/terminal/terminal_test.go`
+  - `internal/ui/terminal.go`
+  - _2026-11-12 00:52:52 UTC — claude-code_
+- Drop the terminal scrollback when the remote sends ESC[3J (clear)
+
+  After clearing the screen the old output stayed in the scrollback and reappeared when scrolling or drag-selecting past the top edge. The emulator now empties history and historyCells when a write contains ESC[3J, which is what clear and recent readline send, and the widget clamps scrollOffset and drops the selection if the history shrank. Added TestEmulator_EraseScrollback_DropsHistory. A sequence split across two writes is not detected. Validated with gofmt, go vet and go test for internal/ui and internal/terminal.
+
+  - `internal/terminal/terminal.go`
+  - `internal/terminal/terminal_test.go`
+  - `internal/ui/terminal.go`
+  - _2026-11-12 00:55:36 UTC — claude-code_
+- Return the terminal view to the live line when typing while scrolled back
+
+  While scrolled into history, Enter (and any typed key or paste) was sent to the session but the view stayed on the old lines. sendBytes now resets scrollOffset to 0 and repaints before forwarding the input. Arrow and paging keys still navigate the scrollback because scrollThroughHistory consumes them first. Added TestTermWidget_EnterWhileScrolledBack_ReturnsToTheLiveLine. Validated with gofmt, go vet and go test for internal/ui and internal/terminal.
+
+  - `internal/ui/terminal.go`
+  - `internal/ui/ui_test.go`
+  - _2026-11-12 00:57:34 UTC — claude-code_
 - Extract the connection default table into connection.Defaults()
 
   The default values for a connection lived as an inline literal inside NewConnectionInfoWithID, which made them unreachable for any other consumer and left the XML deserializer with a second, contradictory table of its own. Extracted the literal into an exported Defaults() function that the constructor now calls, so there is a single place that defines what a fresh connection looks like. This is a pure extraction: the values are identical, the constructor behaves the same and no caller changed.

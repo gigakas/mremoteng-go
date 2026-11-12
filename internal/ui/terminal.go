@@ -53,8 +53,8 @@ type termWidget struct {
 	// zoom is the grid-level theme override; the grid owns its text size, so a
 	// refresh (typing, scroll, selection) cannot fall back to the app theme.
 	zoom *zoomTheme
-	// renderer is the termRenderer built in CreateRenderer, so the grid can be
-	// swapped in place on a zoom step.
+	// renderer is the termRenderer built in CreateRenderer, kept so a zoom step
+	// can update its font bookkeeping.
 	renderer *termRenderer
 }
 
@@ -88,9 +88,18 @@ func (t *termWidget) adjustZoom(delta float32) {
 	if t.zoom != nil {
 		t.zoom.size = size
 	}
+	if t.renderer != nil {
+		// Keep the renderer's own bookkeeping in step, or the next unrelated
+		// Layout pass (e.g. a window resize) sees a stale font and redoes this
+		// work again.
+		t.renderer.font = size
+	}
+	// rebuildGrid already renders once against the pre-zoom cols/rows, and fit
+	// renders again if the new font size changed them (almost always, since
+	// cell measurements changed); a third unconditional render here only
+	// repeated that same work and made every zoom step noticeably sluggish.
 	t.rebuildGrid()
 	t.fit(t.Size())
-	t.render()
 }
 
 func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *termWidget {
@@ -129,20 +138,34 @@ func (t *termWidget) installGrid(size fyne.Size) fyne.CanvasObject {
 	return wrap
 }
 
-// rebuildGrid swaps the text grid for a fresh one carrying the current size.
+// rebuildGrid applies the current zoom size to the text grid. Fyne's
+// TextGrid already re-measures its cell size from the theme on every
+// Refresh (textGridContentRenderer.Refresh, fyne.io/fyne/v2@v2.8.2), so a
+// zoom step only needs to refresh the existing grid in place. The earlier
+// version tore down and recreated the whole widget on every step believing
+// that was the only way to make Fyne pick up the new size; that tear-down
+// (and the texture/geometry work it forced on the GPU painter) is what made
+// each zoom step visibly stall. installGrid still runs once, from
+// CreateRenderer, to build the grid the first time.
 func (t *termWidget) rebuildGrid() {
-	if t.renderer != nil {
-		t.renderer.font = t.textSize()
+	if t.grid != nil {
+		t.grid.Refresh()
+	} else if t.renderer != nil {
 		t.renderer.objects[0] = t.installGrid(t.Size())
 	}
 	t.render()
+	// A Refresh further up the widget (not just the inner grid) is still
+	// needed: without it, a zoom step from the keyboard shortcut sat
+	// invisible until some unrelated event (losing then regaining focus)
+	// forced a full repaint.
+	t.Refresh()
 }
 
 type termRenderer struct {
 	parent  *termWidget
 	objects []fyne.CanvasObject
-	// font is the text size the current grid was built with; TextGrid caches its
-	// row height, so a zoom change needs a fresh grid to scale both axes.
+	// font is the text size the grid was last refreshed at, so Layout can tell
+	// when the size changed and the grid needs refreshing and refitting.
 	font float32
 }
 
@@ -151,7 +174,6 @@ func (r *termRenderer) Layout(size fyne.Size) {
 		r.font = r.parent.textSize()
 		r.parent.rebuildGrid()
 		r.parent.fit(size)
-		r.parent.render()
 	} else {
 		r.objects[0].Resize(size)
 	}
@@ -242,18 +264,20 @@ func (t *termWidget) cellAt(position fyne.Position) cellPos {
 	}
 	col := int(position.X / cell.Width)
 	row := int(position.Y / cell.Height)
-	_, start := t.viewStart()
+	start := t.viewStart()
 	return cellPos{col: clampInt(col, 0, t.cols-1), row: start + clampInt(row, 0, t.rows-1)}
 }
 
-// viewStart returns the buffer lines and the index of the first visible line.
-func (t *termWidget) viewStart() ([]string, int) {
-	lines := t.emulator.Lines()
-	start := len(lines) - t.rows - t.scrollOffset
+// viewStart returns the index of the first visible buffer line. It is
+// history-length minus the scroll offset: the history plus the current
+// screen always totals historyLen+rows lines, so this needs no full Lines()/
+// Snapshot() call just to find where the view starts.
+func (t *termWidget) viewStart() int {
+	start := t.emulator.HistoryLen() - t.scrollOffset
 	if start < 0 {
 		start = 0
 	}
-	return lines, start
+	return start
 }
 
 // Scrolled moves the view through the scrollback.
@@ -335,6 +359,21 @@ func (t *termWidget) TypedShortcut(shortcut fyne.Shortcut) {
 		if typed.Modifier&fyne.KeyModifierControl == 0 {
 			return
 		}
+		// The driver hands a focused Shortcutable widget every matching
+		// CustomShortcut directly, bypassing the canvas-level registration in
+		// shell.go, so the zoom keys must be handled here or they are silently
+		// dropped while the terminal holds the keyboard.
+		switch typed.KeyName {
+		case fyne.KeyEqual:
+			t.adjustZoom(2)
+			return
+		case fyne.KeyMinus:
+			t.adjustZoom(-2)
+			return
+		case fyne.Key0:
+			t.adjustZoom(theme.TextSize() - t.textSize())
+			return
+		}
 		if code, ok := controlCodes[typed.KeyName]; ok {
 			t.sendBytes([]byte{code})
 		}
@@ -389,12 +428,12 @@ func (t *termWidget) extendSelection(position fyne.Position) {
 	case position.Y < 0:
 		steps := 1 + int(-position.Y/cell.Height)
 		t.scrollOffset = clampInt(t.scrollOffset+steps, 0, history)
-		_, start := t.viewStart()
+		start := t.viewStart()
 		t.selEnd = cellPos{col: col, row: start}
 	case position.Y > t.Size().Height:
 		steps := 1 + int((position.Y-t.Size().Height)/cell.Height)
 		t.scrollOffset = clampInt(t.scrollOffset-steps, 0, history)
-		_, start := t.viewStart()
+		start := t.viewStart()
 		t.selEnd = cellPos{col: col, row: start + t.rows - 1}
 	default:
 		t.selEnd = t.cellAt(position)
@@ -525,6 +564,12 @@ func (t *termWidget) sendBytes(data []byte) {
 	if t.send == nil || len(data) == 0 {
 		return
 	}
+	// Typing, Enter or a paste returns the view to the live line, like a
+	// regular terminal.
+	if t.scrollOffset != 0 {
+		t.scrollOffset = 0
+		t.render()
+	}
 	t.send(data)
 }
 
@@ -550,6 +595,10 @@ var keySequences = map[fyne.KeyName][]byte{
 func (t *termWidget) write(data []byte) {
 	if _, err := t.emulator.Write(data); err != nil {
 		return
+	}
+	if history := t.emulator.HistoryLen(); t.scrollOffset > history {
+		t.scrollOffset = history
+		t.clearSelection()
 	}
 	t.render()
 }
@@ -600,19 +649,25 @@ func (t *termWidget) render() {
 	}
 	snapshot := t.emulator.Snapshot()
 	rows := make([]widget.TextGridRow, snapshot.Rows)
-	lines, start := t.viewStart()
+	start := t.viewStart()
 	historyLen := t.emulator.HistoryLen()
+	// History only, never the current screen: on-screen rows get their rune
+	// from snapshot.Cells below, and fetching that text again here would mean
+	// a second full Snapshot() per render (Lines() takes one), which is
+	// expensive enough on a fast scroll burst to visibly stall the terminal.
+	historyCells := t.emulator.HistoryCells()
 	for y := 0; y < snapshot.Rows; y++ {
 		bufferRow := start + y
 		cells := make([]widget.TextGridCell, snapshot.Cols)
 		for x := 0; x < snapshot.Cols; x++ {
 			var char rune = ' '
 			foreground, background := terminal.DefaultFG, terminal.DefaultBG
-			if bufferRow < len(lines) {
-				line := []rune(lines[bufferRow])
-				if x < len(line) {
-					char = line[x]
+			if bufferRow < historyLen && x < len(historyCells[bufferRow]) {
+				cell := historyCells[bufferRow][x]
+				if cell.Rune != 0 {
+					char = cell.Rune
 				}
+				foreground, background = cell.FG, cell.BG
 			}
 			// Keep the emulator colours for rows that are on screen.
 			screenRow := bufferRow - historyLen

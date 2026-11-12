@@ -140,3 +140,35 @@ func TestEmulator_BufferText_HasNoRepeatedLinesFromOneScroll(t *testing.T) {
 		}
 	}
 }
+
+func TestEmulator_ScrolledLines_KeepTheirColours(t *testing.T) {
+	emulator := New(10, 3)
+	for _, chunk := range []string{"\x1b[31mred\x1b[0m\r\n", "b\r\n", "c\r\n", "d\r\n", "e"} {
+		_, _ = emulator.Write([]byte(chunk))
+	}
+
+	cells := emulator.HistoryCells()
+	if len(cells) != emulator.HistoryLen() || len(cells) == 0 {
+		t.Fatalf("history cells = %d, history lines = %d", len(cells), emulator.HistoryLen())
+	}
+	first := cells[0][0]
+	if first.Rune != 'r' || first.FG == DefaultFG {
+		t.Errorf("first scrolled cell = %+v, want a red 'r'", first)
+	}
+}
+
+func TestEmulator_EraseScrollback_DropsHistory(t *testing.T) {
+	emulator := New(10, 3)
+	for _, chunk := range []string{"a\r\n", "b\r\n", "c\r\n", "d\r\n", "e"} {
+		_, _ = emulator.Write([]byte(chunk))
+	}
+	if emulator.HistoryLen() == 0 {
+		t.Fatal("setup produced no history")
+	}
+
+	_, _ = emulator.Write([]byte("\x1b[H\x1b[2J\x1b[3J"))
+
+	if emulator.HistoryLen() != 0 || len(emulator.HistoryCells()) != 0 {
+		t.Errorf("history = %d lines, %d cells, want none after ESC[3J", emulator.HistoryLen(), len(emulator.HistoryCells()))
+	}
+}
