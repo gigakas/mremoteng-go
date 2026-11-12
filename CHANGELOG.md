@@ -86,6 +86,46 @@
   - `internal/ui/terminal.go`
   - `internal/ui/ui_test.go`
   - _2026-11-12 00:57:34 UTC — claude-code_
+- Split a terminal tab into tmux-style panes that duplicate the connection
+
+  A session tab can now be split side by side or stacked, nested to any depth, with each pane a full sessionPanel connected to the same profile (typed password copied from the origin pane). New panes.go holds a small paneNode tree: leaves show a panel, splits show an HSplit/VSplit, and a leaf turns into a split in place, so closing a pane gives its space to the sibling. Controls are three icon buttons on terminal session bars and View > Split pane right / Split pane down / Close pane acting on the pane whose terminal has the keyboard. Only SSH, Telnet, RAW and rlogin split: RDP and VNC embed a native view. The last pane of a tab cannot be closed (close the tab). Tab close, connection delete, the active-session count and app shutdown now go through tabPanels/allPanels so every pane's session is ended; the tab pointer moves to a survivor if the original pane closes; reopening a split tab no longer rebuilds its layout. A duplicate to a host with an unverified key asks again. No keyboard shortcut yet: Ctrl combinations are forwarded to the shell. Added panes_test.go; the test profile has no username so the duplicate fails synchronously, since the test driver runs fyne.Do inline. Validated with ./scripts/check.sh.
+
+  - `internal/ui/panes.go`
+  - `internal/ui/panes_test.go`
+  - `internal/ui/session.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/quickconnect.go`
+  - `internal/ui/folders.go`
+  - `internal/ui/actions.go`
+  - `internal/ui/diagnostics.go`
+  - _2026-11-12 01:13:05 UTC — claude-code_
+- Split the monolithic internal/ui test file by area
+
+  internal/ui/ui_test.go had grown to 2393 lines and 117 tests, which made every internal/ui refactor expensive: any change to a helper forced a scan of one huge file, and the seams that the next refactors need were impossible to see. Split it into thirteen files by area: screen, actions, tree, folders, session, terminal, rdp, vnc, stream, transfer, vault, embed, plus helpers_test.go for the shared fakes and constructors. The split is mechanical: a script parsed the top-level declarations, assigned each to a file by name, and computed each new import block from the package qualifiers actually used, with gofmt normalising the groups afterwards. Verified by counting test functions before and after (125 in the package, unchanged) and by the full gate. Largest test file is now 494 lines instead of 2393. No test body, assertion or name changed. Validated with ./scripts/check.sh.
+
+  - `internal/ui/actions.go`
+  - `internal/ui/actions_test.go`
+  - `internal/ui/diagnostics.go`
+  - `internal/ui/embed_test.go`
+  - `internal/ui/folders.go`
+  - `internal/ui/folders_test.go`
+  - `internal/ui/helpers_test.go`
+  - `internal/ui/panes.go`
+  - `internal/ui/panes_test.go`
+  - `internal/ui/quickconnect.go`
+  - `internal/ui/rdp_test.go`
+  - `internal/ui/screen_test.go`
+  - `internal/ui/session.go`
+  - `internal/ui/session_test.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/stream_test.go`
+  - `internal/ui/terminal_test.go`
+  - `internal/ui/transfer_test.go`
+  - `internal/ui/tree_test.go`
+  - `internal/ui/ui_test.go`
+  - `internal/ui/vault_test.go`
+  - `internal/ui/vnc_test.go`
+  - _2026-11-12 01:17:20 UTC — mimocode_
 - Extract the connection default table into connection.Defaults()
 
   The default values for a connection lived as an inline literal inside NewConnectionInfoWithID, which made them unreachable for any other consumer and left the XML deserializer with a second, contradictory table of its own. Extracted the literal into an exported Defaults() function that the constructor now calls, so there is a single place that defines what a fresh connection looks like. This is a pure extraction: the values are identical, the constructor behaves the same and no caller changed.
