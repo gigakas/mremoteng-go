@@ -64,24 +64,25 @@ type screen struct {
 	propertiesVisible bool
 	suppressTree      bool
 
-	filter *widget.Entry
-	tree   *widget.Tree
-	tabs   *container.DocTabs
-	props  *propertiesPanel
-	right  *fyne.Container
-	status *widget.Label
-	counts *widget.Label
+	filter    *widget.Entry
+	tree      *widget.Tree
+	tabs      *container.DocTabs
+	props     *propertiesPanel
+	right     *fyne.Container
+	status    *widget.Label
+	counts    *widget.Label
+	hintSaved *hintRestore
 
 	log        activityLog
 	logConsole *logConsole
 	logVisible bool
-	logButton  *widget.Button
+	logButton  *hintButton
 	bottom     *fyne.Container
 
 	body             *fyne.Container
 	split            *container.Split
-	sidebarButton    *widget.Button
-	configButton     *widget.Button
+	sidebarButton    *hintButton
+	configButton     *hintButton
 	sidebarCollapsed bool
 
 	openTabs    map[string]*container.TabItem
@@ -169,17 +170,18 @@ func (s *screen) build() fyne.CanvasObject {
 	s.logConsole = newLogConsole(s)
 
 	// Both panel toggles live in the status bar as flat icons: no toolbar row,
-	// so the tabs and terminal own the full height. The View menu keeps the
-	// labelled entries for discoverability.
-	s.sidebarButton = widget.NewButtonWithIcon("", theme.MenuIcon(), s.toggleSidebar)
+	// so the tabs and terminal own the full height. An icon alone does not say
+	// which panel it toggles, so each carries a tooltip; the View menu keeps the
+	// labelled entries as well.
+	s.sidebarButton = newHintButton(theme.MenuIcon(), "Show or hide the connection tree", s.toggleSidebar, s.hint)
 	s.sidebarButton.Importance = widget.LowImportance
-	s.configButton = widget.NewButtonWithIcon("", theme.SettingsIcon(), s.toggleProperties)
+	s.configButton = newHintButton(theme.SettingsIcon(), "Show or hide the Config panel", s.toggleProperties, s.hint)
 	s.configButton.Importance = widget.LowImportance
-	s.logButton = widget.NewButtonWithIcon("", theme.InfoIcon(), s.toggleLog)
+	s.logButton = newHintButton(theme.InfoIcon(), "Show or hide the activity log", s.toggleLog, s.hint)
 	s.logButton.Importance = widget.LowImportance
 
 	sidebarTitle := widget.NewLabelWithStyle("Connections", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	quick := widget.NewButtonWithIcon("", theme.ContentAddIcon(), s.requestQuickConnect)
+	quick := newHintButton(theme.ContentAddIcon(), "Quick connect without saving a connection", s.requestQuickConnect, s.hint)
 	quick.Importance = widget.LowImportance
 	sidebarHeader := container.NewVBox(container.NewBorder(nil, nil, sidebarTitle, quick), s.filter)
 	left := container.NewBorder(container.NewPadded(sidebarHeader), container.NewPadded(s.counts), nil, nil, s.tree)

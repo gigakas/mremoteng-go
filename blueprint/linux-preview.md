@@ -32,8 +32,13 @@ historical phase dependencies. Existing completed stages and audits are retained
   is no toolbar row, and the session tab keeps a single connection bar so the
   terminal owns the space. Rows start with a circular SSH/RDP badge and report
   the full name and endpoint in the status bar on hover (Fyne's tree consumes row
-  hover, so a floating popup is not used). The Config panel is hidden by default
-  and revealed by New/selection or the settings icon.
+  hover, so a floating popup is not used). Icon-only buttons explain themselves
+  the same way: resting the pointer on one for 300 ms shows a one-line hint in
+  the status bar and puts the previous message back on leave, because Fyne has no
+  tooltips and its popups cover the canvas, stealing the hover that opened them.
+  The Config panel's Delete button carries a text label instead, since that row
+  has room. The Config panel is hidden by default and revealed by New/selection
+  or the settings icon.
 - L1 owns `internal/profiles/`, `internal/ui/`, `cmd/mremoteng/`, build/test
   integration and the active-plan documentation. No existing core package changes.
 - Independent L1 units may be delegated within disjoint files: profile storage,

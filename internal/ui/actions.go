@@ -359,6 +359,35 @@ func (s *screen) setProblem(text string) {
 	s.logConsole.refresh(s)
 }
 
+// hintRestore remembers the status bar before a hover hint replaced it.
+type hintRestore struct {
+	text       string
+	importance widget.Importance
+}
+
+// hint explains an icon button in the status bar while the pointer rests on it,
+// and puts back what was there when it leaves. An empty text clears the hint.
+//
+// The status bar is the only place with room: Fyne popups cover the canvas and
+// steal the hover that opened them, which is why the tree rows already report
+// there too.
+func (s *screen) hint(text string) {
+	if text == "" {
+		if s.hintSaved == nil {
+			return
+		}
+		s.status.Importance = s.hintSaved.importance
+		s.status.SetText(s.hintSaved.text)
+		s.hintSaved = nil
+		return
+	}
+	if s.hintSaved == nil {
+		s.hintSaved = &hintRestore{text: s.status.Text, importance: s.status.Importance}
+	}
+	s.status.Importance = widget.LowImportance
+	s.status.SetText(text)
+}
+
 // requireWritable reports whether the profile store may be modified. When it
 // may not, it explains why in the status bar using the caller's action, so the
 // user learns that the loaded file failed to read rather than that a button is

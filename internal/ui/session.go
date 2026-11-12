@@ -72,8 +72,8 @@ type sessionPanel struct {
 	rdpTest    *widget.Button
 	rdpLegacy  *widget.Check
 	rdpCert    *widget.Check
-	rdpOptions *widget.Button
-	copyScreen *widget.Button
+	rdpOptions *hintButton
+	copyScreen *hintButton
 	// Redirection choices apply to the next Connect in this tab.
 	rdpConfig rdpclient.Options
 
@@ -116,8 +116,8 @@ func (s *screen) newSessionPanel(profile profiles.Profile) *sessionPanel {
 	panel.rdpTest = widget.NewButtonWithIcon("Test", theme.SearchIcon(), panel.testRDP)
 	panel.rdpLegacy = widget.NewCheck("Legacy TLS", nil)
 	panel.rdpCert = widget.NewCheck("Ignore cert", nil)
-	panel.rdpOptions = widget.NewButtonWithIcon("", theme.SettingsIcon(), panel.requestRDPOptions)
-	panel.copyScreen = widget.NewButtonWithIcon("", theme.ContentCopyIcon(), panel.copyTerminalScreen)
+	panel.rdpOptions = newHintButton(theme.SettingsIcon(), "RDP options: redirection, resolution, audio and credentials", panel.requestRDPOptions, panel.screen.hint)
+	panel.copyScreen = newHintButton(theme.ContentCopyIcon(), "Copy the terminal contents to the clipboard", panel.copyTerminalScreen, panel.screen.hint)
 	panel.copyScreen.Importance = widget.LowImportance
 	panel.rdpOptions.Importance = widget.LowImportance
 	panel.slot = container.NewStack(widget.NewLabel("The interactive terminal appears here after Connect."))
@@ -157,12 +157,14 @@ func (p *sessionPanel) content() fyne.CanvasObject {
 	return container.NewBorder(p.connectionBar(), nil, nil, nil, container.NewPadded(p.slot))
 }
 
-// paneButtons are the tmux-style split controls of a terminal pane.
+// paneButtons are the tmux-style split controls of a terminal pane. Labels would
+// push the session bar into horizontal scrolling, so they explain themselves on
+// hover instead.
 func (p *sessionPanel) paneButtons() []fyne.CanvasObject {
-	right := widget.NewButtonWithIcon("", theme.NavigateNextIcon(), func() { p.screen.splitPane(p, true) })
-	down := widget.NewButtonWithIcon("", theme.MoveDownIcon(), func() { p.screen.splitPane(p, false) })
-	closePane := widget.NewButtonWithIcon("", theme.CancelIcon(), func() { p.screen.closePane(p) })
-	for _, button := range []*widget.Button{right, down, closePane} {
+	right := newHintButton(theme.NavigateNextIcon(), "Split the terminal to the right", func() { p.screen.splitPane(p, true) }, p.screen.hint)
+	down := newHintButton(theme.MoveDownIcon(), "Split the terminal downwards", func() { p.screen.splitPane(p, false) }, p.screen.hint)
+	closePane := newHintButton(theme.CancelIcon(), "Close this pane", func() { p.screen.closePane(p) }, p.screen.hint)
+	for _, button := range []*hintButton{right, down, closePane} {
 		button.Importance = widget.LowImportance
 	}
 	return []fyne.CanvasObject{right, down, closePane}

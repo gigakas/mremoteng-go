@@ -121,8 +121,8 @@ func (p *sessionPanel) requestStorePassword() {
 }
 
 // vaultButton is the "store password" action shown on session bars.
-func (p *sessionPanel) vaultButton() *widget.Button {
-	button := widget.NewButtonWithIcon("", theme.DocumentSaveIcon(), p.requestStorePassword)
+func (p *sessionPanel) vaultButton() *hintButton {
+	button := newHintButton(theme.DocumentSaveIcon(), "Save this password in the encrypted vault", p.requestStorePassword, p.screen.hint)
 	button.Importance = widget.LowImportance
 	return button
 }

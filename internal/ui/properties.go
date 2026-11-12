@@ -60,7 +60,7 @@ func newPropertiesPanel(s *screen) *propertiesPanel {
 
 	p.save = widget.NewButtonWithIcon("Save", theme.DocumentSaveIcon(), s.save)
 	p.revert = widget.NewButtonWithIcon("Revert", theme.CancelIcon(), s.revert)
-	p.delete = widget.NewButtonWithIcon("", theme.DeleteIcon(), s.requestDelete)
+	p.delete = widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), s.requestDelete)
 
 	// Delete lives next to the connection name so the toolbar stays free of
 	// write actions, matching how mRemoteNG ties object actions to the object.
