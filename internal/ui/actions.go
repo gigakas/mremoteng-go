@@ -321,6 +321,9 @@ func (s *screen) deleteProfile(target profiles.Profile) {
 	}
 	s.all = next
 	if tab, open := s.openTabs[target.ID]; open {
+		for _, panel := range s.tabPanels(target.ID) {
+			panel.shutdown()
+		}
 		delete(s.openTabs, target.ID)
 		delete(s.panels, target.ID)
 		s.tabs.Remove(tab)

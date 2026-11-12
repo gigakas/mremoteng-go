@@ -93,6 +93,9 @@ type sessionPanel struct {
 	rdpDetached atomic.Bool
 
 	hidConfig bool
+
+	// pane is this panel's cell in the tab's split layout.
+	pane *paneNode
 }
 
 func (s *screen) newSessionPanel(profile profiles.Profile) *sessionPanel {
@@ -154,6 +157,17 @@ func (p *sessionPanel) content() fyne.CanvasObject {
 	return container.NewBorder(p.connectionBar(), nil, nil, nil, container.NewPadded(p.slot))
 }
 
+// paneButtons are the tmux-style split controls of a terminal pane.
+func (p *sessionPanel) paneButtons() []fyne.CanvasObject {
+	right := widget.NewButtonWithIcon("", theme.NavigateNextIcon(), func() { p.screen.splitPane(p, true) })
+	down := widget.NewButtonWithIcon("", theme.MoveDownIcon(), func() { p.screen.splitPane(p, false) })
+	closePane := widget.NewButtonWithIcon("", theme.CancelIcon(), func() { p.screen.closePane(p) })
+	for _, button := range []*widget.Button{right, down, closePane} {
+		button.Importance = widget.LowImportance
+	}
+	return []fyne.CanvasObject{right, down, closePane}
+}
+
 // connectionBar is the only header above the terminal: which connection is
 // open, the one-off password and the session controls.
 func (p *sessionPanel) connectionBar() fyne.CanvasObject {
@@ -170,6 +184,9 @@ func (p *sessionPanel) connectionBar() fyne.CanvasObject {
 		buttons = append(buttons, p.rdpTest, p.rdpCert, p.rdpLegacy, p.rdpOptions)
 	default:
 		buttons = append(buttons, p.copyScreen, p.ctrlC, p.ctrlD)
+		if splittable(p.profile.Protocol) {
+			buttons = append(buttons, p.paneButtons()...)
+		}
 	}
 	// Name on its own row so it never collapses to an ellipsis; the password
 	// shares the next row with the buttons. Fyne tab content scrolls

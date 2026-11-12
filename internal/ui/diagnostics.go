@@ -74,7 +74,7 @@ func (s *screen) requestDiagnostics() {
 // activeSessionCount counts panels holding a live session.
 func (s *screen) activeSessionCount() int {
 	count := 0
-	for _, panel := range s.panels {
+	for _, panel := range s.allPanels() {
 		if panel.shell != nil || panel.rdp != nil || panel.vnc != nil || panel.stream != nil {
 			count++
 		}
@@ -85,7 +85,7 @@ func (s *screen) activeSessionCount() int {
 // shutdownSessions ends every live session and embedded window before the
 // application exits, so no FreeRDP process or X11 child is left behind.
 func (s *screen) shutdownSessions() {
-	for _, panel := range s.panels {
+	for _, panel := range s.allPanels() {
 		panel.shutdown()
 	}
 }

@@ -268,6 +268,11 @@ func (s *screen) menu() *fyne.MainMenu {
 		fyne.NewMenuItem("Terminal zoom in", func() { s.zoomFocusedTerminal(2) }),
 		fyne.NewMenuItem("Terminal zoom out", func() { s.zoomFocusedTerminal(-2) }),
 		fyne.NewMenuItem("Terminal zoom reset", s.resetFocusedTerminalZoom),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Split pane right", func() { s.splitFocusedPane(true) }),
+		fyne.NewMenuItem("Split pane down", func() { s.splitFocusedPane(false) }),
+		fyne.NewMenuItem("Close pane", s.closeFocusedPane),
+		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Toggle Config panel", s.toggleProperties),
 	)
 	tools := fyne.NewMenu("Tools",
@@ -299,7 +304,7 @@ func (s *screen) tabClosed(item *container.TabItem) {
 		if tab == item {
 			// Closing a session tab ends its session, which removes the embedded
 			// window instead of leaving it behind.
-			if panel, known := s.panels[id]; known {
+			for _, panel := range s.tabPanels(id) {
 				panel.disconnectShell()
 			}
 			delete(s.openTabs, id)
@@ -318,15 +323,21 @@ func (s *screen) openSessionTab(profile profiles.Profile) {
 		if panel, known := s.panels[profile.ID]; known {
 			panel.profile = profile
 			// Rebuild the bar with the new name/endpoint; the slot keeps the live
-			// terminal widget, so an open session survives a rename.
-			tab.Content = panel.content()
+			// terminal widget, so an open session survives a rename. A tab that
+			// was split keeps its layout as it is.
+			if panel.pane == nil {
+				tab.Content = panel.content()
+			} else if root := panel.pane.root(); root.panel != nil {
+				root.view.Objects = []fyne.CanvasObject{panel.content()}
+				root.view.Refresh()
+			}
 		}
 		s.tabs.Refresh()
 		s.tabs.Select(tab)
 		return
 	}
 	panel := s.newSessionPanel(profile)
-	tab := container.NewTabItem(profile.Name, panel.content())
+	tab := container.NewTabItem(profile.Name, newRootPane(panel).view)
 	s.openTabs[profile.ID] = tab
 	s.panels[profile.ID] = panel
 	s.tabs.Append(tab)

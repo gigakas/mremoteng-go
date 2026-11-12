@@ -339,6 +339,9 @@ func (s *screen) moveConnection(profile profiles.Profile, raw string) {
 // closeSessionTab closes and forgets the tab of a removed connection.
 func (s *screen) closeSessionTab(id string) {
 	if tab, open := s.openTabs[id]; open {
+		for _, panel := range s.tabPanels(id) {
+			panel.shutdown()
+		}
 		delete(s.openTabs, id)
 		delete(s.panels, id)
 		s.tabs.Remove(tab)

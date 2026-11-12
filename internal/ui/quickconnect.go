@@ -81,7 +81,7 @@ func (s *screen) quickConnect(host, protocol, portText, username string) {
 // openEphemeral opens a tab for a profile that is not in the store or the tree.
 func (s *screen) openEphemeral(profile profiles.Profile) {
 	panel := s.newSessionPanel(profile)
-	tab := container.NewTabItem(profile.Name, panel.content())
+	tab := container.NewTabItem(profile.Name, newRootPane(panel).view)
 	s.openTabs[profile.ID] = tab
 	s.panels[profile.ID] = panel
 	s.tabs.Append(tab)
