@@ -75,7 +75,7 @@ func (s *screen) requestDiagnostics() {
 func (s *screen) activeSessionCount() int {
 	count := 0
 	for _, panel := range s.allPanels() {
-		if panel.shell != nil || panel.rdp != nil || panel.vnc != nil || panel.stream != nil {
+		if panel.shell != nil || panel.rdp != nil || panel.vnc != nil || panel.stream != nil || panel.web != nil {
 			count++
 		}
 	}

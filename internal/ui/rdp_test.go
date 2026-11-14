@@ -535,3 +535,25 @@ func TestModalGuard_RestoresOnce(t *testing.T) {
 		t.Errorf("modal depth = %d, want 0", s.modalDepth)
 	}
 }
+
+// TestDisconnectRDP_DestroysTheEmbeddedWindow keeps no X11 child behind: the area is
+// this process's window and must go with the session.
+func TestDisconnectRDP_DestroysTheEmbeddedWindow(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	area := &fakeArea{id: 81}
+	panel := s.newSessionPanel(sampleProfile(t, "desk", "", string(profiles.RDP), "desk.example.com", 3389))
+	session := &fakeRDPSession{done: make(chan struct{})}
+	panel.applyConnectRDPWithArea(session, area, nil, nil)
+
+	panel.disconnectShell()
+
+	if !area.destroyed {
+		t.Error("the embedded window outlived the session")
+	}
+	if !session.closed {
+		t.Error("the FreeRDP process outlived the session")
+	}
+	if panel.embedded != nil {
+		t.Error("the panel still references a destroyed window")
+	}
+}

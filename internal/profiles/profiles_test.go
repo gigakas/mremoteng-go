@@ -680,3 +680,37 @@ func TestStore_SerialOptions_RoundTrip(t *testing.T) {
 		t.Error("a serial connection must not claim a network port")
 	}
 }
+
+// TestStore_LoadVersion1_KeepsTheNewerBlocks covers the migration boundary: the version
+// number gates the schema, but a v1 file that carries later optional blocks (folders,
+// collapsed branches, restored tabs, layouts, manual order) must load them, not drop
+// them, or a downgrade would silently erase the workspace.
+func TestStore_LoadVersion1_KeepsTheNewerBlocks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles.json")
+	data := `{"version":1,
+	  "folders":["Team"],
+	  "collapsed_folders":["Team"],
+	  "open_tabs":["a"],
+	  "active_tab":"a",
+	  "tab_layouts":{"a":{"split":true,"side_by_side":true,"a":{},"b":{}}},
+	  "order":["f:Team","c:a"],
+	  "profiles":[{"id":"a","name":"web","protocol":"SSH","host":"web","port":22}]}`
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	document, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(document.OpenTabs) != 1 || document.ActiveTab != "a" {
+		t.Errorf("tabs = %v / %q, want them kept", document.OpenTabs, document.ActiveTab)
+	}
+	layout, divided := document.TabLayouts["a"]
+	if !divided || !layout.Split {
+		t.Errorf("layout = %+v, want the divided tab kept", layout)
+	}
+	if len(document.Order) != 2 || len(document.Collapsed) != 1 {
+		t.Errorf("order = %v collapsed = %v, want them kept", document.Order, document.Collapsed)
+	}
+}

@@ -348,3 +348,51 @@ func TestOpenSFTP_NonSSHSession_ReportsIt(t *testing.T) {
 		t.Errorf("status = %q, want it to explain that transfer needs SSH", s.status.Text)
 	}
 }
+
+// TestShutdownSessions_EndsEveryTransport is the crash-safety contract: nothing this
+// window started may survive it, whatever the protocol.
+func TestShutdownSessions_EndsEveryTransport(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	shell := &fakeShell{output: strings.NewReader("")}
+	stream := &fakeStream{}
+	rdp := &fakeRDPSession{done: make(chan struct{})}
+	web := newFakeWebSession()
+	area := &fakeArea{id: 71}
+
+	sshPanel := s.newSessionPanel(sshPanelProfile(t, "tester"))
+	sshPanel.shell = shell
+	sshPanel.embedded = area
+
+	streamPanel := s.newSessionPanel(sampleProfile(t, "raw", "", string(profiles.RAW), "raw.example.com", 23))
+	streamPanel.stream = stream
+
+	rdpPanel := s.newSessionPanel(sampleProfile(t, "desk", "", string(profiles.RDP), "desk.example.com", 3389))
+	rdpPanel.rdp = rdp
+	rdpPanel.embedded = &fakeArea{id: 72}
+
+	webPanel := s.newSessionPanel(sampleProfile(t, "web", "", string(profiles.HTTP), "web.example.com", 80))
+	webPanel.web = web
+
+	s.panels["a"] = sshPanel
+	s.panels["b"] = streamPanel
+	s.panels["c"] = rdpPanel
+	s.panels["d"] = webPanel
+
+	s.shutdownSessions()
+
+	if !shell.closed {
+		t.Error("the SSH session survived the shutdown")
+	}
+	if !stream.closed {
+		t.Error("the stream session survived the shutdown")
+	}
+	if !rdp.closed {
+		t.Error("the FreeRDP process survived the shutdown")
+	}
+	if !web.closed {
+		t.Error("the web view helper survived the shutdown")
+	}
+	if !area.destroyed {
+		t.Error("the embedded X11 window survived the shutdown")
+	}
+}
