@@ -275,3 +275,40 @@ func TestFileRow_Icons_DistinguishFoldersFromFiles(t *testing.T) {
 		t.Errorf("file row icon = %q, want a document sample", fileRow.icon.Resource.Name())
 	}
 }
+
+// TestColumns_HeaderAndRow_ShareTheSameOffsets is the regression guard for the
+// reported misalignment: the header and a data row must place the numeric
+// columns at identical x positions, otherwise a title does not sit over its data.
+func TestColumns_HeaderAndRow_ShareTheSameOffsets(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	offsets := func(line fyne.CanvasObject) []float32 {
+		line.Resize(fyne.NewSize(700, fileRowHeight))
+		body, ok := line.(*fyne.Container)
+		if !ok {
+			t.Fatalf("line type = %T, want *fyne.Container", line)
+		}
+		// Border objects: the right-hand group holds the size and date slots.
+		var group *fyne.Container
+		for _, child := range body.Objects {
+			if candidate, isHBox := child.(*fyne.Container); isHBox && len(candidate.Objects) == 2 {
+				group = candidate
+			}
+		}
+		if group == nil {
+			t.Fatal("numeric column group not found")
+		}
+		group.Resize(group.MinSize())
+		return []float32{group.Objects[0].Position().X, group.Objects[1].Position().X}
+	}
+
+	row := columns(widget.NewLabel(""), widget.NewLabel("name"), widget.NewLabel("size"), widget.NewLabel("date"))
+	header := columns(widget.NewLabel(""), widget.NewButton("Name", nil), widget.NewButton("Size", nil), widget.NewButton("Date", nil))
+
+	rowOffsets := offsets(row)
+	headerOffsets := offsets(header)
+	if rowOffsets[0] != headerOffsets[0] || rowOffsets[1] != headerOffsets[1] {
+		t.Errorf("column offsets: row %v, header %v — want identical", rowOffsets, headerOffsets)
+	}
+}

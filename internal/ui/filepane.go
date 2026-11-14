@@ -358,10 +358,12 @@ func (p *filePane) header() fyne.CanvasObject {
 		p.headerButtons[key] = button
 		return button
 	}
-	gap := container.NewGridWrap(fyne.NewSize(20, 20))
-	tail := container.NewHBox(button(sortBySize), button(sortByDate))
+	sizeButton := button(sortBySize)
+	sizeButton.Alignment = widget.ButtonAlignTrailing
+	dateButton := button(sortByDate)
+	dateButton.Alignment = widget.ButtonAlignTrailing
 	p.refreshHeader()
-	return container.NewBorder(nil, nil, gap, tail, button(sortByName))
+	return columns(widget.NewLabel(""), button(sortByName), sizeButton, dateButton)
 }
 
 // rebuildRows replaces the visible rows. Rows are built instead of recycled: a
@@ -397,6 +399,26 @@ func (p *filePane) rowOpened(row *fileRow) {
 	if row.entry.IsDir {
 		p.navigate(row.entry.Path)
 	}
+}
+
+// Column widths in pixels. The header and every row are laid out through
+// columns(), so a title sits exactly over its data whatever the content is.
+const (
+	iconColumnWidth = 26
+	sizeColumnWidth = 92
+	dateColumnWidth = 130
+	fileRowHeight   = 26
+)
+
+// columns lays out one line of a pane: a fixed icon slot, the name filling the
+// rest, then the two fixed numeric columns. Both a data row and the header call
+// it, which is what keeps them aligned.
+func columns(icon, name, size, date fyne.CanvasObject) fyne.CanvasObject {
+	iconSlot := container.NewGridWrap(fyne.NewSize(iconColumnWidth, fileRowHeight), icon)
+	sizeSlot := container.NewGridWrap(fyne.NewSize(sizeColumnWidth, fileRowHeight), size)
+	dateSlot := container.NewGridWrap(fyne.NewSize(dateColumnWidth, fileRowHeight), date)
+	return container.NewBorder(nil, nil, container.NewCenter(iconSlot),
+		container.NewHBox(sizeSlot, dateSlot), container.NewPadded(name))
 }
 
 // fileRow is one clickable line: icon, name, size and date. It is a widget so it
@@ -472,10 +494,7 @@ func (r *fileRow) setSelected(on bool) {
 // CreateRenderer lays the row out: icon, the name in the middle so it can
 // truncate, then size and date on the right.
 func (r *fileRow) CreateRenderer() fyne.WidgetRenderer {
-	iconBox := container.NewGridWrap(fyne.NewSize(20, 20), r.icon)
-	tail := container.NewHBox(r.size, r.date)
-	body := container.NewBorder(nil, nil, container.NewCenter(iconBox),
-		container.NewPadded(tail), container.NewPadded(r.name))
+	body := columns(r.icon, r.name, r.size, r.date)
 	return widget.NewSimpleRenderer(container.NewStack(r.back, body))
 }
 
@@ -495,7 +514,7 @@ func (r *fileRow) DoubleTapped(*fyne.PointEvent) {
 
 // MinSize keeps every row the same height regardless of its labels.
 func (r *fileRow) MinSize() fyne.Size {
-	return fyne.NewSize(120, 28)
+	return fyne.NewSize(120, fileRowHeight+2)
 }
 
 // trimDir normalises a typed path without inventing one.
