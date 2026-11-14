@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
@@ -105,6 +107,8 @@ type remoteBrowser struct {
 
 	status   *widget.Label
 	progress *widget.ProgressBar
+	stop     *widget.Button
+	cancel   context.CancelFunc
 	logBox   *fyne.Container
 	log      []string
 	popup    *widget.PopUp
@@ -115,6 +119,8 @@ func (b *remoteBrowser) show() {
 	b.status.Wrapping = fyne.TextWrapWord
 	b.progress = widget.NewProgressBar()
 	b.progress.Hide()
+	b.stop = widget.NewButtonWithIcon("Stop", theme.CancelIcon(), b.stopTransfer)
+	b.stop.Disable()
 	b.logBox = container.NewVBox()
 	logScroll := container.NewVScroll(b.logBox)
 	logScroll.SetMinSize(fyne.NewSize(200, 84))
@@ -126,8 +132,9 @@ func (b *remoteBrowser) show() {
 
 	content := container.NewBorder(
 		nil,
-		container.NewVBox(widget.NewSeparator(), b.progress, logScroll, b.status,
-			container.NewHBox(closeButton)),
+		container.NewVBox(widget.NewSeparator(),
+			container.NewBorder(nil, nil, nil, b.stop, b.progress),
+			logScroll, b.status, container.NewHBox(closeButton)),
 		nil, nil,
 		panes,
 	)
@@ -154,8 +161,8 @@ func (b *remoteBrowser) uploadSelected() {
 		return
 	}
 	remotePath := sshclient.JoinRemote(b.remote.dir, entry.Name)
-	b.transfer("Uploading "+entry.Name, func(progress sshclient.TransferProgress) error {
-		return b.files.Upload(entry.Path, remotePath, progress)
+	b.transfer("Uploading "+entry.Name, func(ctx context.Context, progress sshclient.TransferProgress) error {
+		return b.files.Upload(ctx, entry.Path, remotePath, progress)
 	})
 }
 
@@ -168,25 +175,38 @@ func (b *remoteBrowser) downloadSelected() {
 		return
 	}
 	localPath := filepath.Join(b.local.dir, entry.Name)
-	b.transfer("Downloading "+entry.Name, func(progress sshclient.TransferProgress) error {
-		return b.files.Download(entry.Path, localPath, progress)
+	b.transfer("Downloading "+entry.Name, func(ctx context.Context, progress sshclient.TransferProgress) error {
+		return b.files.Download(ctx, entry.Path, localPath, progress)
 	})
 }
 
 // transfer runs one copy off the UI thread and reports progress in the dialog
 // and the status bar. Both panes are re-listed afterwards, so the copied file
 // appears without a manual refresh.
-func (b *remoteBrowser) transfer(label string, run func(sshclient.TransferProgress) error) {
+func (b *remoteBrowser) transfer(label string, run func(context.Context, sshclient.TransferProgress) error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	b.cancel = cancel
 	b.startProgress(label)
 	go func() {
+		defer cancel()
 		progress := func(done, total int64) {
 			fyne.Do(func() {
 				b.setProgress(done, total)
 				b.status.SetText(progressText(label, done, total))
 			})
 		}
-		err := run(progress)
+		err := run(ctx, progress)
 		fyne.Do(func() {
+			b.cancel = nil
+			if errors.Is(err, context.Canceled) {
+				b.finishProgress()
+				b.status.SetText(label + " cancelled.")
+				b.screen.setStatus(label + " cancelled.")
+				b.logf("warn", label+" cancelled")
+				b.local.refresh()
+				b.remote.refresh()
+				return
+			}
 			if err != nil {
 				b.finishProgress()
 				b.status.SetText(label + " failed: " + err.Error())
@@ -257,9 +277,23 @@ func (b *remoteBrowser) startProgress(label string) {
 	b.progress.Max = 1
 	b.progress.SetValue(0)
 	b.progress.Show()
+	if b.stop != nil {
+		b.stop.Enable()
+	}
 	b.status.SetText(label + " ...")
 	b.screen.setStatus(label + " ...")
 	b.logf("info", label+" started")
+}
+
+// stopTransfer cancels the running copy. The button is disabled when idle, so a
+// stray press cannot cancel somebody else's transfer.
+func (b *remoteBrowser) stopTransfer() {
+	if b.cancel == nil {
+		return
+	}
+	b.cancel()
+	b.cancel = nil
+	b.status.SetText("Stopping ...")
 }
 
 // setProgress moves the bar; an unknown total leaves it at zero rather than
@@ -277,6 +311,9 @@ func (b *remoteBrowser) setProgress(done, total int64) {
 func (b *remoteBrowser) finishProgress() {
 	if b.progress == nil {
 		return
+	}
+	if b.stop != nil {
+		b.stop.Disable()
 	}
 	if b.progress.Max <= 0 {
 		b.progress.Max = 1

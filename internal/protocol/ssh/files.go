@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -84,31 +85,31 @@ func (r *RemoteFiles) WorkingDir() (string, error) {
 // Upload copies localPath to remotePath, creating or truncating a file target and
 // recreating a directory tree when localPath is a directory. Progress covers
 // every byte moved, so a tree reports one running total.
-func (r *RemoteFiles) Upload(localPath, remotePath string, progress TransferProgress) error {
+func (r *RemoteFiles) Upload(ctx context.Context, localPath, remotePath string, progress TransferProgress) error {
 	info, err := os.Stat(localPath)
 	if err != nil {
 		return fmt.Errorf("transfer: stat %s: %w", localPath, err)
 	}
 	if !info.IsDir() {
-		return uploadFile(r.sftp, localPath, remotePath, progress)
+		return uploadFile(ctx, r.sftp, localPath, remotePath, progress)
 	}
 	counter := &byteCounter{total: localTreeSize(localPath), progress: progress}
-	_, err = uploadTree(r.sftp, localPath, remotePath, counter, 0)
+	_, err = uploadTree(ctx, r.sftp, localPath, remotePath, counter, 0)
 	return err
 }
 
 // Download copies remotePath to localPath, creating or truncating a file target
 // and recreating a directory tree when remotePath is a directory.
-func (r *RemoteFiles) Download(remotePath, localPath string, progress TransferProgress) error {
+func (r *RemoteFiles) Download(ctx context.Context, remotePath, localPath string, progress TransferProgress) error {
 	info, err := r.sftp.Stat(remotePath)
 	if err != nil {
 		return fmt.Errorf("transfer: stat %s: %w", remotePath, err)
 	}
 	if !info.IsDir() {
-		return downloadFile(r.sftp, remotePath, localPath, progress)
+		return downloadFile(ctx, r.sftp, remotePath, localPath, progress)
 	}
 	counter := &byteCounter{total: remoteTreeSize(r.sftp, remotePath), progress: progress}
-	_, err = downloadTree(r.sftp, remotePath, localPath, counter, 0)
+	_, err = downloadTree(ctx, r.sftp, remotePath, localPath, counter, 0)
 	return err
 }
 
@@ -198,7 +199,7 @@ func listDir(client *sftp.Client, dir string) ([]RemoteEntry, error) {
 }
 
 // uploadFile streams one local file to the remote path.
-func uploadFile(client *sftp.Client, localPath, remotePath string, progress TransferProgress) error {
+func uploadFile(ctx context.Context, client *sftp.Client, localPath, remotePath string, progress TransferProgress) error {
 	source, err := os.Open(localPath)
 	if err != nil {
 		return fmt.Errorf("transfer: open %s: %w", localPath, err)
@@ -219,7 +220,7 @@ func uploadFile(client *sftp.Client, localPath, remotePath string, progress Tran
 	if progress != nil {
 		writer = &progressWriter{writer: destination, total: info.Size(), progress: progress}
 	}
-	if _, err := io.Copy(writer, source); err != nil {
+	if _, err := io.Copy(writer, cancelableReader{ctx: ctx, reader: source}); err != nil {
 		_ = destination.Close()
 		return fmt.Errorf("transfer: write %s: %w", remotePath, err)
 	}
@@ -230,7 +231,7 @@ func uploadFile(client *sftp.Client, localPath, remotePath string, progress Tran
 }
 
 // downloadFile streams one remote file into the local path.
-func downloadFile(client *sftp.Client, remotePath, localPath string, progress TransferProgress) error {
+func downloadFile(ctx context.Context, client *sftp.Client, remotePath, localPath string, progress TransferProgress) error {
 	source, err := client.Open(remotePath)
 	if err != nil {
 		return fmt.Errorf("transfer: open %s: %w", remotePath, err)
@@ -251,7 +252,7 @@ func downloadFile(client *sftp.Client, remotePath, localPath string, progress Tr
 	if progress != nil {
 		writer = &progressWriter{writer: destination, total: info.Size(), progress: progress}
 	}
-	if _, err := io.Copy(writer, source); err != nil {
+	if _, err := io.Copy(writer, cancelableReader{ctx: ctx, reader: source}); err != nil {
 		_ = destination.Close()
 		return fmt.Errorf("transfer: write %s: %w", localPath, err)
 	}
@@ -308,7 +309,7 @@ func remoteTreeSize(client *sftp.Client, dir string) int64 {
 }
 
 // uploadTree recreates localDir under remoteDir and returns the bytes moved.
-func uploadTree(client *sftp.Client, localDir, remoteDir string, counter *byteCounter, moved int64) (int64, error) {
+func uploadTree(ctx context.Context, client *sftp.Client, localDir, remoteDir string, counter *byteCounter, moved int64) (int64, error) {
 	if err := client.MkdirAll(remoteDir); err != nil {
 		return moved, fmt.Errorf("transfer: create directory %s: %w", remoteDir, err)
 	}
@@ -317,10 +318,13 @@ func uploadTree(client *sftp.Client, localDir, remoteDir string, counter *byteCo
 		return moved, fmt.Errorf("transfer: read %s: %w", localDir, err)
 	}
 	for _, item := range items {
+		if err := ctx.Err(); err != nil {
+			return moved, err
+		}
 		local := filepath.Join(localDir, item.Name())
 		remote := path.Join(remoteDir, item.Name())
 		if item.IsDir() {
-			moved, err = uploadTree(client, local, remote, counter, moved)
+			moved, err = uploadTree(ctx, client, local, remote, counter, moved)
 			if err != nil {
 				return moved, err
 			}
@@ -330,7 +334,7 @@ func uploadTree(client *sftp.Client, localDir, remoteDir string, counter *byteCo
 		if info, infoErr := item.Info(); infoErr == nil {
 			size = info.Size()
 		}
-		if err := uploadFile(client, local, remote, counter.wrap(moved)); err != nil {
+		if err := uploadFile(ctx, client, local, remote, counter.wrap(moved)); err != nil {
 			return moved, err
 		}
 		moved += size
@@ -339,7 +343,7 @@ func uploadTree(client *sftp.Client, localDir, remoteDir string, counter *byteCo
 }
 
 // downloadTree recreates remoteDir under localDir and returns the bytes moved.
-func downloadTree(client *sftp.Client, remoteDir, localDir string, counter *byteCounter, moved int64) (int64, error) {
+func downloadTree(ctx context.Context, client *sftp.Client, remoteDir, localDir string, counter *byteCounter, moved int64) (int64, error) {
 	if err := os.MkdirAll(localDir, 0o755); err != nil {
 		return moved, fmt.Errorf("transfer: create directory %s: %w", localDir, err)
 	}
@@ -348,6 +352,9 @@ func downloadTree(client *sftp.Client, remoteDir, localDir string, counter *byte
 		return moved, fmt.Errorf("transfer: list %s: %w", remoteDir, err)
 	}
 	for _, info := range infos {
+		if err := ctx.Err(); err != nil {
+			return moved, err
+		}
 		name := info.Name()
 		if name == "." || name == ".." {
 			continue
@@ -355,18 +362,32 @@ func downloadTree(client *sftp.Client, remoteDir, localDir string, counter *byte
 		remote := path.Join(remoteDir, name)
 		local := filepath.Join(localDir, name)
 		if info.IsDir() {
-			moved, err = downloadTree(client, remote, local, counter, moved)
+			moved, err = downloadTree(ctx, client, remote, local, counter, moved)
 			if err != nil {
 				return moved, err
 			}
 			continue
 		}
-		if err := downloadFile(client, remote, local, counter.wrap(moved)); err != nil {
+		if err := downloadFile(ctx, client, remote, local, counter.wrap(moved)); err != nil {
 			return moved, err
 		}
 		moved += info.Size()
 	}
 	return moved, nil
+}
+
+// cancelableReader stops a copy at the next read once its context is done, which
+// is what makes the Stop button prompt instead of waiting for the whole file.
+type cancelableReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (c cancelableReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.reader.Read(p)
 }
 
 // progressWriter reports the running byte count after every write.

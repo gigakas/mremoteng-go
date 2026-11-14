@@ -1,6 +1,8 @@
 package ssh
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -111,7 +113,7 @@ func TestUploadFile_CopiesContentAndReportsProgress(t *testing.T) {
 	client := newTestSFTP(t, root)
 
 	var last, total int64
-	err := uploadFile(client, local, filepath.Join(root, "up.bin"), func(done, size int64) {
+	err := uploadFile(context.Background(), client, local, filepath.Join(root, "up.bin"), func(done, size int64) {
 		last, total = done, size
 	})
 	if err != nil {
@@ -140,7 +142,7 @@ func TestDownloadFile_CopiesContentAndReportsProgress(t *testing.T) {
 	local := filepath.Join(t.TempDir(), "copy.txt")
 
 	var last, total int64
-	err := downloadFile(client, filepath.Join(root, "down.txt"), local, func(done, size int64) {
+	err := downloadFile(context.Background(), client, filepath.Join(root, "down.txt"), local, func(done, size int64) {
 		last, total = done, size
 	})
 	if err != nil {
@@ -162,7 +164,7 @@ func TestDownloadFile_CopiesContentAndReportsProgress(t *testing.T) {
 func TestUploadFile_MissingLocalFile_ReturnsError(t *testing.T) {
 	client := newTestSFTP(t, t.TempDir())
 
-	err := uploadFile(client, filepath.Join(t.TempDir(), "absent"), "target.bin", nil)
+	err := uploadFile(context.Background(), client, filepath.Join(t.TempDir(), "absent"), "target.bin", nil)
 	if err == nil {
 		t.Fatal("uploadFile reported no error for a missing local file")
 	}
@@ -174,7 +176,7 @@ func TestUploadFile_MissingLocalFile_ReturnsError(t *testing.T) {
 func TestDownloadFile_MissingRemoteFile_ReturnsError(t *testing.T) {
 	client := newTestSFTP(t, t.TempDir())
 
-	err := downloadFile(client, "absent.txt", filepath.Join(t.TempDir(), "out.txt"), nil)
+	err := downloadFile(context.Background(), client, "absent.txt", filepath.Join(t.TempDir(), "out.txt"), nil)
 	if err == nil {
 		t.Fatal("downloadFile reported no error for a missing remote file")
 	}
@@ -252,11 +254,11 @@ func TestRemoteFiles_LocalContainer(t *testing.T) {
 		t.Fatalf("write local: %v", err)
 	}
 	remote := fmt.Sprintf("sftp-probe-%d.txt", time.Now().UnixNano())
-	if err := files.Upload(local, remote, nil); err != nil {
+	if err := files.Upload(context.Background(), local, remote, nil); err != nil {
 		t.Fatalf("Upload: %v", err)
 	}
 	back := filepath.Join(t.TempDir(), "back.txt")
-	if err := files.Download(remote, back, nil); err != nil {
+	if err := files.Download(context.Background(), remote, back, nil); err != nil {
 		t.Fatalf("Download: %v", err)
 	}
 	stored, err := os.ReadFile(back)
@@ -283,7 +285,7 @@ func TestUploadTree_RecreatesNestedDirectories(t *testing.T) {
 	client := newTestSFTP(t, root)
 
 	var last, total int64
-	if _, err := uploadTree(client, source, filepath.Join(root, "uploaded"), &byteCounter{
+	if _, err := uploadTree(context.Background(), client, source, filepath.Join(root, "uploaded"), &byteCounter{
 		total:    localTreeSize(source),
 		progress: func(done, size int64) { last, total = done, size },
 	}, 0); err != nil {
@@ -315,7 +317,7 @@ func TestDownloadTree_RecreatesNestedDirectories(t *testing.T) {
 	destination := filepath.Join(t.TempDir(), "copy")
 
 	var last, total int64
-	if _, err := downloadTree(client, filepath.Join(root, "shared"), destination, &byteCounter{
+	if _, err := downloadTree(context.Background(), client, filepath.Join(root, "shared"), destination, &byteCounter{
 		total:    remoteTreeSize(client, filepath.Join(root, "shared")),
 		progress: func(done, size int64) { last, total = done, size },
 	}, 0); err != nil {
@@ -361,5 +363,40 @@ func TestMkdirAll_CreatesNestedDirectories(t *testing.T) {
 	}
 	if info, err := os.Stat(filepath.Join(root, "a", "b", "c")); err != nil || !info.IsDir() {
 		t.Errorf("nested directory missing: %v", err)
+	}
+}
+
+func TestUploadFile_CancelledContext_StopsAndReportsIt(t *testing.T) {
+	root := t.TempDir()
+	local := filepath.Join(t.TempDir(), "payload.bin")
+	// A few megabytes so the copy cannot finish between two cancellation checks.
+	if err := os.WriteFile(local, make([]byte, 4<<20), 0o644); err != nil {
+		t.Fatalf("write local: %v", err)
+	}
+	client := newTestSFTP(t, root)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err := uploadFile(ctx, client, local, filepath.Join(root, "up.bin"), func(done, _ int64) {
+		cancel()
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error = %v, want context.Canceled", err)
+	}
+}
+
+func TestDownloadFile_CancelledContext_StopsAndReportsIt(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "big.bin"), make([]byte, 4<<20), 0o644); err != nil {
+		t.Fatalf("write remote: %v", err)
+	}
+	client := newTestSFTP(t, root)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err := downloadFile(ctx, client, filepath.Join(root, "big.bin"), filepath.Join(t.TempDir(), "out.bin"),
+		func(done, _ int64) { cancel() })
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error = %v, want context.Canceled", err)
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 )
 
 func TestFormatSize_RendersReadableUnits(t *testing.T) {
@@ -80,4 +81,37 @@ func TestRemoteBrowser_ProgressWithoutWidgets_DoesNotPanic(t *testing.T) {
 	browser.setProgress(1, 2)
 	browser.finishProgress()
 	browser.logf("info", "still alive")
+}
+
+func TestStopTransfer_WithoutRunningTransfer_DoesNothing(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	browser := &remoteBrowser{screen: newTestScreen(t, &fakeStore{}), status: widget.NewLabel("before")}
+	browser.stopTransfer()
+
+	if browser.status.Text != "before" {
+		t.Errorf("status = %q, want it untouched when nothing is running", browser.status.Text)
+	}
+}
+
+func TestStopTransfer_CancelsTheRunningCopy(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	browser := &remoteBrowser{screen: newTestScreen(t, &fakeStore{}), status: widget.NewLabel("")}
+	cancelled := false
+	browser.cancel = func() { cancelled = true }
+
+	browser.stopTransfer()
+
+	if !cancelled {
+		t.Fatal("stopTransfer did not call the cancel function")
+	}
+	if browser.cancel != nil {
+		t.Error("the cancel function was not cleared after stopping")
+	}
+	if !strings.Contains(browser.status.Text, "Stopping") {
+		t.Errorf("status = %q, want a stopping notice", browser.status.Text)
+	}
 }
