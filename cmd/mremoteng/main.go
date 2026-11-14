@@ -41,7 +41,7 @@ func main() {
 
 	ui.SetBuildLabel(fmt.Sprintf("%s (%s)", version, commit))
 	application := app.NewWithID("org.mremoteng.go")
-	application.Settings().SetTheme(ui.SoberTheme())
+	application.Settings().SetTheme(ui.SoberThemeForPreferences(application.Preferences()))
 	application.SetIcon(ui.AppIcon())
 	window := ui.NewWindow(application, profiles.NewStore(path))
 	window.Show()

@@ -115,7 +115,7 @@ func (s *screen) withDiscardGuard(action func()) {
 func (s *screen) selectFolder(uid string) {
 	s.selected = ""
 	s.selectedUID = uid
-	s.populate(profiles.Profile{Protocol: profiles.SSH, Port: profiles.DefaultPort(profiles.SSH)})
+	s.populate(s.newConnectionProfile())
 	s.setStatus(fmt.Sprintf("Folder %q groups connections whose Folder value is %q. Its contents are edited per connection.",
 		s.index.label(uid), s.index.folderPath(uid)))
 }
@@ -161,7 +161,7 @@ func (s *screen) resetEditor() {
 	s.suppressTree = true
 	s.tree.UnselectAll()
 	s.suppressTree = false
-	s.populate(profiles.Profile{Protocol: profiles.SSH, Port: profiles.DefaultPort(profiles.SSH)})
+	s.populate(s.newConnectionProfile())
 	s.setStatus("New connection: fill in the Config panel, then Save.")
 }
 

@@ -34,14 +34,36 @@ var (
 // and a restrained palette, so the dense tree and Config panel read as a tool.
 type soberTheme struct {
 	base fyne.Theme
+	// pinned, when set, replaces the variant the framework passes in. Fyne takes the
+	// light/dark choice from the desktop and offers no setting for it, so a user
+	// choice has to be honoured here.
+	pinned *fyne.ThemeVariant
 }
 
-// SoberTheme returns the application theme.
+// SoberTheme returns the application theme, following the desktop's variant.
 func SoberTheme() fyne.Theme {
 	return soberTheme{base: theme.DefaultTheme()}
 }
 
+// SoberThemeVariant returns the application theme pinned to "light" or "dark", and
+// the desktop-following one for anything else.
+func SoberThemeVariant(variant string) fyne.Theme {
+	themed := soberTheme{base: theme.DefaultTheme()}
+	switch variant {
+	case themeVariantLight:
+		pinned := theme.VariantLight
+		themed.pinned = &pinned
+	case themeVariantDark:
+		pinned := theme.VariantDark
+		themed.pinned = &pinned
+	}
+	return themed
+}
+
 func (t soberTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	if t.pinned != nil {
+		variant = *t.pinned
+	}
 	dark := variant != theme.VariantLight
 	switch name {
 	case theme.ColorNameBackground:

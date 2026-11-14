@@ -267,6 +267,8 @@ func (s *screen) menu() *fyne.MainMenu {
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Delete connection", s.requestDelete),
 		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Settings", s.requestSettings),
+		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Quit", s.closeRequested),
 	)
 	view := fyne.NewMenu("View",
