@@ -552,6 +552,30 @@
   - `internal/vault/vault.go`
   - `internal/vault/vault_test.go`
   - _2026-11-14 23:17:50 UTC — claude-code_
+- Restore the explicit inheritance copy and add an Effective benchmark
+
+  The reflection-based apply introduced in the previous refactor made Effective about 22 times slower (9 µs against 0.4 µs, 12 KB and 11 allocations per call at depth 5). The field-by-field copy is back, documented as deliberate, and BenchmarkEffective_Depth5 guards it; the reflection tests still check that every flag copies only its own field.
+
+  - `internal/connection/inheritance.go`
+  - `internal/connection/inheritance_bench_test.go`
+  - _2026-11-14 23:24:20 UTC — claude-code_
+- Stop drawing a background rectangle for every default-background terminal cell
+
+  Profiling the app with four live SSH sessions showed over 90% of CPU in Fyne's GL painter: every terminal cell carried a background colour, so each repaint issued one drawRectangle and glBufferData per cell (1920 on an 80x24 screen). Cells on the default background now carry no background, because the window already paints it. Measured with a throwaway harness that opened four real SSH sessions against an in-process server: a full-screen redraw cost about 7 ms of CPU before and about half that after, and four idle sessions use under 1% of a core.
+
+  - `internal/ui/terminal.go`
+  - `internal/ui/terminal_test.go`
+  - _2026-11-14 23:35:08 UTC — claude-code_
+- Skip drawing terminals whose tab is not selected
+
+  Every terminal refreshed its text grid on each chunk of output, including the ones in hidden tabs, which rebuilds canvas objects for a view nobody sees. A terminal is now paused while its tab is not the selected one: the emulator keeps consuming output, nothing is drawn, and the grid catches up once when the tab is shown. A terminal created in a hidden tab starts paused. Measured with four real SSH sessions redrawing at 10 Hz: the hidden three cost little, so the gain is modest there, but it no longer grows with the number of open tabs. The remaining cost is Fyne painting the visible terminal.
+
+  - `internal/ui/terminal.go`
+  - `internal/ui/terminal_test.go`
+  - `internal/ui/shell_tabs.go`
+  - `internal/ui/session.go`
+  - `internal/ui/sessions_test.go`
+  - _2026-11-14 23:40:04 UTC — claude-code_
 
 ## 2026-11-12
 

@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
+	sshclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/ssh"
 )
 
 // storeWithProfiles returns a fake store holding one profile per name.
@@ -142,5 +143,44 @@ func TestScreen_OtherSaves_KeepTheOpenTabs(t *testing.T) {
 
 	if len(store.openTabs) != 1 || store.openTabs[0] != saved[0].ID {
 		t.Errorf("open tabs after an unrelated save = %v, want the tab kept", store.openTabs)
+	}
+}
+
+func TestTabSelected_OnlyTheSelectedTabsTerminalDraws(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	first := sshPanelProfile(t, "one")
+	second := sshPanelProfile(t, "two")
+	s.openSessionTab(first)
+	s.openSessionTab(second)
+	for _, profile := range []profiles.Profile{first, second} {
+		panel := s.panels[profile.ID]
+		panel.startSession(&fakeShell{output: strings.NewReader("")}, sshclient.Result{})
+	}
+
+	s.tabs.Select(s.openTabs[first.ID])
+	if s.panels[first.ID].term.paused {
+		t.Error("the selected tab's terminal is paused")
+	}
+	if !s.panels[second.ID].term.paused {
+		t.Error("a hidden tab's terminal still draws")
+	}
+
+	s.tabs.Select(s.openTabs[second.ID])
+	if s.panels[second.ID].term.paused || !s.panels[first.ID].term.paused {
+		t.Error("switching tabs did not move the drawing to the new tab")
+	}
+}
+
+func TestStartSession_InAHiddenTab_StartsPaused(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	first := sshPanelProfile(t, "one")
+	second := sshPanelProfile(t, "two")
+	s.openSessionTab(first)
+	s.openSessionTab(second) // the second tab is now the selected one
+
+	s.panels[first.ID].startSession(&fakeShell{output: strings.NewReader("")}, sshclient.Result{})
+
+	if !s.panels[first.ID].term.paused {
+		t.Error("a terminal created in a hidden tab starts drawing")
 	}
 }

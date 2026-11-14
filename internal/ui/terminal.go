@@ -29,6 +29,13 @@ type termWidget struct {
 	cols     int
 	rows     int
 
+	// paused is set while the terminal's tab is not the selected one. Output
+	// still reaches the emulator, but nothing is drawn: a refresh of a hidden
+	// grid rebuilds its canvas objects for a view nobody sees. stale records
+	// that the screen changed meanwhile, so showing the tab draws it once.
+	paused bool
+	stale  bool
+
 	// Mouse selection: dragging highlights cells, and "copy screen" copies the
 	// selection when there is one.
 	selecting bool
@@ -349,6 +356,10 @@ func (t *termWidget) render() {
 	if t.grid == nil {
 		return
 	}
+	if t.paused {
+		t.stale = true
+		return
+	}
 	snapshot := t.emulator.Snapshot()
 	rows := make([]widget.TextGridRow, snapshot.Rows)
 	start := t.viewStart()
@@ -392,6 +403,16 @@ func (t *termWidget) render() {
 	}
 	t.grid.Rows = rows
 	t.grid.Refresh()
+}
+
+// setPaused stops drawing while the terminal is hidden and catches the view up
+// with the emulator when it is shown again.
+func (t *termWidget) setPaused(paused bool) {
+	t.paused = paused
+	if !paused && t.stale {
+		t.stale = false
+		t.render()
+	}
 }
 
 func (t *termWidget) style(fg, bg int32) widget.TextGridStyle {

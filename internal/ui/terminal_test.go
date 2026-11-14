@@ -456,3 +456,49 @@ func TestStyle_DefaultBackground_HasNoBackgroundRectangle(t *testing.T) {
 		t.Error("an explicit background colour was dropped")
 	}
 }
+
+// firstRowText is what the text grid currently shows on its first row.
+func firstRowText(term *termWidget) string {
+	if len(term.grid.Rows) == 0 {
+		return ""
+	}
+	var text []rune
+	for _, cell := range term.grid.Rows[0].Cells {
+		text = append(text, cell.Rune)
+	}
+	return strings.TrimSpace(string(text))
+}
+
+func TestTermWidget_Paused_KeepsTheEmulatorButSkipsTheDraw(t *testing.T) {
+	term := newTermWidget(20, 3, func([]byte) {}, nil)
+	term.CreateRenderer()
+
+	term.setPaused(true)
+	term.write([]byte("hidden"))
+
+	if got := firstRowText(term); got == "hidden" {
+		t.Fatal("a paused terminal redrew its grid")
+	}
+	if got := term.screenText(); !strings.Contains(got, "hidden") {
+		t.Fatalf("emulator text = %q, want the output kept while paused", got)
+	}
+
+	term.setPaused(false)
+	if got := firstRowText(term); got != "hidden" {
+		t.Fatalf("grid = %q after showing the terminal, want it caught up", got)
+	}
+}
+
+func TestTermWidget_ShownWithNothingMissed_DoesNotRedraw(t *testing.T) {
+	term := newTermWidget(20, 3, func([]byte) {}, nil)
+	term.CreateRenderer()
+	term.write([]byte("a"))
+	rows := term.grid.Rows
+
+	term.setPaused(true)
+	term.setPaused(false)
+
+	if len(rows) == 0 || &term.grid.Rows[0] != &rows[0] {
+		t.Error("an untouched terminal was rebuilt when its tab came back")
+	}
+}

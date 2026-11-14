@@ -12,6 +12,7 @@ import (
 // tabs share one X11 window, so an orphaned child would cover the whole app.
 func (s *screen) tabSelected(item *container.TabItem) {
 	s.applyEmbeddedVisibility(item)
+	s.applyTerminalVisibility(item)
 	for id, panel := range s.panels {
 		if s.openTabs[id] == item && panel.term != nil {
 			// The terminal of the selected tab owns the keyboard.
@@ -159,4 +160,34 @@ func (s *screen) restoreSessions() {
 		}
 	}
 	s.rememberSessions()
+}
+
+// applyTerminalVisibility draws the terminals of the selected tab only. Every
+// terminal keeps consuming its session's output; the hidden ones just skip the
+// repaint work until their tab comes back.
+func (s *screen) applyTerminalVisibility(selected *container.TabItem) {
+	for id := range s.panels {
+		hidden := s.openTabs[id] != selected
+		for _, panel := range s.tabPanels(id) {
+			if panel.term != nil {
+				panel.term.setPaused(hidden)
+			}
+		}
+	}
+}
+
+// panelShown reports whether the panel is in the selected tab. A panel that no
+// tab owns yet counts as shown, so a terminal never starts out frozen.
+func (s *screen) panelShown(panel *sessionPanel) bool {
+	if s.tabs == nil {
+		return true
+	}
+	for id := range s.panels {
+		for _, candidate := range s.tabPanels(id) {
+			if candidate == panel {
+				return s.openTabs[id] == s.tabs.Selected()
+			}
+		}
+	}
+	return true
 }

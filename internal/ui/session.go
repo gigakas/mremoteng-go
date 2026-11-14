@@ -526,6 +526,7 @@ func (p *sessionPanel) installTerminal() {
 
 // wireTerminal connects clipboard and interrupt actions to a terminal view.
 func (p *sessionPanel) wireTerminal(term *termWidget) {
+	term.paused = !p.screen.panelShown(p)
 	term.onCopy = func(text string) {
 		clipboard := p.screen.clipboard()
 		if clipboard == nil || text == "" {
