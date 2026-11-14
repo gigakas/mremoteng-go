@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -149,13 +150,13 @@ func sortEntries(entries []fileEntry) {
 // filePane is one side of the browser: a path bar, a list and the current
 // selection. It knows nothing about transfers, which the dialog orchestrates.
 type filePane struct {
-	source      fileSource
-	dir         string
-	entries     []fileEntry
-	selected    int
-	selectedRow *fileRow
-	order       sortKey
-	descending  bool
+	source     fileSource
+	dir        string
+	entries    []fileEntry
+	selected   map[int]bool
+	anchor     int
+	order      sortKey
+	descending bool
 
 	pathEntry     *widget.Entry
 	headerButtons map[sortKey]*widget.Button
@@ -164,15 +165,15 @@ type filePane struct {
 	status        *widget.Label
 	transferLabel string
 	onTransfer    func()
-	onSelect      func(fileEntry)
+	onSelect      func([]fileEntry)
 	onEnter       func(string)
 	onNewFolder   func()
-	onDelete      func(fileEntry)
+	onDelete      func([]fileEntry)
 }
 
 func newFilePane(source fileSource, transferLabel string) *filePane {
-	pane := &filePane{source: source, selected: -1, transferLabel: transferLabel,
-		headerButtons: map[sortKey]*widget.Button{}}
+	pane := &filePane{source: source, selected: map[int]bool{}, anchor: -1,
+		transferLabel: transferLabel, headerButtons: map[sortKey]*widget.Button{}}
 	pane.pathEntry = widget.NewEntry()
 	pane.pathEntry.OnSubmitted = func(text string) { pane.navigate(text) }
 	pane.status = widget.NewLabel("")
@@ -195,8 +196,8 @@ func (p *filePane) content() fyne.CanvasObject {
 				}
 			}),
 			widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {
-				if entry, ok := p.selection(); ok && p.onDelete != nil {
-					p.onDelete(entry)
+				if entries := p.selection(); len(entries) > 0 && p.onDelete != nil {
+					p.onDelete(entries)
 				}
 			}),
 			widget.NewButtonWithIcon(p.transferLabel, theme.NavigateNextIcon(), func() {
@@ -234,7 +235,8 @@ func (p *filePane) navigate(dir string) {
 	sortFileEntries(entries, p.order, p.descending)
 	p.dir = dir
 	p.entries = entries
-	p.selected = -1
+	p.selected = map[int]bool{}
+	p.anchor = -1
 	p.pathEntry.SetText(dir)
 	p.rebuildRows()
 	p.status.SetText(countLabel(len(entries), dir))
@@ -246,13 +248,16 @@ func (p *filePane) navigate(dir string) {
 // refresh re-lists the current directory, used after a transfer.
 func (p *filePane) refresh() { p.navigate(p.dir) }
 
-// selection returns the chosen entry, file or directory: a directory is a
-// transfer item too, because both directions copy trees recursively.
-func (p *filePane) selection() (fileEntry, bool) {
-	if p.selected < 0 || p.selected >= len(p.entries) {
-		return fileEntry{}, false
+// selection returns every chosen entry in listing order. Directories are transfer
+// items too, because both directions copy trees recursively.
+func (p *filePane) selection() []fileEntry {
+	chosen := make([]fileEntry, 0, len(p.selected))
+	for index, entry := range p.entries {
+		if p.selected[index] {
+			chosen = append(chosen, entry)
+		}
 	}
-	return p.entries[p.selected], true
+	return chosen
 }
 
 // sortKey is what the pane orders by within each group.
@@ -325,8 +330,8 @@ func (p *filePane) sortColumn(key sortKey) {
 		p.descending = defaultDescending(key)
 	}
 	sortFileEntries(p.entries, p.order, p.descending)
-	p.selected = -1
-	p.selectedRow = nil
+	p.selected = map[int]bool{}
+	p.anchor = -1
 	p.rebuildRows()
 	p.refreshHeader()
 	p.status.SetText(countLabel(len(p.entries), p.dir))
@@ -371,26 +376,56 @@ func (p *filePane) header() fyne.CanvasObject {
 // window, which showed icons without names.
 func (p *filePane) rebuildRows() {
 	p.rows.Objects = p.rows.Objects[:0]
-	p.selected = -1
-	p.selectedRow = nil
+	p.selected = map[int]bool{}
+	p.anchor = -1
 	for i, entry := range p.entries {
 		p.rows.Add(newFileRow(entry, i, p))
 	}
 	p.rows.Refresh()
 }
 
-// rowTapped selects one row and tells the dialog, which is what the transfer
-// buttons act on. Entering a directory is a double tap, so a folder can be
-// selected and seen as selected.
-func (p *filePane) rowTapped(row *fileRow) {
-	if p.selectedRow != nil && p.selectedRow != row {
-		p.selectedRow.setSelected(false)
+// selectIndex applies one click to the selection. A plain click selects only that
+// row, Shift extends from the anchor and Control or Super toggles the row, which
+// is the range behaviour every file manager has.
+func (p *filePane) selectIndex(index int, modifier fyne.KeyModifier) {
+	if index < 0 || index >= len(p.entries) {
+		return
 	}
-	p.selected = row.index
-	p.selectedRow = row
-	row.setSelected(true)
+	switch {
+	case modifier&fyne.KeyModifierShift != 0 && p.anchor >= 0:
+		p.selected = map[int]bool{}
+		low, high := p.anchor, index
+		if low > high {
+			low, high = high, low
+		}
+		for i := low; i <= high; i++ {
+			p.selected[i] = true
+		}
+	case modifier&(fyne.KeyModifierControl|fyne.KeyModifierSuper) != 0:
+		if p.selected[index] {
+			delete(p.selected, index)
+		} else {
+			p.selected[index] = true
+		}
+		p.anchor = index
+	default:
+		p.selected = map[int]bool{index: true}
+		p.anchor = index
+	}
+	p.paintSelection()
 	if p.onSelect != nil {
-		p.onSelect(row.entry)
+		p.onSelect(p.selection())
+	}
+}
+
+// paintSelection pushes the set into the rows so the highlight follows the click.
+func (p *filePane) paintSelection() {
+	for index, object := range p.rows.Objects {
+		row, ok := object.(*fileRow)
+		if !ok {
+			continue
+		}
+		row.setSelected(p.selected[index])
 	}
 }
 
@@ -498,11 +533,14 @@ func (r *fileRow) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(container.NewStack(r.back, body))
 }
 
-// Tapped selects the row.
-func (r *fileRow) Tapped(*fyne.PointEvent) {
-	if r.pane != nil {
-		r.pane.rowTapped(r)
+// MouseDown selects the row, carrying the modifier so Shift and Control work.
+// A plain click arrives here too, which is why the row no longer implements
+// Tapped: that would fire again without modifiers and undo a Ctrl click.
+func (r *fileRow) MouseDown(event *desktop.MouseEvent) {
+	if r.pane == nil || event.Button != desktop.MouseButtonPrimary {
+		return
 	}
+	r.pane.selectIndex(r.index, event.Modifier)
 }
 
 // DoubleTapped enters a directory.

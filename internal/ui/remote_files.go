@@ -138,14 +138,14 @@ func (b *remoteBrowser) show() {
 		nil, nil,
 		panes,
 	)
-	b.local.onSelect = func(entry fileEntry) { b.describeSelection("Local", entry) }
-	b.remote.onSelect = func(entry fileEntry) { b.describeSelection("Remote", entry) }
+	b.local.onSelect = func(entries []fileEntry) { b.describeSelection("Local", entries) }
+	b.remote.onSelect = func(entries []fileEntry) { b.describeSelection("Remote", entries) }
 	b.local.onTransfer = b.uploadSelected
 	b.remote.onTransfer = b.downloadSelected
 	b.local.onNewFolder = func() { b.createFolder(b.local, "Local") }
 	b.remote.onNewFolder = func() { b.createFolder(b.remote, "Remote") }
-	b.local.onDelete = func(entry fileEntry) { b.deleteEntry(b.local, entry, "Local") }
-	b.remote.onDelete = func(entry fileEntry) { b.deleteEntry(b.remote, entry, "Remote") }
+	b.local.onDelete = func(entries []fileEntry) { b.deleteEntries(b.local, entries, "Local") }
+	b.remote.onDelete = func(entries []fileEntry) { b.deleteEntries(b.remote, entries, "Remote") }
 
 	b.popup = b.screen.showModal(content, fyne.NewSize(1000, 620))
 	b.local.start()
@@ -155,28 +155,26 @@ func (b *remoteBrowser) show() {
 // uploadSelected copies the file selected on the left into the remote directory
 // shown on the right, keeping its name.
 func (b *remoteBrowser) uploadSelected() {
-	entry, ok := b.local.selection()
-	if !ok {
+	entries := b.local.selection()
+	if len(entries) == 0 {
 		b.status.SetText("Select a file or folder on the left to upload it.")
 		return
 	}
-	remotePath := sshclient.JoinRemote(b.remote.dir, entry.Name)
-	b.transfer("Uploading "+entry.Name, func(ctx context.Context, progress sshclient.TransferProgress) error {
-		return b.files.Upload(ctx, entry.Path, remotePath, progress)
+	b.transferMany("Uploading", entries, func(ctx context.Context, entry fileEntry, progress sshclient.TransferProgress) error {
+		return b.files.Upload(ctx, entry.Path, sshclient.JoinRemote(b.remote.dir, entry.Name), progress)
 	})
 }
 
 // downloadSelected copies the file selected on the right into the local
 // directory shown on the left, keeping its name.
 func (b *remoteBrowser) downloadSelected() {
-	entry, ok := b.remote.selection()
-	if !ok {
+	entries := b.remote.selection()
+	if len(entries) == 0 {
 		b.status.SetText("Select a file or folder on the right to download it.")
 		return
 	}
-	localPath := filepath.Join(b.local.dir, entry.Name)
-	b.transfer("Downloading "+entry.Name, func(ctx context.Context, progress sshclient.TransferProgress) error {
-		return b.files.Download(ctx, entry.Path, localPath, progress)
+	b.transferMany("Downloading", entries, func(ctx context.Context, entry fileEntry, progress sshclient.TransferProgress) error {
+		return b.files.Download(ctx, entry.Path, filepath.Join(b.local.dir, entry.Name), progress)
 	})
 }
 
@@ -244,27 +242,40 @@ func (b *remoteBrowser) createFolder(pane *filePane, side string) {
 	})
 }
 
-// deleteEntry confirms, then deletes the selected file or folder. A folder goes
-// with everything inside it, and the current directory is never a target.
-func (b *remoteBrowser) deleteEntry(pane *filePane, entry fileEntry, side string) {
-	if entry.Path == pane.dir {
+// deleteEntries confirms, then deletes the selected entries. A folder goes with
+// everything inside it, and the current directory is never a target.
+func (b *remoteBrowser) deleteEntries(pane *filePane, entries []fileEntry, side string) {
+	targets := make([]fileEntry, 0, len(entries))
+	folders := 0
+	for _, entry := range entries {
+		if entry.Path == pane.dir {
+			continue
+		}
+		if entry.IsDir {
+			folders++
+		}
+		targets = append(targets, entry)
+	}
+	if len(targets) == 0 {
 		b.status.SetText("That is the directory being shown; select an entry inside it.")
 		return
 	}
-	what := "file"
-	if entry.IsDir {
-		what = "folder and everything inside it"
+	what := fmt.Sprintf("%d item(s)", len(targets))
+	if folders > 0 {
+		what = fmt.Sprintf("%d item(s), including %d folder(s) that go with everything inside them", len(targets), folders)
 	}
-	b.screen.confirm("Delete "+side+" "+what+"?",
-		fmt.Sprintf("Delete %q (%s)? This cannot be undone.", entry.Name, what),
+	b.screen.confirm("Delete "+side+" selection?",
+		fmt.Sprintf("Delete %s? This cannot be undone.", what),
 		func() {
-			if err := pane.source.Remove(entry.Path); err != nil {
-				b.status.SetText("Could not delete: " + err.Error())
-				b.screen.setProblem("Could not delete " + side + " entry: " + err.Error())
-				return
+			for _, entry := range targets {
+				if err := pane.source.Remove(entry.Path); err != nil {
+					b.status.SetText("Could not delete " + entry.Name + ": " + err.Error())
+					b.screen.setProblem("Could not delete " + side + " entry: " + err.Error())
+					return
+				}
 			}
 			pane.refresh()
-			b.status.SetText("Deleted " + entry.Name + ".")
+			b.status.SetText(fmt.Sprintf("Deleted %d item(s).", len(targets)))
 		}, nil)
 }
 
@@ -283,6 +294,24 @@ func (b *remoteBrowser) startProgress(label string) {
 	b.status.SetText(label + " ...")
 	b.screen.setStatus(label + " ...")
 	b.logf("info", label+" started")
+}
+
+// transferMany copies every selected entry in order, reusing the single-transfer
+// machinery so the bar, the Stop button and the log behave the same. A cancel
+// stops the queue between entries as well as inside a file.
+func (b *remoteBrowser) transferMany(verb string, entries []fileEntry, copyOne func(context.Context, fileEntry, sshclient.TransferProgress) error) {
+	label := fmt.Sprintf("%s %d item(s)", verb, len(entries))
+	b.transfer(label, func(ctx context.Context, progress sshclient.TransferProgress) error {
+		for _, entry := range entries {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err := copyOne(ctx, entry, progress); err != nil {
+				return fmt.Errorf("%s: %w", entry.Name, err)
+			}
+		}
+		return nil
+	})
 }
 
 // stopTransfer cancels the running copy. The button is disabled when idle, so a
@@ -358,16 +387,27 @@ func progressText(label string, done, total int64) string {
 
 // describeSelection says what the transfer buttons would move, so a click on a
 // row is visibly a selection and not a silent no-op.
-func (b *remoteBrowser) describeSelection(side string, entry fileEntry) {
-	if entry.Name == "" {
+func (b *remoteBrowser) describeSelection(side string, entries []fileEntry) {
+	switch len(entries) {
+	case 0:
 		b.status.SetText("")
-		return
+	case 1:
+		entry := entries[0]
+		kind := formatSize(entry.Size)
+		if entry.IsDir {
+			kind = "folder, copied recursively"
+		}
+		b.status.SetText(fmt.Sprintf("%s selection: %s (%s)", side, entry.Name, kind))
+	default:
+		folders := 0
+		for _, entry := range entries {
+			if entry.IsDir {
+				folders++
+			}
+		}
+		b.status.SetText(fmt.Sprintf("%s selection: %d items (%d folder(s), %d file(s))",
+			side, len(entries), folders, len(entries)-folders))
 	}
-	kind := formatSize(entry.Size)
-	if entry.IsDir {
-		kind = "folder, copied recursively"
-	}
-	b.status.SetText(fmt.Sprintf("%s selection: %s (%s)", side, entry.Name, kind))
 }
 
 func (b *remoteBrowser) close() {

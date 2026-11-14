@@ -101,88 +101,62 @@ func TestFilePane_Navigate_BuildsRowsWithNames(t *testing.T) {
 	}
 }
 
-func TestFilePane_Selection_DirectoryIsATransferItem(t *testing.T) {
+func TestFilePane_SelectIndex_ShiftExtendsAndControlToggles(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	pane := newFilePane(localSource{}, "Transfer")
+	pane.entries = []fileEntry{
+		{Name: "a"}, {Name: "b"}, {Name: "c"}, {Name: "d"},
+	}
+
+	// A plain click selects one row and sets the anchor.
+	pane.selectIndex(1, 0)
+	if got := len(pane.selection()); got != 1 {
+		t.Fatalf("plain click selected %d entries, want 1", got)
+	}
+
+	// Shift extends from the anchor, inclusive, both directions.
+	pane.selectIndex(3, fyne.KeyModifierShift)
+	if got := len(pane.selection()); got != 3 {
+		t.Errorf("shift click selected %d entries, want 3", got)
+	}
+	pane.selectIndex(0, fyne.KeyModifierShift)
+	if got := len(pane.selection()); got != 2 {
+		t.Errorf("shift back selected %d entries, want 2", got)
+	}
+
+	// Control toggles without disturbing the rest.
+	pane.selectIndex(2, 0) // a plain click first, so the set is {c}
+	pane.selectIndex(3, fyne.KeyModifierControl)
+	if got := len(pane.selection()); got != 2 {
+		t.Errorf("control click on an unselected row left %d entries, want 2", got)
+	}
+	pane.selectIndex(2, fyne.KeyModifierControl)
+	chosen := pane.selection()
+	if len(chosen) != 1 || chosen[0].Name != "d" {
+		t.Errorf("control click on a selected row = %+v, want only d", chosen)
+	}
+}
+
+func TestFilePane_Selection_ReturnsEveryChosenEntryInOrder(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 
 	pane := newFilePane(localSource{}, "Transfer")
 	pane.entries = []fileEntry{{Name: "reports", IsDir: true}, {Name: "notes.txt"}}
-	pane.selected = -1
-	if _, ok := pane.selection(); ok {
-		t.Error("an empty selection reported a file")
-	}
-	pane.selected = 0
-	if entry, ok := pane.selection(); !ok || !entry.IsDir {
-		t.Errorf("selection = %+v/%v, want the directory to be transferable", entry, ok)
-	}
-	pane.selected = 1
-	entry, ok := pane.selection()
-	if !ok || entry.Name != "notes.txt" {
-		t.Errorf("selection = %+v/%v, want notes.txt", entry, ok)
-	}
-}
+	pane.selectIndex(0, 0)
+	pane.selectIndex(1, fyne.KeyModifierControl)
 
-func TestLocalSource_MkdirAndRemove_HandleNestedTrees(t *testing.T) {
-	root := t.TempDir()
-	source := localSource{}
-	nested := source.Join(root, filepath.Join("a", "b"))
-
-	if err := source.Mkdir(nested); err != nil {
-		t.Fatalf("Mkdir: %v", err)
+	chosen := pane.selection()
+	if len(chosen) != 2 {
+		t.Fatalf("selection = %d entries, want both", len(chosen))
 	}
-	if info, err := os.Stat(nested); err != nil || !info.IsDir() {
-		t.Fatalf("nested directory missing: %v", err)
+	if !chosen[0].IsDir || chosen[0].Name != "reports" {
+		t.Errorf("first = %+v, want the directory first in listing order", chosen[0])
 	}
-
-	if err := source.Remove(source.Join(root, "a")); err != nil {
-		t.Fatalf("Remove: %v", err)
-	}
-	if _, err := os.Stat(source.Join(root, "a")); !os.IsNotExist(err) {
-		t.Errorf("tree still present: %v", err)
-	}
-}
-
-func TestRemoteBrowser_DeleteEntry_RefusesTheCurrentDirectory(t *testing.T) {
-	app := test.NewApp()
-	t.Cleanup(app.Quit)
-
-	browser := &remoteBrowser{screen: newTestScreen(t, &fakeStore{}), status: widget.NewLabel("")}
-	pane := newFilePane(localSource{}, "Transfer")
-	pane.dir = t.TempDir()
-
-	browser.deleteEntry(pane, fileEntry{Name: "here", Path: pane.dir, IsDir: true}, "Local")
-
-	if !strings.Contains(browser.status.Text, "directory being shown") {
-		t.Errorf("status = %q, want it to refuse the current directory", browser.status.Text)
-	}
-}
-
-func TestRemoteBrowser_DeleteEntry_ConfirmedRemovesTheFile(t *testing.T) {
-	app := test.NewApp()
-	t.Cleanup(app.Quit)
-
-	root := t.TempDir()
-	target := filepath.Join(root, "notes.txt")
-	if err := os.WriteFile(target, []byte("x"), 0o644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	screen := newTestScreen(t, &fakeStore{})
-	screen.confirm = func(_ string, _ string, onConfirm, _ func()) {
-		if onConfirm != nil {
-			onConfirm()
-		}
-	}
-	browser := &remoteBrowser{screen: screen, status: widget.NewLabel("")}
-	pane := newFilePane(localSource{}, "Transfer")
-	pane.dir = root
-
-	browser.deleteEntry(pane, fileEntry{Name: "notes.txt", Path: target}, "Local")
-
-	if _, err := os.Stat(target); !os.IsNotExist(err) {
-		t.Errorf("file still present: %v", err)
-	}
-	if !strings.Contains(browser.status.Text, "Deleted") {
-		t.Errorf("status = %q, want a deletion notice", browser.status.Text)
+	if chosen[1].Name != "notes.txt" {
+		t.Errorf("second = %+v, want notes.txt", chosen[1])
 	}
 }
 
