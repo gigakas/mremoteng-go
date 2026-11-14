@@ -11,7 +11,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -91,8 +90,11 @@ type screen struct {
 	panels   map[string]*sessionPanel
 	// restoring is set while the previous run's tabs are reopened: the restore must
 	// not write back what it is reading.
-	restoring   bool
-	prefs       appPreferences
+	restoring bool
+	prefs     appPreferences
+	// modalDepth counts the open dialogs, so the embedded session windows stay
+	// hidden until the last one closes.
+	modalDepth  int
 	openShell   shellOpener
 	launchRDP   rdpLauncher
 	probeRDP    rdpProber
@@ -146,17 +148,7 @@ func newScreen(app fyne.App, store Store) *screen {
 		embedder:          embedX11,
 		propertiesVisible: false,
 	}
-	s.confirm = func(title, message string, onConfirm, onDecline func()) {
-		dialog.ShowConfirm(title, message, func(ok bool) {
-			if ok {
-				onConfirm()
-				return
-			}
-			if onDecline != nil {
-				onDecline()
-			}
-		}, s.win)
-	}
+	s.confirm = s.showConfirm
 	s.notice = s.showMessage
 	s.win.SetIcon(AppIcon())
 	s.win.SetContent(s.build())
@@ -299,10 +291,9 @@ func (s *screen) menu() *fyne.MainMenu {
 // tabSelected keeps an embedded RDP window visible only on its own tab; Fyne
 // tabs share one X11 window, so an orphaned child would cover the whole app.
 func (s *screen) tabSelected(item *container.TabItem) {
+	s.applyEmbeddedVisibility(item)
 	for id, panel := range s.panels {
-		visible := s.openTabs[id] == item
-		panel.setEmbeddedVisible(visible)
-		if visible && panel.term != nil {
+		if s.openTabs[id] == item && panel.term != nil {
 			// The terminal of the selected tab owns the keyboard.
 			panel.term.focus()
 		}
@@ -592,7 +583,9 @@ func (s *screen) showStoreLocation() {
 	if aware, ok := s.ws.store.(pathStore); ok {
 		path = aware.Path()
 	}
-	dialog.ShowInformation("Connection file", path, s.win)
+	// Our own dialog, not dialog.ShowInformation: an embedded session window would
+	// cover it.
+	s.showMessage("Connection file", path)
 }
 
 func (s *screen) showAbout() {

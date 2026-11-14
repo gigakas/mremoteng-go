@@ -359,6 +359,39 @@ func (p *sessionPanel) setEmbeddedVisible(visible bool) {
 	}
 }
 
+// setEmbeddedSessionsVisible maps or unmaps every embedded session window.
+//
+// An embedded session is a native X11 child window, so X draws it above everything
+// this process paints into the same window: a Fyne popup would open behind the
+// remote desktop and stay unreadable until the session was closed. A dialog hides
+// the sessions instead, and restoring means asking which one belongs to the selected
+// tab rather than mapping them all.
+func (s *screen) setEmbeddedSessionsVisible(visible bool) {
+	if !visible {
+		for _, panel := range s.allPanels() {
+			panel.setEmbeddedVisible(false)
+		}
+		return
+	}
+	s.refreshEmbeddedVisibility()
+}
+
+// refreshEmbeddedVisibility shows the embedded window of the selected tab only.
+func (s *screen) refreshEmbeddedVisibility() {
+	if s.tabs == nil {
+		return
+	}
+	s.applyEmbeddedVisibility(s.tabs.Selected())
+}
+
+// applyEmbeddedVisibility is the one rule both the tab switch and the dialog close
+// follow: an embedded session is visible exactly when its tab is the selected one.
+func (s *screen) applyEmbeddedVisibility(selected *container.TabItem) {
+	for id, panel := range s.panels {
+		panel.setEmbeddedVisible(s.openTabs[id] == selected)
+	}
+}
+
 // restoreConfig brings the Config panel back if this session hid it.
 func (p *sessionPanel) restoreConfig() {
 	if !p.hidConfig {

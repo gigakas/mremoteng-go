@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
+	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 	rdpclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/rdp"
 	"strings"
 	"testing"
@@ -360,5 +361,177 @@ func TestRDPFailureHint_PointsAtTheCause(t *testing.T) {
 		if got := rdpFailureHint(cause); !strings.Contains(got, want) {
 			t.Errorf("rdpFailureHint(%q) = %q, want it to mention %q", cause, got, want)
 		}
+	}
+}
+
+// embeddedRDPScreen opens an RDP tab whose embedded area is visible, which is what
+// the user has on screen while a dialog opens over a running session.
+func embeddedRDPScreen(t *testing.T) (*screen, *fakeArea) {
+	t.Helper()
+	s := newTestScreen(t, &fakeStore{})
+	profile := sampleProfile(t, "desk", "", string(profiles.RDP), "desk.example.com", 3389)
+	s.openSessionTab(profile)
+	panel := s.panels[profile.ID]
+	area := &fakeArea{id: 21}
+	panel.embedded = area
+	// Select does not fire again for the tab that is already selected, so apply the
+	// visibility rule the way the window does.
+	s.tabSelected(s.openTabs[profile.ID])
+	if !area.visible {
+		t.Fatal("the embedded area is not visible on its own tab")
+	}
+	return s, area
+}
+
+// TestShowModal_HidesTheEmbeddedSession is the reported bug: an embedded RDP session
+// is a native X11 window that X composites above the Fyne canvas, so every dialog
+// opened behind it and the only way to read one was to disconnect.
+func TestShowModal_HidesTheEmbeddedSession(t *testing.T) {
+	s, area := embeddedRDPScreen(t)
+
+	dialog := s.showModal(widget.NewLabel("settings"), fyne.NewSize(200, 120))
+
+	if area.visible {
+		t.Error("the embedded session stayed in front of the dialog")
+	}
+	dialog.Hide()
+	if !area.visible {
+		t.Error("the embedded session did not come back when the dialog closed")
+	}
+}
+
+// TestShowModal_NestedDialogs_KeepTheSessionHiddenUntilTheLastCloses covers a dialog
+// opened from a dialog: the session must not flash back between them.
+func TestShowModal_NestedDialogs_KeepTheSessionHiddenUntilTheLastCloses(t *testing.T) {
+	s, area := embeddedRDPScreen(t)
+
+	first := s.showModal(widget.NewLabel("first"), fyne.NewSize(200, 120))
+	second := s.showModal(widget.NewLabel("second"), fyne.NewSize(200, 120))
+	first.Hide()
+	if area.visible {
+		t.Error("the session came back while a second dialog was still open")
+	}
+	second.Hide()
+	if !area.visible {
+		t.Error("the session did not come back after the last dialog closed")
+	}
+}
+
+// TestModalHide_Repeated_IsIdempotent guards the shared Hide path: the depth counter
+// must not go negative and map a session nobody asked for.
+func TestModalHide_Repeated_IsIdempotent(t *testing.T) {
+	s, area := embeddedRDPScreen(t)
+
+	dialog := s.showModal(widget.NewLabel("once"), fyne.NewSize(200, 120))
+	dialog.Hide()
+	dialog.Hide()
+
+	if s.modalDepth != 0 {
+		t.Errorf("modal depth = %d, want 0", s.modalDepth)
+	}
+	if !area.visible {
+		t.Error("the session is hidden after the dialog closed")
+	}
+}
+
+// TestShowModal_OnlyRestoresTheSelectedTab keeps the tab rule after a dialog: a
+// session on a background tab must not be mapped when the dialog closes.
+func TestShowModal_OnlyRestoresTheSelectedTab(t *testing.T) {
+	s, area := embeddedRDPScreen(t)
+
+	dialog := s.showModal(widget.NewLabel("settings"), fyne.NewSize(200, 120))
+	s.tabs.Select(s.welcome)
+	dialog.Hide()
+
+	if area.visible {
+		t.Error("the session of a background tab was mapped when the dialog closed")
+	}
+}
+
+// TestShowConfirm_HidesTheEmbeddedSession covers the dialogs the app asks for most:
+// a confirmation drawn by Fyne's own dialog package would sit behind the session too,
+// so the confirm path goes through our modal as well.
+func TestShowConfirm_HidesTheEmbeddedSession(t *testing.T) {
+	s, area := embeddedRDPScreen(t)
+	answered := false
+
+	s.confirm("Delete connection?", "This cannot be undone.", func() { answered = true }, nil)
+	if area.visible {
+		t.Error("the session stayed in front of the confirmation")
+	}
+
+	// Answer the dialog the way the user does: find its Confirm button in the overlay
+	// and press it.
+	objects := map[fyne.CanvasObject]bool{}
+	for _, overlay := range s.win.Canvas().Overlays().List() {
+		collectObjects(overlay, objects)
+	}
+	var confirmButton *widget.Button
+	for object := range objects {
+		if button, ok := object.(*widget.Button); ok && button.Text == "Confirm" {
+			confirmButton = button
+		}
+	}
+	if confirmButton == nil {
+		t.Fatal("the confirmation has no Confirm button")
+	}
+	test.Tap(confirmButton)
+
+	if !answered {
+		t.Error("Confirm did not run the action")
+	}
+	if !area.visible {
+		t.Error("the session did not come back after the confirmation closed")
+	}
+}
+
+// TestShowConfirm_Declined_KeepsTheSessionBack covers the other button: cancelling
+// must not leave the remote desktop unmapped.
+func TestShowConfirm_Declined_KeepsTheSessionBack(t *testing.T) {
+	s, area := embeddedRDPScreen(t)
+	declined := false
+
+	s.confirm("Discard changes?", "They will be lost.", func() {}, func() { declined = true })
+
+	objects := map[fyne.CanvasObject]bool{}
+	for _, overlay := range s.win.Canvas().Overlays().List() {
+		collectObjects(overlay, objects)
+	}
+	var cancel *widget.Button
+	for object := range objects {
+		if button, ok := object.(*widget.Button); ok && button.Text == "Cancel" {
+			cancel = button
+		}
+	}
+	if cancel == nil {
+		t.Fatal("the confirmation has no Cancel button")
+	}
+	test.Tap(cancel)
+
+	if !declined {
+		t.Error("Cancel did not report the decline")
+	}
+	if !area.visible {
+		t.Error("the session stayed hidden after the confirmation was cancelled")
+	}
+}
+
+// TestModalGuard_RestoresOnce covers the bracket around Fyne's file chooser, which
+// reports a pick and a cancel through the same callback.
+func TestModalGuard_RestoresOnce(t *testing.T) {
+	s, area := embeddedRDPScreen(t)
+
+	end := s.modalGuard()
+	if area.visible {
+		t.Error("the chooser bracket did not hide the session")
+	}
+	end()
+	end()
+
+	if !area.visible {
+		t.Error("the session did not come back after the chooser closed")
+	}
+	if s.modalDepth != 0 {
+		t.Errorf("modal depth = %d, want 0", s.modalDepth)
 	}
 }

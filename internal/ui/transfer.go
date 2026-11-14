@@ -35,6 +35,9 @@ func (s *screen) requestImport() {
 		s.importBytes(reader.URI().Path(), data, "")
 	}, s.win)
 	picker.SetFilter(storage.NewExtensionFileFilter([]string{".xml", ".csv"}))
+	// Fyne's chooser draws into the canvas, so an embedded session window would cover
+	// it exactly like one of our own dialogs.
+	picker.SetOnClosed(s.modalGuard())
 	picker.Show()
 }
 
@@ -204,6 +207,7 @@ func (s *screen) saveExport(extension string, build func(password string) ([]byt
 		write("")
 	}, s.win)
 	saver.SetFileName("mremoteng-connections" + extension)
+	saver.SetOnClosed(s.modalGuard())
 	saver.Show()
 }
 
