@@ -402,7 +402,13 @@ func (t *termWidget) style(fg, bg int32) widget.TextGridStyle {
 	style := &widget.CustomTextGridStyle{
 		TextStyle: fyne.TextStyle{Monospace: true},
 		FGColor:   paletteColor(fg),
-		BGColor:   paletteColor(bg),
+	}
+	// A cell on the default background gets no background at all: the window
+	// already paints it, and Fyne draws one GL rectangle per styled background,
+	// so a full 80x24 screen cost 1920 rectangle draws per repaint (measured at
+	// about 8 ms of CPU for each full-screen update).
+	if bg != terminal.DefaultBG {
+		style.BGColor = paletteColor(bg)
 	}
 	t.styles[key] = style
 	return style

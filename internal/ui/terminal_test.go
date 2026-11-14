@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"github.com/mRemoteNG/mremoteng-go/internal/terminal"
 
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/test"
@@ -437,5 +438,21 @@ func TestSendKeySequenceToFocused_ReachesTheShell(t *testing.T) {
 
 	if string(stream.written) != "\x1b[Z" {
 		t.Errorf("written = %q, want the shift-tab sequence", stream.written)
+	}
+}
+
+func TestStyle_DefaultBackground_HasNoBackgroundRectangle(t *testing.T) {
+	term := newTermWidget(80, 24, func([]byte) {}, nil)
+	plain := term.style(terminal.DefaultFG, terminal.DefaultBG)
+	if bg := plain.BackgroundColor(); bg != nil {
+		t.Errorf("default background resolved to %v, want nil so Fyne draws no rectangle", bg)
+	}
+	inverse := term.style(terminal.DefaultBG, terminal.DefaultFG)
+	if inverse.BackgroundColor() == nil {
+		t.Error("an inverted cell lost its background, so selection and cursor would vanish")
+	}
+	coloured := term.style(terminal.DefaultFG, 1)
+	if coloured.BackgroundColor() == nil {
+		t.Error("an explicit background colour was dropped")
 	}
 }
