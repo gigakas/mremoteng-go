@@ -375,7 +375,7 @@ type fileRow struct {
 
 func newFileRow(entry fileEntry, index int, pane *filePane) *fileRow {
 	row := &fileRow{entry: entry, index: index, pane: pane}
-	row.icon = widget.NewIcon(theme.FileIcon())
+	row.icon = widget.NewIcon(fileIcon())
 	row.name = widget.NewLabel("")
 	// A long name truncates instead of running under the size and the date.
 	row.name.Truncation = fyne.TextTruncateEllipsis
@@ -389,14 +389,23 @@ func newFileRow(entry fileEntry, index int, pane *filePane) *fileRow {
 	return row
 }
 
+// folderIcon is the folder sample tinted with the accent colour, so a directory
+// is told apart from a file at a glance and not by reading the trailing slash.
+// Resolved per row, not as a package variable: the theme accessors need a running
+// Fyne application, and a package-level call logs an error before one exists.
+func folderIcon() fyne.Resource { return theme.NewPrimaryThemedResource(theme.FolderIcon()) }
+
+// fileIcon is the document sample in the normal foreground colour.
+func fileIcon() fyne.Resource { return theme.NewThemedResource(theme.FileIcon()) }
+
 // apply fills the row for entry.
 func (r *fileRow) apply(entry fileEntry) {
 	if entry.IsDir {
-		r.icon.SetResource(theme.FolderIcon())
+		r.icon.SetResource(folderIcon())
 		r.name.SetText(entry.Name + "/")
 		r.size.SetText("")
 	} else {
-		r.icon.SetResource(theme.FileIcon())
+		r.icon.SetResource(fileIcon())
 		r.name.SetText(entry.Name)
 		r.size.SetText(formatSize(entry.Size))
 	}
@@ -420,7 +429,7 @@ func (r *fileRow) setSelected(on bool) {
 // CreateRenderer lays the row out: icon, the name in the middle so it can
 // truncate, then size and date on the right.
 func (r *fileRow) CreateRenderer() fyne.WidgetRenderer {
-	iconBox := container.NewGridWrap(fyne.NewSize(18, 18), r.icon)
+	iconBox := container.NewGridWrap(fyne.NewSize(20, 20), r.icon)
 	tail := container.NewHBox(r.size, r.date)
 	body := container.NewBorder(nil, nil, container.NewCenter(iconBox),
 		container.NewPadded(tail), container.NewPadded(r.name))
@@ -443,7 +452,7 @@ func (r *fileRow) DoubleTapped(*fyne.PointEvent) {
 
 // MinSize keeps every row the same height regardless of its labels.
 func (r *fileRow) MinSize() fyne.Size {
-	return fyne.NewSize(120, 26)
+	return fyne.NewSize(120, 28)
 }
 
 // trimDir normalises a typed path without inventing one.

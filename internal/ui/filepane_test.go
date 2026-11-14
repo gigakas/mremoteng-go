@@ -241,3 +241,24 @@ func TestFilePane_ApplyOrder_ResortsWithoutRelisting(t *testing.T) {
 		t.Errorf("rows = %d, want one per entry", len(pane.rows.Objects))
 	}
 }
+
+func TestFileRow_Icons_DistinguishFoldersFromFiles(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	dirRow := newFileRow(fileEntry{Name: "reports", IsDir: true}, 0, nil)
+	fileRow := newFileRow(fileEntry{Name: "notes.txt"}, 1, nil)
+
+	if dirRow.icon.Resource == nil || fileRow.icon.Resource == nil {
+		t.Fatal("a row has no icon")
+	}
+	if dirRow.icon.Resource.Name() == fileRow.icon.Resource.Name() {
+		t.Error("folders and files show the same icon, so they cannot be told apart")
+	}
+	if !strings.Contains(dirRow.icon.Resource.Name(), "folder") {
+		t.Errorf("folder row icon = %q, want a folder sample", dirRow.icon.Resource.Name())
+	}
+	if !strings.Contains(fileRow.icon.Resource.Name(), "file") {
+		t.Errorf("file row icon = %q, want a document sample", fileRow.icon.Resource.Name())
+	}
+}
