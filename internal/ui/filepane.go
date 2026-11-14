@@ -164,15 +164,21 @@ func sortEntries(entries []fileEntry) {
 // filePane is one side of the browser: a path bar, a list and the current
 // selection. It knows nothing about transfers, which the dialog orchestrates.
 type filePane struct {
-	source     fileSource
-	dir        string
+	source fileSource
+	dir    string
+	// all is the directory as listed; entries is what the filter leaves visible.
+	// Keeping both means clearing the filter costs no second listing, which on the
+	// remote side would be another round trip.
+	all        []fileEntry
 	entries    []fileEntry
+	filterText string
 	selected   map[int]bool
 	anchor     int
 	order      sortKey
 	descending bool
 
 	pathEntry     *widget.Entry
+	filter        *widget.Entry
 	headerButtons map[sortKey]*widget.Button
 	headerBox     fyne.CanvasObject
 	rows          *fyne.Container
@@ -192,6 +198,9 @@ func newFilePane(source fileSource, transferLabel string) *filePane {
 		transferLabel: transferLabel, headerButtons: map[sortKey]*widget.Button{}}
 	pane.pathEntry = widget.NewEntry()
 	pane.pathEntry.OnSubmitted = func(text string) { pane.navigate(text) }
+	pane.filter = widget.NewEntry()
+	pane.filter.SetPlaceHolder("Filter by name")
+	pane.filter.OnChanged = pane.setFilter
 	pane.status = widget.NewLabel("")
 	pane.status.Importance = widget.LowImportance
 	pane.rows = container.NewVBox()
@@ -204,8 +213,12 @@ func (p *filePane) content() fyne.CanvasObject {
 	up := widget.NewButtonWithIcon("Up", theme.MoveUpIcon(), func() { p.navigate(p.source.Parent(p.dir)) })
 	open := widget.NewButton("Open", func() { p.navigate(p.pathEntry.Text) })
 	p.scroll = container.NewVScroll(p.rows)
+	// A typed filter has no native clear affordance, and an empty pane caused by a
+	// forgotten filter reads as an empty directory.
+	clear := widget.NewButton("Clear", func() { p.filter.SetText("") })
+	filterRow := container.NewBorder(nil, nil, nil, clear, p.filter)
 	return container.NewBorder(
-		container.NewVBox(heading, container.NewBorder(nil, nil, container.NewHBox(up, open), nil, p.pathEntry), p.header(), widget.NewSeparator()),
+		container.NewVBox(heading, container.NewBorder(nil, nil, container.NewHBox(up, open), nil, p.pathEntry), filterRow, p.header(), widget.NewSeparator()),
 		container.NewVBox(widget.NewSeparator(), p.status, container.NewHBox(
 			widget.NewButtonWithIcon("New folder", theme.ContentAddIcon(), func() {
 				if p.onNewFolder != nil {
@@ -256,12 +269,9 @@ func (p *filePane) navigate(dir string) {
 	}
 	sortFileEntries(entries, p.order, p.descending)
 	p.dir = dir
-	p.entries = entries
-	p.selected = map[int]bool{}
-	p.anchor = -1
+	p.all = entries
 	p.pathEntry.SetText(dir)
-	p.rebuildRows()
-	p.status.SetText(countLabel(len(entries), dir))
+	p.applyFilter()
 	if p.onEnter != nil {
 		p.onEnter(dir)
 	}
@@ -269,6 +279,42 @@ func (p *filePane) navigate(dir string) {
 
 // refresh re-lists the current directory, used after a transfer.
 func (p *filePane) refresh() { p.navigate(p.dir) }
+
+// setFilter keeps the entries whose name contains the text, ignoring case, and is
+// what the filter field calls on every keystroke.
+func (p *filePane) setFilter(text string) {
+	p.filterText = strings.TrimSpace(text)
+	p.applyFilter()
+}
+
+// applyFilter rebuilds the visible rows from the listed directory. The selection
+// is dropped because row indices move with the filter: a stale index would delete
+// or transfer the wrong entry.
+func (p *filePane) applyFilter() {
+	needle := strings.ToLower(p.filterText)
+	if needle == "" {
+		p.entries = append([]fileEntry(nil), p.all...)
+	} else {
+		visible := make([]fileEntry, 0, len(p.all))
+		for _, entry := range p.all {
+			if strings.Contains(strings.ToLower(entry.Name), needle) {
+				visible = append(visible, entry)
+			}
+		}
+		p.entries = visible
+	}
+	p.rebuildRows()
+	p.status.SetText(p.statusText())
+}
+
+// statusText describes the listing. A filter is named with its match count, so a
+// short list is never mistaken for the whole directory.
+func (p *filePane) statusText() string {
+	if p.filterText == "" {
+		return countLabel(len(p.entries), p.dir)
+	}
+	return fmt.Sprintf("%d of %d entries match %q in %s", len(p.entries), len(p.all), p.filterText, p.dir)
+}
 
 // selection returns every chosen entry in listing order. Directories are transfer
 // items too, because both directions copy trees recursively.
@@ -351,12 +397,9 @@ func (p *filePane) sortColumn(key sortKey) {
 		p.order = key
 		p.descending = defaultDescending(key)
 	}
-	sortFileEntries(p.entries, p.order, p.descending)
-	p.selected = map[int]bool{}
-	p.anchor = -1
-	p.rebuildRows()
+	sortFileEntries(p.all, p.order, p.descending)
+	p.applyFilter()
 	p.refreshHeader()
-	p.status.SetText(countLabel(len(p.entries), p.dir))
 }
 
 // refreshHeader marks the active column and its direction.

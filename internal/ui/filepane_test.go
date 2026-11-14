@@ -202,10 +202,13 @@ func TestFilePane_SortColumn_TogglesDirectionAndRefreshesHeader(t *testing.T) {
 	t.Cleanup(app.Quit)
 
 	pane := newFilePane(localSource{}, "Transfer")
-	pane.entries = []fileEntry{
+	// Sorting reorders the listing the directory produced, then re-applies the
+	// filter, so the listing is all and entries is what it leaves visible.
+	pane.all = []fileEntry{
 		{Name: "b.txt", Size: 10, Modified: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
 		{Name: "a.txt", Size: 900, Modified: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)},
 	}
+	pane.applyFilter()
 	pane.header()
 
 	pane.sortColumn(sortByDate)
@@ -434,5 +437,125 @@ func TestFilePane_ActionRow_OffersCreateRenameAndDelete(t *testing.T) {
 		if !found[want] {
 			t.Errorf("the pane has no %q button", want)
 		}
+	}
+}
+
+// filterPane lists a scratch directory with the given files (and one folder) and
+// returns the pane, ready to be filtered.
+func filterPane(t *testing.T, files ...string) (*filePane, string) {
+	t.Helper()
+	root := t.TempDir()
+	for _, name := range files {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("x"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	if err := os.Mkdir(filepath.Join(root, "reports"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	pane := newFilePane(localSource{}, "Transfer")
+	window := test.NewWindow(pane.content())
+	t.Cleanup(window.Close)
+	pane.navigate(root)
+	return pane, root
+}
+
+func TestFilePane_Filter_KeepsOnlyMatchingNamesIgnoringCase(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	pane, _ := filterPane(t, "notes.txt", "Notes-old.txt", "image.png")
+
+	pane.filter.SetText("NOTES")
+
+	if len(pane.all) != 4 || len(pane.entries) != 2 {
+		t.Fatalf("entries = %d of %d, want the two notes files", len(pane.entries), len(pane.all))
+	}
+	// "notes-old.txt" sorts before "notes.txt": the hyphen is below the dot.
+	if pane.entries[0].Name != "Notes-old.txt" || pane.entries[1].Name != "notes.txt" {
+		t.Errorf("filtered = %v, want the matches in listing order", pane.entries)
+	}
+	if got := len(pane.rows.Objects); got != 2 {
+		t.Errorf("rows = %d, want one per visible entry", got)
+	}
+	if !strings.Contains(pane.status.Text, `2 of 4 entries match "NOTES"`) {
+		t.Errorf("status = %q, want the match count and the filter", pane.status.Text)
+	}
+}
+
+func TestFilePane_Filter_ClearedRestoresTheWholeListing(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	pane, _ := filterPane(t, "notes.txt", "image.png")
+	pane.filter.SetText("notes")
+
+	pane.filter.SetText("")
+
+	if len(pane.entries) != len(pane.all) || len(pane.entries) != 3 {
+		t.Fatalf("entries = %d of %d, want the whole listing back", len(pane.entries), len(pane.all))
+	}
+	if strings.Contains(pane.status.Text, "match") {
+		t.Errorf("status = %q, want a plain count once the filter is clear", pane.status.Text)
+	}
+}
+
+func TestFilePane_Filter_DropsTheSelection(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	pane, _ := filterPane(t, "notes.txt", "image.png")
+	pane.selectIndex(0, 0)
+	if len(pane.selection()) != 1 {
+		t.Fatal("the row was not selected before filtering")
+	}
+
+	pane.filter.SetText("image")
+
+	// Row indices move with the filter, so keeping the old ones would rename or
+	// delete a different entry than the one that was highlighted.
+	if got := len(pane.selection()); got != 0 {
+		t.Errorf("selection after filtering = %d entries, want none", got)
+	}
+}
+
+func TestFilePane_Filter_AppliesToTheNextDirectory(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	pane, root := filterPane(t, "notes.txt", "image.png")
+	pane.filter.SetText("notes")
+	sub := filepath.Join(root, "reports")
+	if err := os.WriteFile(filepath.Join(sub, "notes-a.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "other.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	pane.navigate(sub)
+
+	if len(pane.all) != 2 || len(pane.entries) != 1 || pane.entries[0].Name != "notes-a.txt" {
+		t.Errorf("entries after navigating = %v of %v, want the filter kept", pane.entries, pane.all)
+	}
+}
+
+func TestFilePane_Sort_KeepsTheWholeListingInOrderAfterClearingTheFilter(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	pane, _ := filterPane(t, "beta.txt", "alpha.txt")
+	pane.filter.SetText("beta")
+
+	pane.sortColumn(sortByName)
+	pane.filter.SetText("")
+
+	names := make([]string, 0, len(pane.entries))
+	for _, entry := range pane.entries {
+		names = append(names, entry.Name)
+	}
+	// Asking for Name when Name already holds the order reverses it, so this is
+	// the descending order applied to the whole listing, not only to the matches.
+	want := []string{"reports", "beta.txt", "alpha.txt"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Errorf("order after sorting and clearing = %v, want %v", names, want)
+	}
+	if pane.order != sortByName || !pane.descending {
+		t.Errorf("order = %v descending = %v, want the column kept while the filter was cleared", pane.order, pane.descending)
 	}
 }

@@ -76,8 +76,9 @@ SSH is implemented in `internal/protocol/ssh` and exposed in the session tab:
   on Wayland/XWayland, so every wheel event zoomed instead of scrolling.
 - Remote files: the SFTP icon on an SSH session bar (and Tools > Remote files)
   opens a two-pane transfer window, local on the left and the remote host on the
-  right, each listing a directory with folder and file icons, sortable headers
-  and its own New folder/Rename/Delete and transfer button. Upload and download
+  right, each listing a directory with folder and file icons, a name filter that
+  reports how many entries match, sortable headers and its own
+  New folder/Rename/Delete and transfer button. Upload and download
   recurse into folders, show one aggregate progress bar in a log, and can be
   stopped. Rename works on one entry at a time and refuses a name that is already
   taken, on both sides, so a rename never replaces a file. It reuses the
