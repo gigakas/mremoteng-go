@@ -29,6 +29,8 @@ const (
 	RLOGIN Protocol = "RLOGIN"
 	// HTTP opens the address in the system browser.
 	HTTP Protocol = "HTTP"
+	// SERIAL opens a serial device as a terminal session.
+	SERIAL Protocol = "SERIAL"
 )
 
 var (
@@ -43,6 +45,7 @@ var (
 	ErrInvalidDrives    = errors.New("profile: a shared drive must be name:path without commas")
 	ErrInvalidGateway   = errors.New("profile: invalid RD Gateway settings")
 	ErrInvalidLayout    = errors.New("profile: invalid pane layout")
+	ErrInvalidSerial    = errors.New("profile: invalid serial line settings")
 	ErrInvalidID        = errors.New("profile: ID must not be empty")
 	ErrDuplicateID      = errors.New("profile: duplicate ID")
 	ErrUnsupportedStore = errors.New("profile store: unsupported schema version")
@@ -73,10 +76,48 @@ type Profile struct {
 	InheritUsername bool `json:"inherit_username,omitempty"`
 	InheritPort     bool `json:"inherit_port,omitempty"`
 
+	// Serial holds the line settings of a serial connection; the device path is the
+	// Host, because it is what the connection addresses.
+	Serial SerialOptions `json:"serial,omitempty"`
+
 	// RDP holds the settings the session is launched with. They are stored per
 	// connection so redirection, display and gateway choices survive a restart;
 	// a store file written before this block existed simply gets the defaults.
 	RDP RDPOptions `json:"rdp,omitempty"`
+}
+
+// SerialOptions are the line settings of a serial connection. Zero values mean
+// 9600 8N1, so an older store file loads with settings that work.
+type SerialOptions struct {
+	Baud     int    `json:"baud,omitempty"`
+	DataBits int    `json:"data_bits,omitempty"`
+	Parity   string `json:"parity,omitempty"`
+	StopBits int    `json:"stop_bits,omitempty"`
+}
+
+// Validate refuses line settings a serial port cannot use.
+func (o SerialOptions) Validate() error {
+	switch o.Baud {
+	case 0, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400:
+	default:
+		return fmt.Errorf("%w: %d baud", ErrInvalidSerial, o.Baud)
+	}
+	switch o.DataBits {
+	case 0, 5, 6, 7, 8:
+	default:
+		return fmt.Errorf("%w: %d data bits", ErrInvalidSerial, o.DataBits)
+	}
+	switch o.Parity {
+	case "", "none", "even", "odd", "mark", "space":
+	default:
+		return fmt.Errorf("%w: parity %q", ErrInvalidSerial, o.Parity)
+	}
+	switch o.StopBits {
+	case 0, 1, 2:
+	default:
+		return fmt.Errorf("%w: %d stop bits", ErrInvalidSerial, o.StopBits)
+	}
+	return nil
 }
 
 // RDPOptions are the per-connection RDP choices. False and empty values mean the
@@ -264,6 +305,9 @@ func DefaultPort(protocol Protocol) int {
 		return 513
 	case HTTP:
 		return 80
+	case SERIAL:
+		// A serial connection has no port; the line settings carry the device speed.
+		return 0
 	default:
 		return 0
 	}
@@ -280,7 +324,7 @@ func (p Profile) Validate() error {
 		return fmt.Errorf("%w: %q", ErrInvalidName, p.Name)
 	}
 	switch p.Protocol {
-	case SSH, RDP, VNC, TELNET, RAW, RLOGIN, HTTP:
+	case SSH, RDP, VNC, TELNET, RAW, RLOGIN, HTTP, SERIAL:
 	default:
 		return fmt.Errorf("%w: %q", ErrInvalidProtocol, p.Protocol)
 	}
@@ -288,6 +332,18 @@ func (p Profile) Validate() error {
 		return err
 	}
 	host := strings.TrimSpace(p.Host)
+	if p.Protocol == SERIAL {
+		// A serial connection addresses a device, so the host is a path rather than a
+		// name: /dev/ttyS0 is valid and "ttyS0" is not.
+		if host == "" {
+			return ErrMissingHost
+		}
+		if !strings.HasPrefix(host, "/") || hasControlRunes(host) || hasSpaceRunes(host) ||
+			strings.Contains(host, "..") || len(host) > maxHostLength {
+			return fmt.Errorf("%w: %q is not a device path", ErrInvalidHost, p.Host)
+		}
+		return p.Serial.Validate()
+	}
 	switch {
 	case host == "":
 		return ErrMissingHost

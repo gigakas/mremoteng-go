@@ -5,7 +5,6 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
-	telnetclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/telnet"
 	"strings"
 	"testing"
 )
@@ -353,7 +352,7 @@ func TestCopyTerminalScreen_PutsTextInClipboard(t *testing.T) {
 	s.clipboard = func() fyne.Clipboard { return clipboard }
 	stream := &fakeStream{}
 	panel := s.newSessionPanel(sampleProfile(t, "T", "", "TELNET", "t.example.com", 23))
-	panel.startStream(stream, telnetclient.ModeTelnet)
+	panel.startStream(stream, "telnet")
 	panel.term.write([]byte("copied text\r\n"))
 	panel.copyTerminalScreen()
 	if !strings.Contains(clipboard.content, "copied text") {

@@ -19,7 +19,7 @@ func TestSessionPanel_TelnetConnect_ShowsTerminalAndSendsInput(t *testing.T) {
 	profile := sampleProfile(t, "Router", "", "TELNET", "router.example.com", 23)
 	panel := s.newSessionPanel(profile)
 
-	panel.startStream(stream, telnetclient.ModeTelnet)
+	panel.startStream(stream, "telnet")
 	if gotMode != "" {
 		t.Fatal("dialer ran before startStream")
 	}

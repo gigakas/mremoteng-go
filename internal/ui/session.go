@@ -206,6 +206,9 @@ func (p *sessionPanel) connectionBar() fyne.CanvasObject {
 	if p.profile.Protocol == profiles.SSH {
 		buttons = append(buttons, p.sftp)
 	}
+	if p.profile.Protocol == profiles.SERIAL {
+		buttons = append(buttons, p.serialOptionsButton())
+	}
 	switch p.profile.Protocol {
 	case profiles.RDP:
 		buttons = append(buttons, p.rdpTest, p.rdpCert, p.rdpLegacy, p.rdpOptions, p.specialKeysButton())
@@ -606,6 +609,10 @@ func (p *sessionPanel) connectShell() {
 	}
 	if p.profile.Protocol == profiles.HTTP {
 		p.connectHTTP()
+		return
+	}
+	if p.profile.Protocol == profiles.SERIAL {
+		p.connectSerial()
 		return
 	}
 	if _, ok := streamMode(p.profile.Protocol); ok {

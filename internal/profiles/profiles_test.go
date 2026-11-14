@@ -621,3 +621,62 @@ func TestStore_Order_RoundTripsAndIsValidated(t *testing.T) {
 		}
 	}
 }
+
+func TestProfile_Serial_UsesADevicePathHostAndValidLineSettings(t *testing.T) {
+	profile := sampleProfile(t)
+	profile.Protocol = SERIAL
+	profile.Host = "/dev/ttyUSB0"
+	profile.Port = 0
+	profile.Serial = SerialOptions{Baud: 115200, DataBits: 8, Parity: "even", StopBits: 1}
+	if err := profile.Validate(); err != nil {
+		t.Fatalf("a valid serial connection was refused: %v", err)
+	}
+
+	for name, host := range map[string]string{
+		"bare name":    "ttyUSB0",
+		"traversal":    "/dev/../etc/passwd",
+		"with a space": "/dev/tty USB0",
+	} {
+		broken := profile
+		broken.Host = host
+		if err := broken.Validate(); err == nil {
+			t.Errorf("%s was accepted as a device", name)
+		}
+	}
+
+	for name, options := range map[string]SerialOptions{
+		"unknown baud": {Baud: 1234},
+		"nine bits":    {DataBits: 9},
+		"bad parity":   {Parity: "sometimes"},
+		"three stops":  {StopBits: 3},
+	} {
+		broken := profile
+		broken.Serial = options
+		if err := broken.Validate(); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+}
+
+func TestStore_SerialOptions_RoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles.json")
+	profile := sampleProfile(t)
+	profile.Protocol = SERIAL
+	profile.Host = "/dev/ttyS1"
+	profile.Port = 0
+	profile.Serial = SerialOptions{Baud: 19200, DataBits: 7, Parity: "odd", StopBits: 2}
+	if err := NewStore(path).Save(Document{Profiles: []Profile{profile}}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := loaded.Profiles[0].Serial; got.Baud != 19200 || got.DataBits != 7 || got.Parity != "odd" || got.StopBits != 2 {
+		t.Errorf("serial options = %+v, want them stored", got)
+	}
+	if DefaultPort(SERIAL) != 0 {
+		t.Error("a serial connection must not claim a network port")
+	}
+}

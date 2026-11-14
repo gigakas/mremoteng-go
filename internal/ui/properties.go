@@ -46,6 +46,7 @@ func newPropertiesPanel(s *screen) *propertiesPanel {
 	p.proto = widget.NewSelect([]string{
 		string(profiles.SSH), string(profiles.RDP), string(profiles.VNC),
 		string(profiles.TELNET), string(profiles.RAW), string(profiles.RLOGIN), string(profiles.HTTP),
+		string(profiles.SERIAL),
 	}, s.protocolChanged)
 	p.host = widget.NewEntry()
 	p.host.SetPlaceHolder("server.example.com")

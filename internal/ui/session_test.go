@@ -6,7 +6,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 	sshclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/ssh"
-	telnetclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/telnet"
 	"io"
 	"strings"
 	"testing"
@@ -160,7 +159,7 @@ func TestSessionPanel_Disconnect_ClearsTerminalContent(t *testing.T) {
 	s := newTestScreen(t, &fakeStore{})
 	stream := &fakeStream{}
 	panel := s.newSessionPanel(sampleProfile(t, "T", "", "TELNET", "t.example.com", 23))
-	panel.startStream(stream, telnetclient.ModeTelnet)
+	panel.startStream(stream, "telnet")
 	panel.term.write([]byte("old output\r\n"))
 	panel.disconnectShell()
 
@@ -183,7 +182,7 @@ func TestSessionPanel_Connect_FocusesTerminalForTyping(t *testing.T) {
 	for _, candidate := range s.panels {
 		panel = candidate
 	}
-	panel.startStream(stream, telnetclient.ModeTelnet)
+	panel.startStream(stream, "telnet")
 	if panel.term == nil {
 		t.Fatal("terminal not installed")
 	}

@@ -106,6 +106,7 @@ type screen struct {
 	probeRDP    rdpProber
 	dialVNC     vncDialer
 	dialStream  streamDialer
+	openSerial  serialOpener
 	openBrowser func(string) error
 	clipboard   func() fyne.Clipboard
 	vault       *vault.Vault
@@ -149,6 +150,7 @@ func newScreen(app fyne.App, store Store) *screen {
 		probeRDP:          rdpclient.Probe,
 		dialVNC:           defaultVNCDialer,
 		dialStream:        defaultStreamDialer,
+		openSerial:        defaultSerialOpener,
 		openBrowser:       openExternalBrowser,
 		clipboard:         app.Clipboard,
 		embedder:          embedX11,

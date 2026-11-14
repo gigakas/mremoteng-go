@@ -65,7 +65,7 @@ installer and tarball release.
 - **Depends on**: L7 needs a reachable RDP host for acceptance; embedding already
   works.
 
-## Stage L8 — Additional protocols — **partially done (2026-11-09)**: VNC client + view (`auditory/linux-l8-vnc-20261109-opencode.md`) and Telnet/RAW/rlogin + HTTP handoff (`auditory/linux-l8-streams-20261109-opencode.md`); embedded webview and serial pending.
+## Stage L8 — Additional protocols — **partially done (2026-11-09)**: VNC client + view (`auditory/linux-l8-vnc-20261109-opencode.md`) Telnet/RAW/rlogin + HTTP handoff (`auditory/linux-l8-streams-20261109-opencode.md`) and serial sessions over a raw termios port (`auditory/linux-l8-serial-20261114-mimocode.md`) done; the embedded webview is the only item left.
 
 - **Goal**: cover what mRemoteNG users actually connect to after RDP/SSH.
 - **Scope, in risk order**: VNC (existing Go client, fill auth/encoding gaps),

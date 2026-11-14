@@ -63,13 +63,13 @@ func (p *sessionPanel) connectStream() {
 				p.setProblem(string(mode) + " connection failed: " + err.Error())
 				return
 			}
-			p.startStream(session, mode)
+			p.startStream(session, string(mode))
 		})
 	}()
 }
 
 // startStream installs the terminal view over the byte stream.
-func (p *sessionPanel) startStream(session streamSession, mode telnetclient.Mode) {
+func (p *sessionPanel) startStream(session streamSession, label string) {
 	p.stream = session
 	p.term = newTermWidget(80, 24, func(data []byte) { _, _ = session.Write(data) }, nil)
 	// Same setup as an SSH terminal: clipboard, interrupt and zoom wiring, and
@@ -77,7 +77,7 @@ func (p *sessionPanel) startStream(session streamSession, mode telnetclient.Mode
 	p.wireTerminal(p.term)
 	p.installTerminal()
 	p.setConnected(true)
-	p.setStatus(string(mode) + " session with " + p.profile.Host + " connected. The terminal has no remote pty, so some full-screen programs may misbehave.")
+	p.setStatus(label + " session with " + p.profile.Host + " connected. The terminal has no remote pty, so some full-screen programs may misbehave.")
 	go p.readStream(session)
 }
 
