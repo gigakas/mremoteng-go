@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
+	github.com/pkg/sftp v1.13.12
 	golang.org/x/crypto v0.54.0
 )
 
@@ -18,7 +19,6 @@ require (
 	github.com/jsummers/gobmp v0.0.0-20230614200233-a9de23ed2e25 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
-	github.com/pkg/sftp v1.13.12 // indirect
 )
 
 require (

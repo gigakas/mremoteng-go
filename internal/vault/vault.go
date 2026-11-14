@@ -172,27 +172,41 @@ func (v *Vault) Save() error {
 	if v == nil || v.aead == nil {
 		return ErrLocked
 	}
+	encoded, err := v.encode()
+	if err != nil {
+		return err
+	}
+	return writeAtomically(v.path, encoded)
+}
+
+// encode seals the secrets under a fresh nonce and renders the vault file.
+func (v *Vault) encode() ([]byte, error) {
 	plaintext, err := json.Marshal(v.data)
 	if err != nil {
-		return fmt.Errorf("vault: encode secrets: %w", err)
+		return nil, fmt.Errorf("vault: encode secrets: %w", err)
 	}
 	nonce := randomBytes(v.aead.NonceSize())
 	ciphertext := v.aead.Seal(nil, nonce, plaintext, nil)
 	// The salt lives in the file; re-derive needs it, so keep it alongside.
-	salt := v.salt()
 	file := fileFormat{
 		Version:    version,
 		Algorithm:  algorithm,
 		Iterations: iterations,
-		Salt:       base64.StdEncoding.EncodeToString(salt),
+		Salt:       base64.StdEncoding.EncodeToString(v.salt()),
 		Nonce:      base64.StdEncoding.EncodeToString(nonce),
 		Payload:    base64.StdEncoding.EncodeToString(ciphertext),
 	}
 	encoded, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
-		return fmt.Errorf("vault: encode file: %w", err)
+		return nil, fmt.Errorf("vault: encode file: %w", err)
 	}
-	dir := filepath.Dir(v.path)
+	return append(encoded, '\n'), nil
+}
+
+// writeAtomically replaces path with data through an owner-only temporary file
+// in the same directory.
+func writeAtomically(path string, data []byte) error {
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("vault: create %s: %w", dir, err)
 	}
@@ -201,23 +215,24 @@ func (v *Vault) Save() error {
 		return fmt.Errorf("vault: temporary file: %w", err)
 	}
 	name := temp.Name()
+	// Cleanup after a failed write; the successful path renamed the file away.
 	defer func() { _ = os.Remove(name) }()
 	if err := temp.Chmod(0o600); err != nil {
-		_ = temp.Close()
+		_ = temp.Close() // the permissions error is the one worth reporting
 		return fmt.Errorf("vault: permissions: %w", err)
 	}
-	if _, err := temp.Write(append(encoded, '\n')); err != nil {
-		_ = temp.Close()
+	if _, err := temp.Write(data); err != nil {
+		_ = temp.Close() // the write error is the one worth reporting
 		return fmt.Errorf("vault: write: %w", err)
 	}
 	if err := temp.Sync(); err != nil {
-		_ = temp.Close()
+		_ = temp.Close() // the sync error is the one worth reporting
 		return fmt.Errorf("vault: sync: %w", err)
 	}
 	if err := temp.Close(); err != nil {
 		return fmt.Errorf("vault: close: %w", err)
 	}
-	if err := os.Rename(name, v.path); err != nil {
+	if err := os.Rename(name, path); err != nil {
 		return fmt.Errorf("vault: replace: %w", err)
 	}
 	return nil
