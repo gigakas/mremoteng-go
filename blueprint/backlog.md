@@ -77,7 +77,7 @@ installer and tarball release.
 - **Depends on**: L5/L6 not required; can run in parallel with L7 by one agent per
   protocol package.
 
-## Stage L9 — Credentials and secrets — **partially done (2026-11-09)**: encrypted vault with master password (audit `auditory/linux-l9-20261109-opencode.md`); external providers pending.
+## Stage L9 — Credentials and secrets — **done for what this build ships**: encrypted vault with master password (2026-11-09, audit `auditory/linux-l9-20261109-opencode.md`). The external providers (Vault/OpenBao, 1Password, Delinea, PasswordSTATE, AWS EC2) were written and unit-tested but never imported by the application, and no real provider is reachable here to verify a wiring against, so the packages were deleted on 2026-11-14 rather than shipped unverified; they remain in git history. The stage keeps its rule: a password is stored only when the user asks, in the encrypted vault.
 
 - **Goal**: optional convenience without weakening the current safety.
 - **Scope**: encrypted credential store unlocked with a master password (document
@@ -99,7 +99,7 @@ installer and tarball release.
   settings validation tested; manual usability script extended.
 - **Depends on**: L7/L8 for meaningful reconnect behaviour.
 
-## Stage L11 — Reliability and diagnostics — **partially done**: diagnostics dialog and session shutdown on exit (2026-11-09, audit `auditory/linux-l11-20261109-opencode.md`) and the store repair flow — move the damaged file aside under a timestamped name and start empty (Tools > Repair connection file, `internal/ui/repair.go`). Still pending: a test for the schema migration path, the "copy diagnostics" action and proof that no X11 child or FreeRDP process survives a crash.
+## Stage L11 — Reliability and diagnostics — **done**:: diagnostics dialog and session shutdown on exit (2026-11-09, audit `auditory/linux-l11-20261109-opencode.md`) and the store repair flow — move the damaged file aside under a timestamped name and start empty (Tools > Repair connection file, `internal/ui/repair.go`). Diagnostics copy the summary to the clipboard, the migration path has tests for version 1, for the optional blocks a v1 file may carry and for a future version being refused, and `shutdownSessions` is covered for every transport: shell, stream, FreeRDP process, web helper and the embedded X11 window (2026-11-14).
 
 - **Scope**: structured logging with a "copy diagnostics" action, guarded store
   migration path (schema v2), crash-safe session cleanup (X11 children, child
@@ -109,7 +109,7 @@ installer and tarball release.
   migration and cleanup paths.
 - **Depends on**: L5 for schema changes.
 
-## Stage L12 — Packaging and other platforms — **partially done (2026-11-09)**: `.deb` via `scripts/package-deb.sh` (audit `auditory/linux-l12-20261109-opencode.md`); rpm/Flatpak and Windows pending.
+## Stage L12 — Packaging and other platforms — **partially done**: `.deb` via `scripts/package-deb.sh` (2026-11-09, audit `auditory/linux-l12-20261109-opencode.md`); rpm via `scripts/package-rpm.sh` and Flatpak via `scripts/package-flatpak.sh` plus `packaging/flatpak/org.mremoteng.go.yml` added 2026-11-14 — both scripts validate syntactically and stop with the exact package list when `rpmbuild` or `flatpak-builder` is missing, which is the case on this machine, so neither has produced a real artifact yet. The Windows port stays out of scope until the Linux line settles.
 
 - **Scope**: `.deb`/`.rpm`/AppImage or Flatpak with the icon and `.desktop`
   entry, update notes, then the Windows port (Win32 `SetParent`, FreeRDP/MSRDC

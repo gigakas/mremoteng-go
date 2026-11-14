@@ -1,0 +1,34 @@
+# Flatpak manifest for the Linux preview.
+#
+# The application and its WebKit helper are taken from the release tarball, so a Flatpak
+# build needs `scripts/release.sh` to have run first; there is no network download here.
+# The helper is a separate binary because it links GTK and WebKit, which the application
+# itself deliberately does not.
+app-id: org.mremoteng.go
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: mremoteng
+finish-args:
+  # Sessions: network for SSH/RDP/VNC/Telnet/HTTP, X11 for the embedded RDP window.
+  - --share=network
+  - --socket=x11
+  - --socket=wayland
+  # The profile store and the Fyne preferences live in the user's config directory.
+  - --filesystem=xdg-config/mremoteng-go:create
+  # SSH agent and known_hosts for key authentication and host-key checks.
+  - --filesystem=xdg-run/ssh-auth:ro
+  - --filesystem=~/.ssh:ro
+  # FreeRDP and the WebKit helper are desktop integrations.
+  - --talk-name=org.freedesktop.portal.Desktop
+modules:
+  - name: mremoteng-go
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 mremoteng /app/bin/mremoteng
+      - install -Dm755 mremoteng-webview /app/bin/mremoteng-webview
+      - install -Dm644 mremoteng-go.desktop /app/share/applications/mremoteng-go.desktop
+      - install -Dm644 icons/mremoteng-go.svg /app/share/icons/hicolor/scalable/apps/mremoteng-go.svg
+    sources:
+      - type: dir
+        path: ../../dist/mremoteng-go-PLACEHOLDER
