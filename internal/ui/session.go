@@ -208,7 +208,7 @@ func (p *sessionPanel) connectionBar() fyne.CanvasObject {
 	}
 	switch p.profile.Protocol {
 	case profiles.RDP:
-		buttons = append(buttons, p.rdpTest, p.rdpCert, p.rdpLegacy, p.rdpOptions)
+		buttons = append(buttons, p.rdpTest, p.rdpCert, p.rdpLegacy, p.rdpOptions, p.specialKeysButton())
 	default:
 		buttons = append(buttons, p.copyScreen, p.ctrlC, p.ctrlD)
 		if splittable(p.profile.Protocol) {
@@ -245,9 +245,17 @@ func (p *sessionPanel) connectRDP() {
 	p.setConnecting("Starting FreeRDP for " + p.profile.Host + gatewaySummary(options.Gateway) + " ...")
 	target := p.rdpTarget()
 	options.Password = p.passwordFor()
-	area, embedErr := p.embedSession()
-	if area != nil {
-		options.ParentWindowID = area.ID()
+	var area embeddedArea
+	var embedErr error
+	if options.MultiMonitor {
+		// A session spanning several monitors needs FreeRDP's own window: an embedded
+		// one is confined to the tab, which is the opposite of what the flag asks for.
+		embedErr = errors.New("a multi-monitor session opens in its own window")
+	} else {
+		area, embedErr = p.embedSession()
+		if area != nil {
+			options.ParentWindowID = area.ID()
+		}
 	}
 	go func() {
 		session, err := p.screen.launchRDP(target, options)

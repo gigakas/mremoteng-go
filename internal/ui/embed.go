@@ -11,6 +11,7 @@ import (
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
+	"github.com/BurntSushi/xgb/xtest"
 )
 
 // embeddedArea is an X11 window placed inside the application window; FreeRDP
@@ -20,6 +21,9 @@ type embeddedArea interface {
 	ID() uint64
 	// SetVisible maps or unmaps the area so a session never covers other tabs.
 	SetVisible(visible bool)
+	// SendKeys types a key combination into the session, which is the only way to
+	// deliver chords the local desktop or the X server would otherwise intercept.
+	SendKeys(keysyms []uint32) error
 	// Destroy removes the window and stops tracking geometry.
 	Destroy()
 }
@@ -253,6 +257,79 @@ func (a *x11Area) SetVisible(visible bool) {
 		_ = xproto.UnmapWindowChecked(a.conn, a.window).Check()
 	}
 	a.conn.Sync()
+}
+
+// X core event codes for the fake input requests; the xtest package takes them as
+// plain bytes and exports no constants.
+const (
+	xKeyPress   byte = 2
+	xKeyRelease byte = 3
+)
+
+// SendKeys types a chord into the session: focus goes to the session window and the
+// events are faked with XTEST, because a synthetic XSendEvent is ignored by most
+// toolkits and the whole point of the feature is a chord the local desktop would
+// otherwise swallow.
+func (a *x11Area) SendKeys(keysyms []uint32) error {
+	if len(keysyms) == 0 {
+		return errors.New("ui: no keys to send")
+	}
+	if err := xtest.Init(a.conn); err != nil {
+		return fmt.Errorf("ui: the X server has no XTEST extension: %w", err)
+	}
+	keycodes, err := a.lookupKeycodes(keysyms)
+	if err != nil {
+		return err
+	}
+	if err := xproto.SetInputFocusChecked(a.conn, xproto.InputFocusParent, a.window, xproto.Timestamp(0)).Check(); err != nil {
+		return fmt.Errorf("ui: focus the session window: %w", err)
+	}
+	for _, keycode := range keycodes {
+		xtest.FakeInput(a.conn, xKeyPress, byte(keycode), 0, a.window, 0, 0, 0)
+	}
+	// Release in reverse: a chord is modifiers first, and letting go of a modifier
+	// before the key it modifies turns the chord into a plain keypress.
+	for index := len(keycodes) - 1; index >= 0; index-- {
+		xtest.FakeInput(a.conn, xKeyRelease, byte(keycodes[index]), 0, a.window, 0, 0, 0)
+	}
+	a.conn.Sync()
+	return nil
+}
+
+// lookupKeycodes maps keysyms to the keycodes of this keyboard.
+func (a *x11Area) lookupKeycodes(keysyms []uint32) ([]xproto.Keycode, error) {
+	setup := xproto.Setup(a.conn)
+	first := setup.MinKeycode
+	count := byte(setup.MaxKeycode - setup.MinKeycode + 1)
+	reply, err := xproto.GetKeyboardMapping(a.conn, first, count).Reply()
+	if err != nil {
+		return nil, fmt.Errorf("ui: read the keyboard mapping: %w", err)
+	}
+	keycodes := make([]xproto.Keycode, 0, len(keysyms))
+	for _, keysym := range keysyms {
+		keycode, known := keycodeForKeysym(reply.Keysyms, int(reply.KeysymsPerKeycode), first, keysym)
+		if !known {
+			return nil, fmt.Errorf("ui: this keyboard cannot send keysym 0x%x", keysym)
+		}
+		keycodes = append(keycodes, keycode)
+	}
+	return keycodes, nil
+}
+
+// keycodeForKeysym scans the keyboard mapping for the first keycode that carries the
+// keysym, so a chord works on any layout instead of hardcoding US keycodes.
+func keycodeForKeysym(keysyms []xproto.Keysym, perKeycode int, first xproto.Keycode, want uint32) (xproto.Keycode, bool) {
+	if perKeycode <= 0 {
+		return 0, false
+	}
+	for index := 0; index*perKeycode < len(keysyms); index++ {
+		for slot := 0; slot < perKeycode; slot++ {
+			if uint32(keysyms[index*perKeycode+slot]) == want {
+				return first + xproto.Keycode(index), true
+			}
+		}
+	}
+	return 0, false
 }
 
 func (a *x11Area) Destroy() {

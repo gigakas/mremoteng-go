@@ -285,6 +285,9 @@ func (s *screen) menu() *fyne.MainMenu {
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Toggle Config panel", s.toggleProperties),
 		fyne.NewMenuItem("Notifications", s.toggleNotifications),
+		fyne.NewMenuItemSeparator(),
+		s.fullScreenItem(),
+		s.specialKeysItem(),
 	)
 	tools := fyne.NewMenu("Tools",
 		fyne.NewMenuItem("Remote files (SFTP)", s.requestRemoteFiles),
@@ -767,4 +770,42 @@ func samePaneLayout(left, right profiles.PaneLayout) bool {
 		return false
 	}
 	return true
+}
+
+// fullScreenItem toggles the window and reports its state, which is the only way back
+// out of a full-screen session if the desktop hides its own controls.
+func (s *screen) fullScreenItem() *fyne.MenuItem {
+	item := fyne.NewMenuItem("Full screen", s.toggleFullScreen)
+	if s.win != nil {
+		item.Checked = s.win.FullScreen()
+	}
+	return item
+}
+
+// toggleFullScreen grows the window to the screen and back. The embedded session
+// follows through its geometry poll, so the remote desktop keeps filling the tab.
+func (s *screen) toggleFullScreen() {
+	if s.win == nil {
+		return
+	}
+	full := !s.win.FullScreen()
+	s.win.SetFullScreen(full)
+	if full {
+		s.setStatus("Full screen. View > Full screen returns to the window.")
+		return
+	}
+	s.setStatus("Left full screen.")
+}
+
+// specialKeysItem lists the chords the local desktop would swallow. They act on the
+// selected tab, because a menu entry has no row to point at.
+func (s *screen) specialKeysItem() *fyne.MenuItem {
+	parent := fyne.NewMenuItem("Send keys", nil)
+	items := make([]*fyne.MenuItem, 0, len(specialChords))
+	for _, chord := range specialChords {
+		chord := chord
+		items = append(items, fyne.NewMenuItem(chord.Label, func() { s.sendChordToSelected(chord) }))
+	}
+	parent.ChildMenu = fyne.NewMenu("Send keys", items...)
+	return parent
 }

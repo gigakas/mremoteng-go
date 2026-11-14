@@ -52,7 +52,7 @@ installer and tarball release.
   profiles.
 - **Depends on**: L5 for imported data to be meaningful; decide the data model first.
 
-## Stage L7 — RDP parity — **partially done**: redirection/display flags and options popup (2026-11-09, audit `auditory/linux-l7-20261109-opencode.md`); RD Gateway rewritten to the combined `/gateway:` form the installed client accepts and exposed in the options dialog (2026-11-14, audit `auditory/linux-l7-gateway-20261114-mimocode.md`); per-profile option storage and the failure report for immediate exits added (2026-11-14, audit `auditory/linux-l7-options-20261114-mimocode.md`); "send special keys", fullscreen and multi-monitor acceptance on a real host still pending.
+## Stage L7 — RDP parity — **partially done**: redirection/display flags and options popup (2026-11-09, audit `auditory/linux-l7-20261109-opencode.md`); RD Gateway rewritten to the combined `/gateway:` form the installed client accepts and exposed in the options dialog (2026-11-14, audit `auditory/linux-l7-gateway-20261114-mimocode.md`); per-profile option storage and the failure report for immediate exits added (2026-11-14, audit `auditory/linux-l7-options-20261114-mimocode.md`); special keys (XTEST), full screen and multi-monitor as a non-embedded session added (2026-11-14, audit `auditory/linux-l7-keys-fullscreen-20261114-mimocode.md`); only the human checks with a second monitor and an interactive host remain.
 
 - **Goal**: make embedded RDP usable for daily work.
 - **Scope**: clipboard redirection, drive/printer/audio redirection, fullscreen

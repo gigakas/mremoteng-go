@@ -162,6 +162,7 @@ var welcomeHelp = []welcomeHelpRow{
 	{theme.CancelIcon, "Disconnect", "End the session and a split pane; asks for the last one."},
 	{theme.FolderIcon, "SFTP", "Browse and transfer files on an SSH session."},
 	{theme.SearchIcon, "Test", "Check RDP credentials only."},
+	{theme.ComputerIcon, "Special keys", "Send Ctrl+Alt+Del to the remote desktop."},
 	{theme.CheckButtonCheckedIcon, "Ignore cert", "Accept a self-signed certificate."},
 	{theme.CheckButtonCheckedIcon, "Legacy TLS", "Use legacy RDP security."},
 	{theme.SettingsIcon, "RDP options", "Redirection, resolution, audio."},

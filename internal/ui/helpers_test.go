@@ -103,6 +103,17 @@ type fakeArea struct {
 	id        uint64
 	destroyed bool
 	visible   bool
+	// sent records the chords typed into the session, newest last.
+	sent [][]uint32
+	fail error
+}
+
+func (f *fakeArea) SendKeys(keysyms []uint32) error {
+	if f.fail != nil {
+		return f.fail
+	}
+	f.sent = append(f.sent, append([]uint32(nil), keysyms...))
+	return nil
 }
 
 // copyLayouts clones a layout map, so a test store and the window never share one.
