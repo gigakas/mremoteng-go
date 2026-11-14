@@ -188,10 +188,37 @@ func layoutOf(node *paneNode) *profiles.PaneLayout {
 	if node == nil || (node.panel != nil && node.a == nil) {
 		return nil
 	}
-	layout := &profiles.PaneLayout{Split: true, SideBySide: node.sideBySide}
+	layout := &profiles.PaneLayout{Split: true, SideBySide: node.sideBySide, Offset: node.splitOffset()}
 	layout.A = layoutOrLeaf(node.a)
 	layout.B = layoutOrLeaf(node.b)
 	return layout
+}
+
+// defaultSplitOffset is where a fresh split puts its divider.
+const defaultSplitOffset = 0.5
+
+// splitOffset reads where the user left the divider, so a restored tab looks like the
+// one that was saved instead of snapping back to half.
+func (n *paneNode) splitOffset() float64 {
+	if n == nil || n.view == nil || len(n.view.Objects) == 0 {
+		return 0
+	}
+	split, ok := n.view.Objects[0].(*container.Split)
+	if !ok || split.Offset <= 0 || split.Offset >= 1 || split.Offset == defaultSplitOffset {
+		// The half is the default, so storing it would be noise in every divided tab.
+		return 0
+	}
+	return split.Offset
+}
+
+// applySplitOffset puts a stored divider back where it was.
+func (n *paneNode) applySplitOffset(offset float64) {
+	if n == nil || n.view == nil || len(n.view.Objects) == 0 || offset <= 0 || offset >= 1 {
+		return
+	}
+	if split, ok := n.view.Objects[0].(*container.Split); ok {
+		split.SetOffset(offset)
+	}
 }
 
 // layoutOrLeaf keeps a child subtree, defaulting to a leaf so a half-built tree can
@@ -223,6 +250,8 @@ func (s *screen) growPanes(panel *sessionPanel, layout *profiles.PaneLayout) {
 	if !ok {
 		return
 	}
+	// The split that addPane just built is the parent of both panes.
+	panel.pane.parent.applySplitOffset(layout.Offset)
 	s.growPanes(panel, layout.A)
 	s.growPanes(dup, layout.B)
 }

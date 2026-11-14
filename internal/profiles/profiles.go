@@ -93,6 +93,8 @@ type SerialOptions struct {
 	DataBits int    `json:"data_bits,omitempty"`
 	Parity   string `json:"parity,omitempty"`
 	StopBits int    `json:"stop_bits,omitempty"`
+	// Flow is the handshake: empty or "none", "rtscts" or "xonxoff".
+	Flow string `json:"flow,omitempty"`
 }
 
 // Validate refuses line settings a serial port cannot use.
@@ -116,6 +118,11 @@ func (o SerialOptions) Validate() error {
 	case 0, 1, 2:
 	default:
 		return fmt.Errorf("%w: %d stop bits", ErrInvalidSerial, o.StopBits)
+	}
+	switch o.Flow {
+	case "", "none", "rtscts", "xonxoff":
+	default:
+		return fmt.Errorf("%w: flow control %q", ErrInvalidSerial, o.Flow)
 	}
 	return nil
 }
@@ -205,9 +212,12 @@ type PaneLayout struct {
 	// Split marks a node with two children; false is a leaf.
 	Split bool `json:"split,omitempty"`
 	// SideBySide stacks the children horizontally (a split to the right).
-	SideBySide bool        `json:"side_by_side,omitempty"`
-	A          *PaneLayout `json:"a,omitempty"`
-	B          *PaneLayout `json:"b,omitempty"`
+	SideBySide bool `json:"side_by_side,omitempty"`
+	// Offset is where the divider sits, as the fraction taken by the first child. Zero
+	// means the default half, which is what a store written before this field gets.
+	Offset float64     `json:"offset,omitempty"`
+	A      *PaneLayout `json:"a,omitempty"`
+	B      *PaneLayout `json:"b,omitempty"`
 }
 
 // Validate refuses a tree the window could not rebuild: a split with a missing
@@ -223,6 +233,9 @@ func (l *PaneLayout) Validate() error {
 }
 
 func (l *PaneLayout) validateShape() error {
+	if l.Offset < 0 || l.Offset > 1 {
+		return fmt.Errorf("%w: a divider cannot sit at %v", ErrInvalidLayout, l.Offset)
+	}
 	if !l.Split {
 		if l.A != nil || l.B != nil {
 			return fmt.Errorf("%w: a leaf with children", ErrInvalidLayout)

@@ -325,3 +325,45 @@ func TestScreen_RestoreSessions_IgnoresALayoutTheProtocolCannotSplit(t *testing.
 		t.Errorf("panes = %d, want the RDP tab to stay single", got)
 	}
 }
+
+// TestSplitOffset_ReadsWhatTheDividerHolds covers the two halves of the divider
+// persistence. It is a unit test on the node because Fyne's split renderer clamps the
+// offset to the children's minimum size, and a headless window is too small for any
+// position other than the half to survive a layout pass.
+func TestSplitOffset_ReadsWhatTheDividerHolds(t *testing.T) {
+	build := func(offset float64) *paneNode {
+		split := container.NewHSplit(container.NewStack(), container.NewStack())
+		split.Offset = offset
+		return &paneNode{view: container.NewStack(split)}
+	}
+	if got := build(0.33).splitOffset(); got != 0.33 {
+		t.Errorf("splitOffset = %v, want the divider position", got)
+	}
+	if got := build(defaultSplitOffset).splitOffset(); got != 0 {
+		t.Errorf("splitOffset = %v, want the default omitted", got)
+	}
+	if got := build(0).splitOffset(); got != 0 {
+		t.Errorf("splitOffset = %v, want an unset divider omitted", got)
+	}
+
+	node := build(defaultSplitOffset)
+	node.applySplitOffset(0.25)
+	if split := node.view.Objects[0].(*container.Split); split.Offset != 0.25 {
+		t.Errorf("restored offset = %v, want 0.25", split.Offset)
+	}
+	node.applySplitOffset(0)
+	if split := node.view.Objects[0].(*container.Split); split.Offset != 0.25 {
+		t.Errorf("a stored default moved the divider to %v", split.Offset)
+	}
+}
+
+func TestPaneLayout_Validate_RejectsADividerOutsideTheRange(t *testing.T) {
+	broken := profiles.PaneLayout{Split: true, Offset: 1.5, A: &profiles.PaneLayout{}, B: &profiles.PaneLayout{}}
+	if err := broken.Validate(); err == nil {
+		t.Error("a divider at 1.5 of the split was accepted")
+	}
+	fine := profiles.PaneLayout{Split: true, Offset: 0.3, A: &profiles.PaneLayout{}, B: &profiles.PaneLayout{}}
+	if err := fine.Validate(); err != nil {
+		t.Errorf("a valid divider was refused: %v", err)
+	}
+}
