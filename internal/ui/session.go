@@ -66,7 +66,8 @@ type sessionPanel struct {
 
 	password   *widget.Entry
 	connect    *widget.Button
-	disconnect *widget.Button
+	sftp       *hintButton
+	disconnect *hintButton
 	ctrlC      *widget.Button
 	ctrlD      *widget.Button
 	rdpTest    *widget.Button
@@ -106,8 +107,12 @@ func (s *screen) newSessionPanel(profile profiles.Profile) *sessionPanel {
 
 	panel.connect = widget.NewButtonWithIcon("Connect", theme.MediaPlayIcon(), panel.connectShell)
 	panel.connect.Importance = widget.HighImportance
-	panel.disconnect = widget.NewButtonWithIcon("Disconnect", theme.MediaStopIcon(), panel.disconnectShell)
+	// The X closes the connection; the words "Disconnect" spent bar width the
+	// terminal needs, and the tooltip says what it does.
+	panel.disconnect = newHintButton(theme.CancelIcon(), "Disconnect the session", panel.disconnectShell, s.hint)
+	panel.sftp = newHintButton(theme.FolderIcon(), "Browse and transfer files over SFTP", panel.openSFTP, s.hint)
 	panel.disconnect.Importance = widget.LowImportance
+	panel.sftp.Importance = widget.LowImportance
 	panel.disconnect.Disable()
 	panel.ctrlC = widget.NewButton("Ctrl-C", func() { panel.sendControl(0x03) })
 	panel.ctrlC.Importance = widget.LowImportance
@@ -163,11 +168,11 @@ func (p *sessionPanel) content() fyne.CanvasObject {
 func (p *sessionPanel) paneButtons() []fyne.CanvasObject {
 	right := newHintButton(theme.NavigateNextIcon(), "Split the terminal to the right", func() { p.screen.splitPane(p, true) }, p.screen.hint)
 	down := newHintButton(theme.MoveDownIcon(), "Split the terminal downwards", func() { p.screen.splitPane(p, false) }, p.screen.hint)
-	closePane := newHintButton(theme.CancelIcon(), "Close this pane", func() { p.screen.closePane(p) }, p.screen.hint)
-	for _, button := range []*hintButton{right, down, closePane} {
+	for _, button := range []*hintButton{right, down} {
 		button.Importance = widget.LowImportance
 	}
-	return []fyne.CanvasObject{right, down, closePane}
+	// Closing a pane moved to View > Close pane: the X on this bar disconnects.
+	return []fyne.CanvasObject{right, down}
 }
 
 // connectionBar is the only header above the terminal: which connection is
@@ -180,7 +185,10 @@ func (p *sessionPanel) connectionBar() fyne.CanvasObject {
 	// Name on the left, endpoint on the right, both readable.
 	label := container.NewBorder(nil, nil, name, endpoint)
 
-	buttons := []fyne.CanvasObject{p.connect, p.disconnect, p.vaultButton()}
+	buttons := []fyne.CanvasObject{p.connect, p.vaultButton()}
+	if p.profile.Protocol == profiles.SSH {
+		buttons = append(buttons, p.sftp)
+	}
 	switch p.profile.Protocol {
 	case profiles.RDP:
 		buttons = append(buttons, p.rdpTest, p.rdpCert, p.rdpLegacy, p.rdpOptions)
@@ -190,11 +198,24 @@ func (p *sessionPanel) connectionBar() fyne.CanvasObject {
 			buttons = append(buttons, p.paneButtons()...)
 		}
 	}
+	// The X closes the connection and sits after the split controls, where the
+	// hand already is.
+	buttons = append(buttons, p.disconnect)
 	// Name on its own row so it never collapses to an ellipsis; the password
 	// shares the next row with the buttons. Fyne tab content scrolls
 	// horizontally as soon as its minimum width exceeds the viewport.
 	passwordRow := container.NewBorder(nil, nil, nil, container.NewHBox(buttons...), container.NewPadded(p.password))
 	return container.NewVBox(container.NewPadded(label), passwordRow, widget.NewSeparator())
+}
+
+// openSFTP shows the transfer window for this panel's connection.
+func (p *sessionPanel) openSFTP() {
+	if p.profile.Protocol != profiles.SSH {
+		p.setProblem("File transfer is available on SSH sessions.")
+		return
+	}
+	options := sshclient.Options{Password: p.passwordFor(), Timeout: 15 * time.Second}
+	p.screen.openRemoteFiles(p.target(), options, p.profile.Host)
 }
 
 func (p *sessionPanel) rdpTarget() rdpclient.Target {

@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 	sshclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/ssh"
@@ -273,5 +275,77 @@ func TestApplyConnect_DeclinedUnknownHostKey_ReEnablesConnect(t *testing.T) {
 		&sshclient.UnknownHostKeyError{Fingerprint: "SHA256:abc"})
 	if p.connect.Disabled() {
 		t.Error("Connect stays disabled after the user declined the host key")
+	}
+}
+
+// collectObjects walks a canvas tree, including widget renderers, so a test can
+// ask whether a specific button is on the bar.
+func collectObjects(obj fyne.CanvasObject, seen map[fyne.CanvasObject]bool) {
+	if obj == nil || seen[obj] {
+		return
+	}
+	seen[obj] = true
+	if c, ok := obj.(*fyne.Container); ok {
+		for _, child := range c.Objects {
+			collectObjects(child, seen)
+		}
+		return
+	}
+	if w, ok := obj.(fyne.Widget); ok {
+		if r := test.WidgetRenderer(w); r != nil {
+			for _, child := range r.Objects() {
+				collectObjects(child, seen)
+			}
+		}
+	}
+}
+
+func TestSessionPanel_ConnectionBar_SFTPTakesTheDisconnectSlotOnSSH(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	ssh := s.newSessionPanel(sshPanelProfile(t, "tester"))
+	onBar := map[fyne.CanvasObject]bool{}
+	collectObjects(ssh.connectionBar(), onBar)
+	if !onBar[ssh.sftp] {
+		t.Error("the SFTP button is missing from an SSH session bar")
+	}
+	if !onBar[ssh.disconnect] {
+		t.Error("the disconnect control is missing from the bar")
+	}
+
+	rdp := s.newSessionPanel(sampleProfile(t, "desk", "", string(profiles.RDP), "192.0.2.20", 3389))
+	rdpBar := map[fyne.CanvasObject]bool{}
+	collectObjects(rdp.connectionBar(), rdpBar)
+	if rdpBar[rdp.sftp] {
+		t.Error("the SFTP button is offered on an RDP session")
+	}
+}
+
+func TestSessionPanel_PaneButtons_SplitOnlyBecauseTheXDisconnects(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	panel := s.newSessionPanel(sshPanelProfile(t, "tester"))
+
+	buttons := panel.paneButtons()
+	if len(buttons) != 2 {
+		t.Fatalf("pane buttons = %d, want the two split directions", len(buttons))
+	}
+	for _, object := range buttons {
+		button, ok := object.(*hintButton)
+		if !ok {
+			t.Fatalf("pane button type = %T, want *hintButton", object)
+		}
+		if button.tip == "Close this pane" {
+			t.Error("the pane bar still offers a close-pane control")
+		}
+	}
+}
+
+func TestOpenSFTP_NonSSHSession_ReportsIt(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	panel := s.newSessionPanel(sampleProfile(t, "desk", "", string(profiles.VNC), "192.0.2.20", 5900))
+
+	panel.openSFTP()
+
+	if !strings.Contains(s.status.Text, "SSH sessions") {
+		t.Errorf("status = %q, want it to explain that transfer needs SSH", s.status.Text)
 	}
 }
