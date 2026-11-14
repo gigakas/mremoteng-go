@@ -91,6 +91,11 @@ func (s *screen) showRemoteBrowser(files *sshclient.RemoteFiles, host string) {
 		local:  newFilePane(localSource{}, "Upload to remote  \u2192"),
 		remote: newFilePane(remoteSource{files: files, host: host}, "\u2190  Download to local"),
 	}
+	// A modal popup takes the canvas focus and does not give it back, so the
+	// terminal stops receiving keys until the user clicks it again.
+	if term, ok := s.focusedTerminal(); ok {
+		browser.returnFocus = term
+	}
 	browser.show()
 }
 
@@ -105,13 +110,16 @@ type remoteBrowser struct {
 	local  *filePane
 	remote *filePane
 
-	status   *widget.Label
-	progress *widget.ProgressBar
-	stop     *widget.Button
-	cancel   context.CancelFunc
-	logBox   *fyne.Container
-	log      []string
-	popup    *widget.PopUp
+	// returnFocus is the terminal that owned the keyboard before the window
+	// opened; a modal popup does not restore it on its own.
+	returnFocus *termWidget
+	status      *widget.Label
+	progress    *widget.ProgressBar
+	stop        *widget.Button
+	cancel      context.CancelFunc
+	logBox      *fyne.Container
+	log         []string
+	popup       *widget.PopUp
 }
 
 func (b *remoteBrowser) show() {
@@ -422,6 +430,10 @@ func (b *remoteBrowser) close() {
 	if b.popup != nil {
 		b.popup.Hide()
 		b.popup = nil
+	}
+	if b.returnFocus != nil {
+		b.returnFocus.focus()
+		b.returnFocus = nil
 	}
 	if files == nil {
 		return

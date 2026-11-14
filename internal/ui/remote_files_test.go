@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
@@ -127,5 +128,36 @@ func TestRemoteBrowser_Close_IsIdempotent(t *testing.T) {
 	browser.close()
 	if browser.files != nil {
 		t.Error("close left a session reference behind")
+	}
+}
+
+func TestRemoteBrowser_Close_ReturnsTheKeyboardToTheTerminal(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	term := newTermWidget(80, 24, func([]byte) {}, nil)
+	window := test.NewWindow(term)
+	t.Cleanup(window.Close)
+	window.Resize(fyne.NewSize(400, 300))
+	term.focus()
+	if _, ok := window.Canvas().Focused().(*termWidget); !ok {
+		t.Fatal("the terminal did not take the focus in the first place")
+	}
+
+	// A modal popup takes the focus, as opening the browser does.
+	window.Canvas().Focus(widget.NewEntry())
+	browser := &remoteBrowser{
+		screen:      newTestScreen(t, &fakeStore{}),
+		status:      widget.NewLabel(""),
+		returnFocus: term,
+	}
+
+	browser.close()
+
+	if _, ok := window.Canvas().Focused().(*termWidget); !ok {
+		t.Error("closing the window left the keyboard away from the terminal")
+	}
+	if browser.returnFocus != nil {
+		t.Error("the remembered focus was not cleared")
 	}
 }
