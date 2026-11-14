@@ -59,15 +59,69 @@ func TestArguments_DeviceRedirectionAndDisplayFlags(t *testing.T) {
 	}
 }
 
-func TestArguments_Gateway_AddsHostAndCredentials(t *testing.T) {
-	args := CommandLine(Arguments(Target{Host: "desk"}, Options{Gateway: Gateway{Host: "gw.example.com", Username: "gwuser", Domain: "CORP"}}))
-	for _, want := range []string{"/g:gw.example.com", "/gu:gwuser", "/gd:CORP"} {
-		if !strings.Contains(args, want) {
-			t.Errorf("arguments = %q, missing %q", args, want)
+// TestArguments_Gateway_UsesTheCombinedForm pins the syntax the installed client
+// accepts. The separate /g:, /gu: and /gd: flags were rejected outright by
+// FreeRDP 3.32 with "Unexpected keyword", which made every gateway connection
+// fail before it started.
+func TestArguments_Gateway_UsesTheCombinedForm(t *testing.T) {
+	args := Arguments(Target{Host: "desk"}, Options{Gateway: Gateway{Host: "gw.example.com"}})
+	if last := args[len(args)-1]; last != "/gateway:g:gw.example.com:443" {
+		t.Fatalf("gateway arguments = %v, want one combined argument on the default port", args)
+	}
+	plain := CommandLine(args)
+	for _, unwanted := range []string{"/g:", "/gu:", "/gd:"} {
+		if strings.Contains(plain, unwanted) {
+			t.Errorf("arguments = %q, want no legacy %q", plain, unwanted)
 		}
 	}
-	if strings.Contains(CommandLine(Arguments(Target{Host: "desk"}, Options{})), "/g:") {
+	if strings.Contains(CommandLine(Arguments(Target{Host: "desk"}, Options{})), "/gateway:") {
 		t.Error("default arguments contain a gateway")
+	}
+}
+
+func TestArguments_Gateway_CarriesPortAndUsageMethod(t *testing.T) {
+	args := CommandLine(Arguments(Target{Host: "desk"}, Options{
+		Gateway: Gateway{Host: "gw.example.com", Port: 8443, UsageMethod: "direct"},
+	}))
+	if !strings.Contains(args, "/gateway:g:gw.example.com:8443,usage-method:direct") {
+		t.Errorf("arguments = %q, want the port and the usage method in one argument", args)
+	}
+	if strings.Contains(args, "gwuser") || strings.Contains(args, "CORP") {
+		t.Errorf("arguments = %q, want no gateway credentials in argv", args)
+	}
+}
+
+func TestGatewayArgument_RejectsWhatWouldBreakTheArgument(t *testing.T) {
+	cases := []Gateway{
+		{Host: "gw,example"},      // a comma separates the options
+		{Host: "gw:8443"},         // the port has its own slot
+		{Host: "gw example"},      // would split the argument
+		{Host: "gw", Port: 70000}, // outside the port range
+		{Host: "gw", UsageMethod: "sometimes"},
+	}
+	for _, gateway := range cases {
+		if err := gateway.Problem(); err == nil {
+			t.Errorf("gateway %+v was accepted", gateway)
+		}
+		if argument := gatewayArgument(gateway); argument != "" {
+			t.Errorf("gateway %+v produced %q, want nothing in argv", gateway, argument)
+		}
+	}
+	if err := (Gateway{Host: "gw.example.com", Port: 443, UsageMethod: "detect"}).Problem(); err != nil {
+		t.Errorf("a valid gateway was refused: %v", err)
+	}
+}
+
+func TestGatewayUsageMethod_KeepsOnlyTheDocumentedValues(t *testing.T) {
+	for _, method := range []string{"direct", "DETECT", " direct "} {
+		if got := gatewayUsageMethod(method); got == "" {
+			t.Errorf("gatewayUsageMethod(%q) was refused", method)
+		}
+	}
+	for _, method := range []string{"", "sometimes", "rpc"} {
+		if got := gatewayUsageMethod(method); got != "" {
+			t.Errorf("gatewayUsageMethod(%q) = %q, want it dropped", method, got)
+		}
 	}
 }
 

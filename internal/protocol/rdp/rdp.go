@@ -64,11 +64,72 @@ type Options struct {
 	Gateway Gateway
 }
 
-// Gateway describes an RD Gateway hop.
+// Gateway describes an RD Gateway hop. FreeRDP takes the whole hop as one
+// argument, /gateway:g:<host>[:<port>],usage-method:direct|detect.
+//
+// The gateway credentials are deliberately absent. The installed client (FreeRDP
+// 3.32) rejects a gateway user or domain unless a gateway password follows it, and
+// this application never puts a password in an argument list, because argv is
+// readable by every process of the machine. FreeRDP asks for the gateway
+// credentials itself when the gateway requires them.
 type Gateway struct {
-	Host     string
-	Username string
-	Domain   string
+	// Host is the gateway name or address.
+	Host string
+	// Port is the gateway HTTPS port; zero means 443.
+	Port int
+	// UsageMethod is "direct" (always use the gateway), "detect" (let the client
+	// ask the server) or empty for the client default.
+	UsageMethod string
+}
+
+// defaultGatewayPort is the RD Gateway HTTPS port.
+const defaultGatewayPort = 443
+
+// Problem reports why a configured gateway cannot be used. A gateway that is not
+// configured has no problem.
+func (g Gateway) Problem() error {
+	host := strings.TrimSpace(g.Host)
+	if host == "" {
+		return nil
+	}
+	if strings.ContainsAny(host, " ,:/\t") {
+		return fmt.Errorf("rdp: the gateway host %q cannot contain a comma, a colon or a space", host)
+	}
+	if g.Port < 0 || g.Port > 65535 {
+		return fmt.Errorf("rdp: the gateway port %d is outside 1-65535", g.Port)
+	}
+	if method := strings.TrimSpace(g.UsageMethod); method != "" && gatewayUsageMethod(method) == "" {
+		return fmt.Errorf("rdp: %q is not a gateway usage method (direct or detect)", method)
+	}
+	return nil
+}
+
+// gatewayArgument renders the single /gateway: argument, or "" when no gateway is
+// configured. The combined form is the only one the installed client accepts:
+// /g:, /gu: and /gd: are rejected as unknown options.
+func gatewayArgument(g Gateway) string {
+	if g.Problem() != nil || strings.TrimSpace(g.Host) == "" {
+		return ""
+	}
+	port := g.Port
+	if port == 0 {
+		port = defaultGatewayPort
+	}
+	argument := fmt.Sprintf("/gateway:g:%s:%d", strings.TrimSpace(g.Host), port)
+	if method := gatewayUsageMethod(g.UsageMethod); method != "" {
+		argument += ",usage-method:" + method
+	}
+	return argument
+}
+
+// gatewayUsageMethod keeps only the values FreeRDP documents; anything else would
+// make the client reject the whole command line.
+func gatewayUsageMethod(method string) string {
+	switch normalised := strings.ToLower(strings.TrimSpace(method)); normalised {
+	case "direct", "detect":
+		return normalised
+	}
+	return ""
 }
 
 // ErrClientMissing means no FreeRDP binary was found.
@@ -245,14 +306,8 @@ func Arguments(target Target, options Options) []string {
 	if options.MultiMonitor {
 		args = append(args, "/multimon")
 	}
-	if options.Gateway.Host != "" {
-		args = append(args, "/g:"+options.Gateway.Host)
-		if options.Gateway.Username != "" {
-			args = append(args, "/gu:"+options.Gateway.Username)
-		}
-		if options.Gateway.Domain != "" {
-			args = append(args, "/gd:"+options.Gateway.Domain)
-		}
+	if gateway := gatewayArgument(options.Gateway); gateway != "" {
+		args = append(args, gateway)
 	}
 	if options.ParentWindowID != 0 {
 		args = append(args, fmt.Sprintf("/parent-window:%d", options.ParentWindowID), "+smart-sizing")

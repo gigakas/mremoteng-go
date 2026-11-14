@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	rdpclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/rdp"
 	"strings"
@@ -210,5 +211,67 @@ func TestSessionPanel_RDPLaunchFailure_ReportsProblem(t *testing.T) {
 	panel.applyConnectRDP(nil, errors.New("xfreerdp not found"))
 	if !strings.Contains(s.status.Text, "RDP launch failed") || s.status.Importance != widget.DangerImportance {
 		t.Errorf("status = %q, want a launch failure", s.status.Text)
+	}
+}
+
+func TestRDPGatewayForm_Fields_BuildTheGateway(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	form, box := newRDPGatewayForm(rdpclient.Gateway{Host: "gw.example.com", Port: 8443, UsageMethod: "direct"})
+	if box == nil {
+		t.Fatal("the gateway section has no content")
+	}
+	if form.host.Text != "gw.example.com" || form.port.Text != "8443" || form.method.Selected != "direct" {
+		t.Fatalf("form = %q/%q/%q, want the stored gateway", form.host.Text, form.port.Text, form.method.Selected)
+	}
+	gateway, err := form.gateway()
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	if gateway.Host != "gw.example.com" || gateway.Port != 8443 || gateway.UsageMethod != "direct" {
+		t.Errorf("gateway = %+v, want the form values", gateway)
+	}
+}
+
+func TestRDPGatewayForm_EmptyPort_KeepsTheClientDefault(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	form, _ := newRDPGatewayForm(rdpclient.Gateway{})
+	if form.method.Selected != "client default" {
+		t.Errorf("method = %q, want the default entry", form.method.Selected)
+	}
+	form.host.SetText(" gw.example.com ")
+	gateway, err := form.gateway()
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	if gateway.Port != 0 || gateway.UsageMethod != "" {
+		t.Errorf("gateway = %+v, want no port and no method", gateway)
+	}
+	if argument := gatewaySummary(gateway); argument != " through gateway gw.example.com:443" {
+		t.Errorf("summary = %q, want the default port spelled out", argument)
+	}
+}
+
+func TestRDPGatewayForm_InvalidInput_IsRefusedWithAReason(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	cases := map[string][2]string{
+		"port": {"gw.example.com", "https"},
+		"host": {"gw,example.com", ""},
+	}
+	for name, values := range cases {
+		form, _ := newRDPGatewayForm(rdpclient.Gateway{})
+		form.host.SetText(values[0])
+		form.port.SetText(values[1])
+		if _, err := form.gateway(); err == nil {
+			t.Errorf("%s case was accepted", name)
+		}
+	}
+	if gatewaySummary(rdpclient.Gateway{}) != "" {
+		t.Error("a session without a gateway must not mention one")
 	}
 }

@@ -52,7 +52,7 @@ installer and tarball release.
   profiles.
 - **Depends on**: L5 for imported data to be meaningful; decide the data model first.
 
-## Stage L7 — RDP parity — **partially done (2026-11-09)**: redirection/display flags and options popup; RD Gateway and options persistence pending. Audit `auditory/linux-l7-20261109-opencode.md`.
+## Stage L7 — RDP parity — **partially done**: redirection/display flags and options popup (2026-11-09, audit `auditory/linux-l7-20261109-opencode.md`); RD Gateway rewritten to the combined `/gateway:` form the installed client accepts and exposed in the options dialog (2026-11-14, audit `auditory/linux-l7-gateway-20261114-mimocode.md`); options persistence and the failure report for immediate exits still pending.
 
 - **Goal**: make embedded RDP usable for daily work.
 - **Scope**: clipboard redirection, drive/printer/audio redirection, fullscreen

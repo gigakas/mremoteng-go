@@ -100,7 +100,12 @@ geometry to the visible tab bounds. It also resizes the window FreeRDP creates
 inside that area, because the client requests its own 1024x768 regardless: with
 `+smart-sizing` this is what makes the session fit the tab and follow window
 resizes instead of spilling over the sidebar, Config panel and status bar. Without an X11/XWayland display the
-panel falls back to a separate window and reports it.
+panel falls back to a separate window and reports it. An RD Gateway hop is passed
+as the single `/gateway:g:<host>:<port>[,usage-method:direct|detect]` argument the
+installed client accepts (the older `/g:`/`/gu:`/`/gd:` flags are rejected by
+FreeRDP 3.32), configured per tab in the options dialog; the gateway password is
+never an argument, so FreeRDP asks for it. See
+`auditory/linux-l7-gateway-20261114-mimocode.md`.
 
 Verified end to end against `scottyhardy/docker-remote-desktop` (xrdp 0.9.24)
 with a full session: FreeRDP stayed connected for the whole test window and the

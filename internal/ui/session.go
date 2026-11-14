@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -232,7 +233,7 @@ func (p *sessionPanel) rdpSecurity() string {
 }
 
 func (p *sessionPanel) connectRDP() {
-	p.setConnecting("Starting FreeRDP for " + p.profile.Host + " ...")
+	p.setConnecting("Starting FreeRDP for " + p.profile.Host + gatewaySummary(p.rdpConfig.Gateway) + " ...")
 	target := p.rdpTarget()
 	options := p.rdpConfig
 	options.Password = p.passwordFor()
@@ -357,7 +358,8 @@ func (p *sessionPanel) testRDP() {
 	}()
 }
 
-// requestRDPOptions edits the redirection flags used by the next Connect.
+// requestRDPOptions edits the redirection flags and the gateway used by the next
+// Connect.
 func (p *sessionPanel) requestRDPOptions() {
 	clipboard := widget.NewCheck("Clipboard", nil)
 	printers := widget.NewCheck("Printers", nil)
@@ -372,13 +374,24 @@ func (p *sessionPanel) requestRDPOptions() {
 	multimon.SetChecked(p.rdpConfig.MultiMonitor)
 	drives.SetText(strings.Join(p.rdpConfig.Drives, ","))
 	drives.SetPlaceHolder("Shared drives: name:path,name:path")
+	gatewayForm, gatewayBox := newRDPGatewayForm(p.rdpConfig.Gateway)
+	problem := widget.NewLabel("")
+	problem.Importance = widget.DangerImportance
+	problem.Wrapping = fyne.TextWrapWord
 
 	var popup *modal
 	content := container.NewVBox(
 		widget.NewLabelWithStyle("RDP options", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		clipboard, printers, audio, dynamic, multimon, drives,
+		widget.NewSeparator(), gatewayBox, problem,
 		container.NewHBox(
 			widget.NewButton("Apply", func() {
+				gateway, err := gatewayForm.gateway()
+				if err != nil {
+					// Keep the dialog open: a rejected gateway must not look saved.
+					problem.SetText(err.Error())
+					return
+				}
 				popup.Hide()
 				options := p.rdpConfig
 				options.Clipboard = clipboard.Checked
@@ -386,6 +399,7 @@ func (p *sessionPanel) requestRDPOptions() {
 				options.Audio = audio.Checked
 				options.DynamicResolution = dynamic.Checked
 				options.MultiMonitor = multimon.Checked
+				options.Gateway = gateway
 				options.Drives = nil
 				for _, drive := range strings.Split(drives.Text, ",") {
 					if trimmed := strings.TrimSpace(drive); trimmed != "" {
@@ -393,12 +407,99 @@ func (p *sessionPanel) requestRDPOptions() {
 					}
 				}
 				p.rdpConfig = options
-				p.setStatus("RDP options saved for the next Connect.")
+				p.setStatus("RDP options saved for the next Connect" + gatewaySummary(gateway) + ".")
 			}),
 			widget.NewButton("Cancel", func() { popup.Hide() }),
 		),
 	)
-	popup = p.screen.showModal(content, fyne.NewSize(460, 300))
+	popup = p.screen.showModal(content, fyne.NewSize(480, 440))
+}
+
+// rdpGatewayForm is the RD Gateway section of the options dialog. There is no
+// password field on purpose: argv is readable by every process of the machine, and
+// the client rejects gateway credentials that arrive without their password, so
+// FreeRDP asks for them itself.
+type rdpGatewayForm struct {
+	host   *widget.Entry
+	port   *widget.Entry
+	method *widget.Select
+}
+
+// gatewayMethodLabels are the usage-method choices, in the order the client
+// documents them.
+var gatewayMethodLabels = []string{"client default", "direct", "detect"}
+
+func newRDPGatewayForm(current rdpclient.Gateway) (*rdpGatewayForm, fyne.CanvasObject) {
+	form := &rdpGatewayForm{
+		host:   widget.NewEntry(),
+		port:   widget.NewEntry(),
+		method: widget.NewSelect(gatewayMethodLabels, nil),
+	}
+	form.host.SetPlaceHolder("gateway.example.com")
+	form.host.SetText(current.Host)
+	form.port.SetPlaceHolder("443")
+	if current.Port != 0 {
+		form.port.SetText(strconv.Itoa(current.Port))
+	}
+	form.method.SetSelected(gatewayMethodLabel(current.UsageMethod))
+	note := widget.NewLabel("FreeRDP asks for the gateway password; it is never stored. " +
+		"Direct always goes through the gateway, detect lets the server decide.")
+	note.Importance = widget.LowImportance
+	note.Wrapping = fyne.TextWrapWord
+	box := container.NewVBox(
+		widget.NewLabelWithStyle("RD Gateway", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		form.host, form.port, form.method, note,
+	)
+	return form, box
+}
+
+// gateway reads the fields, refusing what the client would reject before it ever
+// reaches an argument list.
+func (f *rdpGatewayForm) gateway() (rdpclient.Gateway, error) {
+	gateway := rdpclient.Gateway{
+		Host:        strings.TrimSpace(f.host.Text),
+		UsageMethod: gatewayMethodValue(f.method.Selected),
+	}
+	if text := strings.TrimSpace(f.port.Text); text != "" {
+		port, err := strconv.Atoi(text)
+		if err != nil {
+			return gateway, fmt.Errorf("the gateway port %q is not a number", text)
+		}
+		gateway.Port = port
+	}
+	if err := gateway.Problem(); err != nil {
+		return gateway, err
+	}
+	return gateway, nil
+}
+
+// gatewayMethodLabel turns a usage method into its select entry.
+func gatewayMethodLabel(method string) string {
+	if method == "direct" || method == "detect" {
+		return method
+	}
+	return gatewayMethodLabels[0]
+}
+
+// gatewayMethodValue turns a select entry back into the stored value.
+func gatewayMethodValue(label string) string {
+	if label == "direct" || label == "detect" {
+		return label
+	}
+	return ""
+}
+
+// gatewaySummary names the route for status lines, or nothing when there is no
+// gateway.
+func gatewaySummary(gateway rdpclient.Gateway) string {
+	if strings.TrimSpace(gateway.Host) == "" {
+		return ""
+	}
+	port := gateway.Port
+	if port == 0 {
+		port = 443
+	}
+	return fmt.Sprintf(" through gateway %s:%d", gateway.Host, port)
 }
 
 func (p *sessionPanel) target() sshclient.Target {
