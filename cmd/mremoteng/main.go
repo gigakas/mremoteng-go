@@ -39,6 +39,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	startProfiling()
 	ui.SetBuildLabel(fmt.Sprintf("%s (%s)", version, commit))
 	application := app.NewWithID("org.mremoteng.go")
 	application.Settings().SetTheme(ui.SoberThemeForPreferences(application.Preferences()))
