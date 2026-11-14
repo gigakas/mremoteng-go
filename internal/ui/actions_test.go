@@ -34,7 +34,7 @@ func TestSave_ValidProfile_AddsTreeEntryTabAndPersists(t *testing.T) {
 	if tab, open := s.openTabs[saved.ID]; !open || tab.Text != saved.Name {
 		t.Errorf("session tab = %v, want a tab named %q", open, saved.Name)
 	}
-	if s.selected != saved.ID || s.baseline != saved {
+	if s.selected != saved.ID || !s.baseline.SameFormAs(saved) {
 		t.Errorf("selection = %q, baseline = %+v", s.selected, s.baseline)
 	}
 	if s.isDirty() {

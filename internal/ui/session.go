@@ -76,8 +76,6 @@ type sessionPanel struct {
 	rdpCert    *widget.Check
 	rdpOptions *hintButton
 	copyScreen *hintButton
-	// Redirection choices apply to the next Connect in this tab.
-	rdpConfig rdpclient.Options
 
 	slot  *fyne.Container
 	term  *termWidget
@@ -122,6 +120,22 @@ func (s *screen) newSessionPanel(profile profiles.Profile) *sessionPanel {
 	panel.rdpTest = widget.NewButtonWithIcon("Test", theme.SearchIcon(), panel.testRDP)
 	panel.rdpLegacy = widget.NewCheck("Legacy TLS", nil)
 	panel.rdpCert = widget.NewCheck("Ignore cert", nil)
+	// The stored options are the single source of truth, so the boxes show the
+	// connection's settings and writing one back is what makes it stick. The fields
+	// are set directly: SetChecked runs the handler, which would write the store
+	// again every time a tab opens.
+	panel.rdpLegacy.Checked = profile.RDP.LegacyTLS
+	panel.rdpCert.Checked = profile.RDP.IgnoreCertificate
+	panel.rdpLegacy.OnChanged = func(checked bool) {
+		panel.persistRDPToggle("Legacy TLS", panel.rdpLegacy, checked, func(options *profiles.RDPOptions) {
+			options.LegacyTLS = checked
+		})
+	}
+	panel.rdpCert.OnChanged = func(checked bool) {
+		panel.persistRDPToggle("Ignore certificate", panel.rdpCert, checked, func(options *profiles.RDPOptions) {
+			options.IgnoreCertificate = checked
+		})
+	}
 	panel.rdpOptions = newHintButton(theme.SettingsIcon(), "RDP options: redirection, resolution, audio and credentials", panel.requestRDPOptions, panel.screen.hint)
 	panel.copyScreen = newHintButton(theme.ContentCopyIcon(), "Copy the terminal contents to the clipboard", panel.copyTerminalScreen, panel.screen.hint)
 	panel.copyScreen.Importance = widget.LowImportance
@@ -224,21 +238,11 @@ func (p *sessionPanel) rdpTarget() rdpclient.Target {
 	return rdpclient.Target{Host: resolved.Host, Port: resolved.Port, Username: resolved.Username}
 }
 
-// rdpSecurity maps the explicit legacy checkbox to a FreeRDP security mode.
-func (p *sessionPanel) rdpSecurity() string {
-	if p.rdpLegacy != nil && p.rdpLegacy.Checked {
-		return "rdp"
-	}
-	return ""
-}
-
 func (p *sessionPanel) connectRDP() {
-	p.setConnecting("Starting FreeRDP for " + p.profile.Host + gatewaySummary(p.rdpConfig.Gateway) + " ...")
+	options := rdpOptionsFromProfile(p.profile)
+	p.setConnecting("Starting FreeRDP for " + p.profile.Host + gatewaySummary(options.Gateway) + " ...")
 	target := p.rdpTarget()
-	options := p.rdpConfig
 	options.Password = p.passwordFor()
-	options.Security = p.rdpSecurity()
-	options.IgnoreCertificate = p.rdpCert.Checked
 	area, embedErr := p.embedSession()
 	if area != nil {
 		options.ParentWindowID = area.ID()
@@ -340,10 +344,9 @@ func (p *sessionPanel) testRDP() {
 	p.rdpTest.Disable()
 	p.setStatus("Testing RDP credentials against " + p.profile.Host + " ...")
 	target := p.rdpTarget()
-	options := p.rdpConfig
+	options := rdpOptionsFromProfile(p.profile)
 	options.Password = p.passwordFor()
-	options.Security = p.rdpSecurity()
-	options.IgnoreCertificate = p.rdpCert.Checked
+	options.AuthOnly = true
 	go func() {
 		output, err := p.screen.probeRDP(target, options)
 		fyne.Do(func() {
@@ -367,14 +370,15 @@ func (p *sessionPanel) requestRDPOptions() {
 	dynamic := widget.NewCheck("Dynamic resolution (may break xrdp)", nil)
 	multimon := widget.NewCheck("All monitors (separate window)", nil)
 	drives := widget.NewEntry()
-	clipboard.SetChecked(p.rdpConfig.Clipboard)
-	printers.SetChecked(p.rdpConfig.Printers)
-	audio.SetChecked(p.rdpConfig.Audio)
-	dynamic.SetChecked(p.rdpConfig.DynamicResolution)
-	multimon.SetChecked(p.rdpConfig.MultiMonitor)
-	drives.SetText(strings.Join(p.rdpConfig.Drives, ","))
+	current := rdpOptionsFromProfile(p.profile)
+	clipboard.SetChecked(current.Clipboard)
+	printers.SetChecked(current.Printers)
+	audio.SetChecked(current.Audio)
+	dynamic.SetChecked(current.DynamicResolution)
+	multimon.SetChecked(current.MultiMonitor)
+	drives.SetText(strings.Join(current.Drives, ","))
 	drives.SetPlaceHolder("Shared drives: name:path,name:path")
-	gatewayForm, gatewayBox := newRDPGatewayForm(p.rdpConfig.Gateway)
+	gatewayForm, gatewayBox := newRDPGatewayForm(current.Gateway)
 	problem := widget.NewLabel("")
 	problem.Importance = widget.DangerImportance
 	problem.Wrapping = fyne.TextWrapWord
@@ -392,22 +396,24 @@ func (p *sessionPanel) requestRDPOptions() {
 					problem.SetText(err.Error())
 					return
 				}
-				popup.Hide()
-				options := p.rdpConfig
-				options.Clipboard = clipboard.Checked
-				options.Printers = printers.Checked
-				options.Audio = audio.Checked
-				options.DynamicResolution = dynamic.Checked
-				options.MultiMonitor = multimon.Checked
-				options.Gateway = gateway
-				options.Drives = nil
-				for _, drive := range strings.Split(drives.Text, ",") {
-					if trimmed := strings.TrimSpace(drive); trimmed != "" {
-						options.Drives = append(options.Drives, trimmed)
-					}
+				options := rdpclient.Options{
+					Clipboard:         clipboard.Checked,
+					Printers:          printers.Checked,
+					Audio:             audio.Checked,
+					DynamicResolution: dynamic.Checked,
+					MultiMonitor:      multimon.Checked,
+					Security:          legacySecurity(p.rdpLegacy.Checked),
+					IgnoreCertificate: p.rdpCert.Checked,
+					Gateway:           gateway,
+					Drives:            strings.Split(drives.Text, ","),
 				}
-				p.rdpConfig = options
-				p.setStatus("RDP options saved for the next Connect" + gatewaySummary(gateway) + ".")
+				if err := p.saveRDPOptions(rdpOptionsToProfile(options)); err != nil {
+					// Keep the dialog open: nothing was stored.
+					problem.SetText(err.Error())
+					return
+				}
+				popup.Hide()
+				p.setStatus("RDP options saved for " + p.profile.Name + gatewaySummary(gateway) + ".")
 			}),
 			widget.NewButton("Cancel", func() { popup.Hide() }),
 		),

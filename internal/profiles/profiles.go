@@ -40,6 +40,8 @@ var (
 	ErrInvalidPort      = errors.New("profile: port must be between 1 and 65535")
 	ErrInvalidUsername  = errors.New("profile: username contains invalid characters")
 	ErrInvalidFolder    = errors.New("profile: folder path is invalid")
+	ErrInvalidDrives    = errors.New("profile: a shared drive must be name:path without commas")
+	ErrInvalidGateway   = errors.New("profile: invalid RD Gateway settings")
 	ErrInvalidID        = errors.New("profile: ID must not be empty")
 	ErrDuplicateID      = errors.New("profile: duplicate ID")
 	ErrUnsupportedStore = errors.New("profile store: unsupported schema version")
@@ -69,6 +71,89 @@ type Profile struct {
 	// shared username or port.
 	InheritUsername bool `json:"inherit_username,omitempty"`
 	InheritPort     bool `json:"inherit_port,omitempty"`
+
+	// RDP holds the settings the session is launched with. They are stored per
+	// connection so redirection, display and gateway choices survive a restart;
+	// a store file written before this block existed simply gets the defaults.
+	RDP RDPOptions `json:"rdp,omitempty"`
+}
+
+// RDPOptions are the per-connection RDP choices. False and empty values mean the
+// client default, and no credential is ever stored here.
+type RDPOptions struct {
+	Clipboard         bool     `json:"clipboard,omitempty"`
+	Printers          bool     `json:"printers,omitempty"`
+	Audio             bool     `json:"audio,omitempty"`
+	Drives            []string `json:"drives,omitempty"`
+	DynamicResolution bool     `json:"dynamic_resolution,omitempty"`
+	MultiMonitor      bool     `json:"multi_monitor,omitempty"`
+	// LegacyTLS selects the pre-TLS security layer, for servers without TLS.
+	LegacyTLS bool `json:"legacy_tls,omitempty"`
+	// IgnoreCertificate accepts a changed or self-signed server certificate. It is
+	// stored because the user chose it explicitly, and it stays visible as a checked
+	// box on the session bar so it cannot be forgotten silently.
+	IgnoreCertificate bool    `json:"ignore_certificate,omitempty"`
+	Gateway           Gateway `json:"gateway,omitempty"`
+}
+
+// Gateway is the stored RD Gateway hop; an empty host means a direct connection.
+type Gateway struct {
+	Host        string `json:"host,omitempty"`
+	Port        int    `json:"port,omitempty"`
+	UsageMethod string `json:"usage_method,omitempty"`
+}
+
+// Validate checks the stored RDP options. The values end up in a FreeRDP argument
+// list, where a comma, a colon or a space changes the meaning of the whole line,
+// so they are refused here rather than at launch time.
+func (o RDPOptions) Validate() error {
+	for _, drive := range o.Drives {
+		trimmed := strings.TrimSpace(drive)
+		if trimmed == "" || hasControlRunes(trimmed) || strings.Contains(trimmed, ",") {
+			return fmt.Errorf("%w: %q", ErrInvalidDrives, drive)
+		}
+	}
+	return o.Gateway.Validate()
+}
+
+// Validate checks the stored gateway hop.
+func (g Gateway) Validate() error {
+	host := strings.TrimSpace(g.Host)
+	if host == "" {
+		if g.Port != 0 || g.UsageMethod != "" {
+			return fmt.Errorf("%w: a gateway needs a host", ErrInvalidGateway)
+		}
+		return nil
+	}
+	switch {
+	case len(host) > maxHostLength:
+		return fmt.Errorf("%w: %q is too long", ErrInvalidGateway, g.Host)
+	case strings.HasPrefix(host, "-"), hasControlRunes(host), hasSpaceRunes(host):
+		return fmt.Errorf("%w: %q", ErrInvalidGateway, g.Host)
+	case strings.ContainsAny(host, ",:/@") || strings.Contains(host, "://"):
+		return fmt.Errorf("%w: %q cannot contain a comma, a colon or a path", ErrInvalidGateway, g.Host)
+	}
+	if g.Port != 0 && (g.Port < 1 || g.Port > 65535) {
+		return fmt.Errorf("%w: %d", ErrInvalidPort, g.Port)
+	}
+	switch g.UsageMethod {
+	case "", "direct", "detect":
+	default:
+		return fmt.Errorf("%w: %q", ErrInvalidGateway, g.UsageMethod)
+	}
+	return nil
+}
+
+// SameFormAs reports whether two profiles hold the same form-editable values.
+//
+// The RDP options are deliberately excluded: the Config panel does not edit them,
+// so comparing them would make a connection with stored options look permanently
+// modified and block every save behind the discard guard.
+func (p Profile) SameFormAs(other Profile) bool {
+	return p.ID == other.ID && p.Name == other.Name && p.Protocol == other.Protocol &&
+		p.Folder == other.Folder && p.Host == other.Host && p.Port == other.Port &&
+		p.Username == other.Username && p.InheritUsername == other.InheritUsername &&
+		p.InheritPort == other.InheritPort
 }
 
 // FolderDefault holds the values a folder shares with its descendants.
@@ -170,7 +255,7 @@ func (p Profile) Validate() error {
 			return fmt.Errorf("%w: %q", ErrInvalidUsername, p.Username)
 		}
 	}
-	return nil
+	return p.RDP.Validate()
 }
 
 func hasControlRunes(value string) bool {

@@ -375,3 +375,107 @@ func TestDefaultPath_UsesConfigurationDirectory(t *testing.T) {
 		t.Errorf("DefaultPath() = %q, want %q", path, want)
 	}
 }
+
+func rdpProfileWithOptions(t *testing.T) Profile {
+	t.Helper()
+	profile := sampleProfile(t)
+	profile.Protocol = RDP
+	profile.Port = 3389
+	profile.RDP = RDPOptions{
+		Clipboard:         true,
+		Audio:             true,
+		Drives:            []string{"share:/srv/share"},
+		DynamicResolution: true,
+		LegacyTLS:         true,
+		IgnoreCertificate: true,
+		Gateway:           Gateway{Host: "gw.example.com", Port: 8443, UsageMethod: "direct"},
+	}
+	return profile
+}
+
+func TestStore_RDPOptions_RoundTripThroughTheFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles.json")
+	store := NewStore(path)
+	saved := rdpProfileWithOptions(t)
+	if err := store.Save(Document{Profiles: []Profile{saved}}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	document, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(document.Profiles) != 1 {
+		t.Fatalf("profiles = %d, want 1", len(document.Profiles))
+	}
+	stored := document.Profiles[0].RDP
+	if !stored.Clipboard || !stored.Audio || !stored.DynamicResolution || !stored.LegacyTLS || !stored.IgnoreCertificate {
+		t.Errorf("stored toggles = %+v, want every one of them", stored)
+	}
+	if len(stored.Drives) != 1 || stored.Drives[0] != "share:/srv/share" {
+		t.Errorf("stored drives = %v", stored.Drives)
+	}
+	if stored.Gateway.Host != "gw.example.com" || stored.Gateway.Port != 8443 || stored.Gateway.UsageMethod != "direct" {
+		t.Errorf("stored gateway = %+v", stored.Gateway)
+	}
+}
+
+// TestStore_FileWithoutRDPOptions_LoadsTheDefaults is the compatibility rule: a
+// store written before this block existed must keep loading, with client defaults.
+func TestStore_FileWithoutRDPOptions_LoadsTheDefaults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles.json")
+	legacy := `{"version":2,"profiles":[{"id":"abc","name":"Old desk","protocol":"RDP","host":"desk.example.com","port":3389}]}`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	document, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(document.Profiles) != 1 || document.Profiles[0].Name != "Old desk" {
+		t.Fatalf("profiles = %+v, want the stored connection", document.Profiles)
+	}
+	if options := document.Profiles[0].RDP; options.Clipboard || options.Gateway.Host != "" || options.Drives != nil {
+		t.Errorf("options = %+v, want the client defaults", options)
+	}
+}
+
+func TestProfile_Validate_RejectsUnusableRDPOptions(t *testing.T) {
+	cases := map[string]func(*RDPOptions){
+		"comma in the gateway host":  func(o *RDPOptions) { o.Gateway.Host = "gw,example.com" },
+		"colon in the gateway host":  func(o *RDPOptions) { o.Gateway.Host = "gw:8443" },
+		"port out of range":          func(o *RDPOptions) { o.Gateway.Host = "gw"; o.Gateway.Port = 70000 },
+		"unknown usage method":       func(o *RDPOptions) { o.Gateway.Host = "gw"; o.Gateway.UsageMethod = "sometimes" },
+		"port without a host":        func(o *RDPOptions) { o.Gateway = Gateway{Port: 8443} },
+		"drive with a comma":         func(o *RDPOptions) { o.Drives = []string{"share:/a,/b"} },
+		"empty drive":                func(o *RDPOptions) { o.Drives = []string{"  "} },
+		"gateway host with a scheme": func(o *RDPOptions) { o.Gateway.Host = "https://gw" },
+	}
+	for name, mutate := range cases {
+		profile := rdpProfileWithOptions(t)
+		mutate(&profile.RDP)
+		if err := profile.Validate(); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+	valid := rdpProfileWithOptions(t)
+	valid.RDP.Gateway = Gateway{Host: "gw.example.com", UsageMethod: "detect"}
+	if err := valid.Validate(); err != nil {
+		t.Errorf("a valid option block was refused: %v", err)
+	}
+}
+
+func TestProfile_SameFormAs_IgnoresTheStoredOptions(t *testing.T) {
+	profile := rdpProfileWithOptions(t)
+	form := profile
+	form.RDP = RDPOptions{}
+	if !profile.SameFormAs(form) {
+		t.Error("a stored option block made the form look modified")
+	}
+	renamed := profile
+	renamed.Name = "Other"
+	if profile.SameFormAs(renamed) {
+		t.Error("a rename was not detected")
+	}
+}

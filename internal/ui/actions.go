@@ -192,7 +192,7 @@ func (s *screen) formProfile() (profiles.Profile, error) {
 }
 
 func (s *screen) isDirty() bool {
-	return s.rawForm() != s.baseline
+	return !s.rawForm().SameFormAs(s.baseline)
 }
 
 func (s *screen) save() {
