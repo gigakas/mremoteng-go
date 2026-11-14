@@ -71,7 +71,8 @@ SSH is implemented in `internal/protocol/ssh` and exposed in the session tab:
 - Remote files: Tools > Remote files (SFTP) opens a single-pane browser over the
   SSH session that has the keyboard, starting in the remote home directory. It
   lists a directory, uploads a local file into the current one and downloads the
-  selected file, each with progress in the dialog and the status bar. It reuses
+  selected file, each chosen with the platform's own file chooser and each with
+  progress in the dialog and the status bar. It reuses
   the session's host-key checks and one-off password; there is no remote delete,
   rename, resume or local pane yet.
 - Unknown hosts require explicit approval of the shown SHA-256 fingerprint; the

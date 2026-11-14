@@ -9,6 +9,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -169,40 +170,65 @@ func (b *remoteBrowser) navigate(dir string) {
 	b.status.SetText(fmt.Sprintf("%d entries in %s", len(entries), dir))
 }
 
-// uploadHere asks for a local path and copies it into the current directory.
+// uploadHere asks for a local file with the platform's own file chooser and
+// copies it into the current remote directory. Typing a path was the one step
+// that made the feature feel broken.
 func (b *remoteBrowser) uploadHere() {
-	entry := widget.NewEntry()
-	entry.SetPlaceHolder("/home/you/file.txt")
-	b.screen.showTextDialog("Upload a local file", "Upload", entry, func() {
-		localPath := strings.TrimSpace(entry.Text)
-		if localPath == "" {
+	picker := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if err != nil || reader == nil {
 			return
 		}
-		remotePath := sshclient.JoinRemote(b.dir, filepath.Base(localPath))
-		b.transfer("Uploading "+filepath.Base(localPath), func(progress sshclient.TransferProgress) error {
-			return b.files.Upload(localPath, remotePath, progress)
-		})
+		localPath := reader.URI().Path()
+		_ = reader.Close()
+		b.uploadFrom(localPath)
+	}, b.screen.win)
+	picker.Show()
+}
+
+// uploadFrom copies localPath into the current remote directory, keeping the
+// base name, which is what the chooser and a drag-and-drop would both want.
+func (b *remoteBrowser) uploadFrom(localPath string) {
+	if strings.TrimSpace(localPath) == "" {
+		return
+	}
+	name := filepath.Base(localPath)
+	remotePath := sshclient.JoinRemote(b.dir, name)
+	b.transfer("Uploading "+name, func(progress sshclient.TransferProgress) error {
+		return b.files.Upload(localPath, remotePath, progress)
 	})
 }
 
-// downloadSelected asks for a local path and copies the selected file to it.
+// downloadSelected asks where to save the selected file with the platform's save
+// chooser, then copies it there.
 func (b *remoteBrowser) downloadSelected() {
 	if b.selected < 0 || b.selected >= len(b.entries) {
 		b.status.SetText("Select a file in the list to download it.")
 		return
 	}
 	name := b.entries[b.selected].Name
-	entry := widget.NewEntry()
-	entry.SetPlaceHolder(filepath.Join("$HOME", name))
-	b.screen.showTextDialog("Download "+name, "Download", entry, func() {
-		localPath := strings.TrimSpace(entry.Text)
-		if localPath == "" {
+	saver := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
+		if err != nil || writer == nil {
 			return
 		}
-		remotePath := sshclient.JoinRemote(b.dir, name)
-		b.transfer("Downloading "+name, func(progress sshclient.TransferProgress) error {
-			return b.files.Download(remotePath, localPath, progress)
-		})
+		localPath := writer.URI().Path()
+		// The save chooser opens the destination; the download truncates and
+		// refills it from the remote copy.
+		_ = writer.Close()
+		b.downloadTo(localPath)
+	}, b.screen.win)
+	saver.SetFileName(name)
+	saver.Show()
+}
+
+// downloadTo copies the selected remote file to localPath.
+func (b *remoteBrowser) downloadTo(localPath string) {
+	if strings.TrimSpace(localPath) == "" || b.selected < 0 || b.selected >= len(b.entries) {
+		return
+	}
+	name := b.entries[b.selected].Name
+	remotePath := sshclient.JoinRemote(b.dir, name)
+	b.transfer("Downloading "+name, func(progress sshclient.TransferProgress) error {
+		return b.files.Download(remotePath, localPath, progress)
 	})
 }
 
