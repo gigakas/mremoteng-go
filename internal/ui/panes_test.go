@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2/container"
+
+	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 )
 
 // liveTestSession marks a panel as carrying an open session without dialling
@@ -218,5 +220,108 @@ func TestCloseSelf_SplitPane_SurvivorKeepsTheKeyboard(t *testing.T) {
 	}
 	if len(s.tabPanels(panel.profile.ID)) != 1 {
 		t.Error("closing the pane left the split behind")
+	}
+}
+
+// countPanes reports how many panes a stored layout describes.
+func countPanes(layout profiles.PaneLayout) int {
+	if !layout.Split {
+		return 1
+	}
+	total := 0
+	if layout.A != nil {
+		total += countPanes(*layout.A)
+	}
+	if layout.B != nil {
+		total += countPanes(*layout.B)
+	}
+	return total
+}
+
+// TestScreen_SplitLayout_IsPersistedAndRestored covers the half of session restore
+// the first version left out: a divided tab comes back divided, in the same shape.
+func TestScreen_SplitLayout_IsPersistedAndRestored(t *testing.T) {
+	profile := sshPanelProfile(t, "")
+	// The profile has to be in the store, or the tab list would not record it and
+	// there would be nothing to restore.
+	store := &fakeStore{profiles: []profiles.Profile{profile}}
+	s := newTestScreen(t, store)
+	s.openSessionTab(profile)
+	panel := s.panels[profile.ID]
+	s.splitPane(panel, true)
+	second := s.tabPanels(profile.ID)[1]
+	s.splitPane(second, false)
+
+	stored, divided := store.layouts[profile.ID]
+	if !divided {
+		t.Fatal("the divided tab was not stored")
+	}
+	if !stored.Split || !stored.SideBySide {
+		t.Fatalf("root = %+v, want a side-by-side split", stored)
+	}
+	if got := countPanes(stored); got != 3 {
+		t.Fatalf("stored panes = %d, want 3", got)
+	}
+	if stored.B == nil || !stored.B.Split || stored.B.SideBySide {
+		t.Errorf("second split = %+v, want a stacked split", stored.B)
+	}
+
+	again := newTestScreen(t, store)
+	panes := again.tabPanels(profile.ID)
+	if len(panes) != 3 {
+		t.Fatalf("restored panes = %d, want 3", len(panes))
+	}
+	for _, pane := range panes {
+		if pane.hasSession() || pane.term != nil {
+			t.Error("a restored pane was connected")
+		}
+		if pane.connect.Disabled() {
+			t.Error("a restored pane cannot be connected")
+		}
+	}
+	root := panes[0].pane.root()
+	if !root.sideBySide {
+		t.Error("the restored tab lost the side-by-side orientation")
+	}
+}
+
+// TestScreen_RestoringPanes_KeepsTheTabPointingAtTheRoot keeps closePane and tab
+// bookkeeping working after a restore.
+func TestScreen_RestoringPanes_KeepsTheTabPointingAtTheRoot(t *testing.T) {
+	profile := sshPanelProfile(t, "")
+	store := &fakeStore{profiles: []profiles.Profile{profile}}
+	s := newTestScreen(t, store)
+	s.openSessionTab(profile)
+	s.splitPane(s.panels[profile.ID], true)
+
+	again := newTestScreen(t, store)
+
+	if survivor := again.tabPanels(profile.ID)[0]; again.panels[profile.ID] != survivor {
+		t.Error("the tab does not point at a restored pane")
+	}
+	again.closePane(again.tabPanels(profile.ID)[1])
+	if got := len(again.tabPanels(profile.ID)); got != 1 {
+		t.Errorf("panes after closing one = %d, want 1", got)
+	}
+	if _, divided := store.layouts[profile.ID]; divided {
+		t.Error("the single-pane tab still has a stored layout")
+	}
+}
+
+// TestScreen_RestoreSessions_IgnoresALayoutTheProtocolCannotSplit covers a store that
+// claims an RDP tab was divided: the tab must come back as one pane, not fail.
+func TestScreen_RestoreSessions_IgnoresALayoutTheProtocolCannotSplit(t *testing.T) {
+	store := &fakeStore{}
+	profile := sampleProfile(t, "desk", "", string(profiles.RDP), "desk.example.com", 3389)
+	store.profiles = []profiles.Profile{profile}
+	store.openTabs = []string{profile.ID}
+	store.layouts = map[string]profiles.PaneLayout{
+		profile.ID: {Split: true, SideBySide: true, A: &profiles.PaneLayout{}, B: &profiles.PaneLayout{}},
+	}
+
+	s := newTestScreen(t, store)
+
+	if got := len(s.tabPanels(profile.ID)); got != 1 {
+		t.Errorf("panes = %d, want the RDP tab to stay single", got)
 	}
 }

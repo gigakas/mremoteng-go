@@ -17,6 +17,7 @@ type fakeStore struct {
 	collapsed []string
 	openTabs  []string
 	activeTab string
+	layouts   map[string]profiles.PaneLayout
 	loadErr   error
 	saveErr   error
 	saves     int
@@ -101,4 +102,16 @@ type fakeArea struct {
 	id        uint64
 	destroyed bool
 	visible   bool
+}
+
+// copyLayouts clones a layout map, so a test store and the window never share one.
+func copyLayouts(layouts map[string]profiles.PaneLayout) map[string]profiles.PaneLayout {
+	if layouts == nil {
+		return nil
+	}
+	cloned := make(map[string]profiles.PaneLayout, len(layouts))
+	for id, layout := range layouts {
+		cloned[id] = layout
+	}
+	return cloned
 }

@@ -27,6 +27,9 @@ type Document struct {
 	// credential is stored, so the user presses Connect.
 	OpenTabs  []string
 	ActiveTab string
+	// TabLayouts holds the split tree of the tabs that were divided, by connection
+	// id. A tab without an entry was a single pane.
+	TabLayouts map[string]PaneLayout
 }
 
 // Store is the local JSON-backed profile store. It is the native application
@@ -42,7 +45,9 @@ type storeFile struct {
 	Collapsed []string        `json:"collapsed_folders,omitempty"`
 	OpenTabs  []string        `json:"open_tabs,omitempty"`
 	ActiveTab string          `json:"active_tab,omitempty"`
-	Profiles  []Profile       `json:"profiles"`
+	// TabLayouts maps a connection id to the shape of its divided tab.
+	TabLayouts map[string]PaneLayout `json:"tab_layouts,omitempty"`
+	Profiles   []Profile             `json:"profiles"`
 }
 
 // DefaultPath returns the native store location, honouring XDG_CONFIG_HOME.
@@ -102,12 +107,13 @@ func (s *Store) Load() (Document, error) {
 		return Document{}, fmt.Errorf("%w: %s: %v", ErrInvalidStore, s.path, err)
 	}
 	document := Document{
-		Profiles:  file.Profiles,
-		Folders:   file.Folders,
-		Defaults:  file.Defaults,
-		Collapsed: file.Collapsed,
-		OpenTabs:  file.OpenTabs,
-		ActiveTab: file.ActiveTab,
+		Profiles:   file.Profiles,
+		Folders:    file.Folders,
+		Defaults:   file.Defaults,
+		Collapsed:  file.Collapsed,
+		OpenTabs:   file.OpenTabs,
+		ActiveTab:  file.ActiveTab,
+		TabLayouts: file.TabLayouts,
 	}
 	if document.Profiles == nil {
 		document.Profiles = []Profile{}
@@ -131,14 +137,20 @@ func (s *Store) Save(document Document) error {
 	if err := validateFolders(document.Collapsed); err != nil {
 		return err
 	}
+	for _, layout := range document.TabLayouts {
+		if err := layout.Validate(); err != nil {
+			return err
+		}
+	}
 	payload, err := json.MarshalIndent(storeFile{
-		Version:   schemaVersion,
-		Folders:   document.Folders,
-		Defaults:  document.Defaults,
-		Collapsed: document.Collapsed,
-		OpenTabs:  document.OpenTabs,
-		ActiveTab: document.ActiveTab,
-		Profiles:  document.Profiles,
+		Version:    schemaVersion,
+		Folders:    document.Folders,
+		Defaults:   document.Defaults,
+		Collapsed:  document.Collapsed,
+		OpenTabs:   document.OpenTabs,
+		ActiveTab:  document.ActiveTab,
+		TabLayouts: document.TabLayouts,
+		Profiles:   document.Profiles,
 	}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("profile store: encode: %w", err)

@@ -376,16 +376,26 @@ func (s *screen) rememberSessions() {
 		ids = append(ids, id)
 		kept[id] = true
 	}
+	layouts := make(map[string]profiles.PaneLayout, len(ids))
+	for _, id := range ids {
+		panel := s.panels[id]
+		if panel == nil || panel.pane == nil {
+			continue
+		}
+		if layout := layoutOf(panel.pane.root()); layout != nil {
+			layouts[id] = *layout
+		}
+	}
 	selected, _ := byTab[s.tabs.Selected()]
 	if !kept[selected] {
 		selected = ""
 	}
 	// Nothing to record and nothing recorded: skip the write, so a quick-connect tab
 	// or a window with no sessions does not touch the file on every click.
-	if selected == s.ws.active && sameSessions(ids, s.ws.sessions) {
+	if selected == s.ws.active && sameSessions(ids, s.ws.sessions) && sameLayouts(layouts, s.ws.layouts) {
 		return
 	}
-	_ = s.ws.setSessions(ids, selected)
+	_ = s.ws.setSessions(ids, selected, layouts)
 }
 
 // sameSessions reports whether two tab lists are equal and in the same order.
@@ -416,6 +426,11 @@ func (s *screen) restoreSessions() {
 			continue
 		}
 		s.openSessionTab(profile)
+		if layout, divided := s.ws.layouts[id]; divided {
+			if panel, open := s.panels[id]; open {
+				s.restorePanes(panel, &layout)
+			}
+		}
 	}
 	s.restoring = false
 	if active, known := s.profileByID(s.ws.active); known {
@@ -694,4 +709,34 @@ func (s *screen) protocolChanged(choice string) {
 	if current == "" || current == strconv.Itoa(previous) {
 		s.props.port.SetText(strconv.Itoa(profiles.DefaultPort(profiles.Protocol(choice))))
 	}
+}
+
+// sameLayouts reports whether two split trees are the same, key by key.
+func sameLayouts(left, right map[string]profiles.PaneLayout) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for id, layout := range left {
+		if other, known := right[id]; !known || !samePaneLayout(layout, other) {
+			return false
+		}
+	}
+	return true
+}
+
+// samePaneLayout compares two stored trees node by node.
+func samePaneLayout(left, right profiles.PaneLayout) bool {
+	if left.Split != right.Split || left.SideBySide != right.SideBySide {
+		return false
+	}
+	if (left.A == nil) != (right.A == nil) || (left.B == nil) != (right.B == nil) {
+		return false
+	}
+	if left.A != nil && !samePaneLayout(*left.A, *right.A) {
+		return false
+	}
+	if left.B != nil && !samePaneLayout(*left.B, *right.B) {
+		return false
+	}
+	return true
 }

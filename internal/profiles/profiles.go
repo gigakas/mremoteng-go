@@ -42,6 +42,7 @@ var (
 	ErrInvalidFolder    = errors.New("profile: folder path is invalid")
 	ErrInvalidDrives    = errors.New("profile: a shared drive must be name:path without commas")
 	ErrInvalidGateway   = errors.New("profile: invalid RD Gateway settings")
+	ErrInvalidLayout    = errors.New("profile: invalid pane layout")
 	ErrInvalidID        = errors.New("profile: ID must not be empty")
 	ErrDuplicateID      = errors.New("profile: duplicate ID")
 	ErrUnsupportedStore = errors.New("profile store: unsupported schema version")
@@ -155,6 +156,60 @@ func (p Profile) SameFormAs(other Profile) bool {
 		p.Username == other.Username && p.InheritUsername == other.InheritUsername &&
 		p.InheritPort == other.InheritPort
 }
+
+// PaneLayout is one tab's split tree, stored so a divided session comes back divided.
+// A leaf is the zero value: one pane showing the connection. Only the shape is kept,
+// because every pane of a tab is the same connection.
+type PaneLayout struct {
+	// Split marks a node with two children; false is a leaf.
+	Split bool `json:"split,omitempty"`
+	// SideBySide stacks the children horizontally (a split to the right).
+	SideBySide bool        `json:"side_by_side,omitempty"`
+	A          *PaneLayout `json:"a,omitempty"`
+	B          *PaneLayout `json:"b,omitempty"`
+}
+
+// Validate refuses a tree the window could not rebuild: a split with a missing
+// child, or one so large that a corrupted file would open hundreds of panes.
+func (l *PaneLayout) Validate() error {
+	if l == nil {
+		return nil
+	}
+	if panes := l.count(); panes > maxPanesPerTab {
+		return fmt.Errorf("%w: %d panes in one tab", ErrInvalidLayout, panes)
+	}
+	return l.validateShape()
+}
+
+func (l *PaneLayout) validateShape() error {
+	if !l.Split {
+		if l.A != nil || l.B != nil {
+			return fmt.Errorf("%w: a leaf with children", ErrInvalidLayout)
+		}
+		return nil
+	}
+	if l.A == nil || l.B == nil {
+		return fmt.Errorf("%w: a split with a missing side", ErrInvalidLayout)
+	}
+	if err := l.A.validateShape(); err != nil {
+		return err
+	}
+	return l.B.validateShape()
+}
+
+// count is the number of panes this tree describes.
+func (l *PaneLayout) count() int {
+	if l == nil {
+		return 0
+	}
+	if !l.Split {
+		return 1
+	}
+	return l.A.count() + l.B.count()
+}
+
+// maxPanesPerTab bounds what the restore will build.
+const maxPanesPerTab = 12
 
 // FolderDefault holds the values a folder shares with its descendants.
 type FolderDefault struct {

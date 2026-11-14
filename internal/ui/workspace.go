@@ -27,6 +27,8 @@ type workspace struct {
 	// document so one atomic write keeps the workspace consistent.
 	sessions []string
 	active   string
+	// layouts holds the split tree of the divided tabs, by connection id.
+	layouts map[string]profiles.PaneLayout
 }
 
 func newWorkspace(store Store) *workspace {
@@ -46,6 +48,7 @@ func (w *workspace) load() error {
 		w.collapsed = map[string]bool{}
 		w.sessions = nil
 		w.active = ""
+		w.layouts = nil
 		return err
 	}
 	w.profiles = loaded.Profiles
@@ -57,6 +60,10 @@ func (w *workspace) load() error {
 	}
 	w.sessions = loaded.OpenTabs
 	w.active = loaded.ActiveTab
+	w.layouts = loaded.TabLayouts
+	if w.layouts == nil {
+		w.layouts = map[string]profiles.PaneLayout{}
+	}
 	w.writable = true
 	return nil
 }
@@ -66,12 +73,13 @@ func (w *workspace) load() error {
 // which is what keeps "save before assigning" possible.
 func (w *workspace) document(profs []profiles.Profile, folders []string) profiles.Document {
 	return profiles.Document{
-		Profiles:  profs,
-		Folders:   folders,
-		Defaults:  w.defaults,
-		Collapsed: collapsedList(w.collapsed),
-		OpenTabs:  w.sessions,
-		ActiveTab: w.active,
+		Profiles:   profs,
+		Folders:    folders,
+		Defaults:   w.defaults,
+		Collapsed:  collapsedList(w.collapsed),
+		OpenTabs:   w.sessions,
+		ActiveTab:  w.active,
+		TabLayouts: w.layouts,
 	}
 }
 
@@ -94,19 +102,24 @@ func (w *workspace) save() error {
 // setSessions persists the tabs the window has open. It is called on every tab
 // change, so a rejected write is not reported: window state that could not be
 // saved must not interrupt the work it describes.
-func (w *workspace) setSessions(sessions []string, active string) error {
+func (w *workspace) setSessions(sessions []string, active string, layouts map[string]profiles.PaneLayout) error {
 	next := append([]string(nil), sessions...)
+	nextLayouts := make(map[string]profiles.PaneLayout, len(layouts))
+	for id, layout := range layouts {
+		nextLayouts[id] = layout
+	}
 	document := w.document(w.profiles, w.folders)
 	document.OpenTabs = next
 	document.ActiveTab = active
+	document.TabLayouts = nextLayouts
 	if w.store == nil || !w.writable {
-		w.sessions, w.active = next, active
+		w.sessions, w.active, w.layouts = next, active, nextLayouts
 		return nil
 	}
 	if err := w.store.Save(document); err != nil {
 		return err
 	}
-	w.sessions, w.active = next, active
+	w.sessions, w.active, w.layouts = next, active, nextLayouts
 	return nil
 }
 

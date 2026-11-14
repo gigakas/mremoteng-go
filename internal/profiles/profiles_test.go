@@ -522,3 +522,73 @@ func TestStore_OpenTabs_RoundTripAndSurviveOtherSaves(t *testing.T) {
 		t.Errorf("tabs = %v / %q, want none", again.OpenTabs, again.ActiveTab)
 	}
 }
+
+func TestStore_TabLayouts_RoundTripAndSurviveOtherSaves(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles.json")
+	profile := sampleProfile(t)
+	layout := PaneLayout{
+		Split: true, SideBySide: true,
+		A: &PaneLayout{},
+		B: &PaneLayout{Split: true, A: &PaneLayout{}, B: &PaneLayout{}},
+	}
+	if err := NewStore(path).Save(Document{
+		Profiles:   []Profile{profile},
+		OpenTabs:   []string{profile.ID},
+		TabLayouts: map[string]PaneLayout{profile.ID: layout},
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	stored, known := loaded.TabLayouts[profile.ID]
+	if !known {
+		t.Fatal("the layout did not survive the round trip")
+	}
+	if !stored.Split || !stored.SideBySide || stored.B == nil || !stored.B.Split {
+		t.Errorf("stored layout = %+v, want the same shape back", stored)
+	}
+	if got := stored.count(); got != 3 {
+		t.Errorf("panes = %d, want 3", got)
+	}
+
+	// A file written before layouts existed still loads, with no split to rebuild.
+	legacy := filepath.Join(t.TempDir(), "legacy.json")
+	if err := os.WriteFile(legacy, []byte(`{"version":2,"profiles":[],"open_tabs":["x"]}`), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	old, err := NewStore(legacy).Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(old.TabLayouts) != 0 || len(old.OpenTabs) != 1 {
+		t.Errorf("layouts = %v, tabs = %v; want the tab kept and no layout", old.TabLayouts, old.OpenTabs)
+	}
+}
+
+func TestStore_Save_RejectsALayoutTheWindowCannotRebuild(t *testing.T) {
+	store := NewStore(filepath.Join(t.TempDir(), "profiles.json"))
+	cases := map[string]PaneLayout{
+		"missing side":       {Split: true, A: &PaneLayout{}},
+		"leaf with children": {Split: false, A: &PaneLayout{}},
+		"too many panes": func() PaneLayout {
+			layout := PaneLayout{}
+			node := &layout
+			for i := 0; i < maxPanesPerTab+1; i++ {
+				node.Split = true
+				node.A = &PaneLayout{}
+				node.B = &PaneLayout{}
+				node = node.B
+			}
+			return layout
+		}(),
+	}
+	for name, layout := range cases {
+		err := store.Save(Document{TabLayouts: map[string]PaneLayout{"id": layout}})
+		if err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+}

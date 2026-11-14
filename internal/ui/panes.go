@@ -16,6 +16,10 @@ type paneNode struct {
 	panel  *sessionPanel
 	a, b   *paneNode
 	view   *fyne.Container
+	// sideBySide is the orientation of a split node: children next to each other
+	// rather than stacked. It is kept on the node so the layout can be written back
+	// without reading it out of the Fyne widget.
+	sideBySide bool
 }
 
 // newRootPane wraps the panel of a freshly opened tab.
@@ -53,13 +57,23 @@ func splittable(protocol profiles.Protocol) bool {
 // splitPane duplicates the connection of p into a new pane next to it
 // (sideBySide) or below it, and connects the copy.
 func (s *screen) splitPane(p *sessionPanel, sideBySide bool) {
+	if dup, ok := s.addPane(p, sideBySide); ok {
+		dup.connectShell()
+		s.rememberSessions()
+	}
+}
+
+// addPane duplicates the connection of p into a new pane without connecting it. The
+// split command connects the copy; the restore does not, because no credential is
+// stored and each restored pane waits for its own Connect.
+func (s *screen) addPane(p *sessionPanel, sideBySide bool) (*sessionPanel, bool) {
 	if p == nil || p.pane == nil {
 		s.setStatus("Open a terminal session first, then split its pane.")
-		return
+		return nil, false
 	}
 	if !splittable(p.profile.Protocol) {
 		s.setStatus("Only SSH, Telnet, RAW and rlogin panes can be split.")
-		return
+		return nil, false
 	}
 	leaf := p.pane
 	dup := s.newSessionPanel(p.profile)
@@ -75,8 +89,9 @@ func (s *screen) splitPane(p *sessionPanel, sideBySide bool) {
 	} else {
 		leaf.view.Objects = []fyne.CanvasObject{container.NewVSplit(mine.view, other.view)}
 	}
+	leaf.sideBySide = sideBySide
 	leaf.view.Refresh()
-	dup.connectShell()
+	return dup, true
 }
 
 // closePane ends the session of p and gives its space to the sibling pane. The
@@ -95,6 +110,7 @@ func (s *screen) closePane(p *sessionPanel) {
 	p.disconnectShell()
 
 	parent.panel, parent.a, parent.b = sibling.panel, sibling.a, sibling.b
+	parent.sideBySide = sibling.sideBySide
 	if parent.panel != nil {
 		parent.panel.pane = parent
 	} else {
@@ -112,6 +128,7 @@ func (s *screen) closePane(p *sessionPanel) {
 	if survivor := parent.leaves()[0]; survivor.term != nil {
 		survivor.term.focus()
 	}
+	s.rememberSessions()
 }
 
 // liveSessionsInTab counts the other sessions of p's tab that are still open.
@@ -164,3 +181,48 @@ func (s *screen) focusedPanel() *sessionPanel {
 
 func (s *screen) splitFocusedPane(sideBySide bool) { s.splitPane(s.focusedPanel(), sideBySide) }
 func (s *screen) closeFocusedPane()                { s.closePane(s.focusedPanel()) }
+
+// layoutOf turns a tab's pane tree into the stored shape, or nil when the tab is a
+// single pane and there is nothing to remember.
+func layoutOf(node *paneNode) *profiles.PaneLayout {
+	if node == nil || (node.panel != nil && node.a == nil) {
+		return nil
+	}
+	layout := &profiles.PaneLayout{Split: true, SideBySide: node.sideBySide}
+	layout.A = layoutOrLeaf(node.a)
+	layout.B = layoutOrLeaf(node.b)
+	return layout
+}
+
+// layoutOrLeaf keeps a child subtree, defaulting to a leaf so a half-built tree can
+// still be written.
+func layoutOrLeaf(node *paneNode) *profiles.PaneLayout {
+	if stored := layoutOf(node); stored != nil {
+		return stored
+	}
+	return &profiles.PaneLayout{}
+}
+
+// restorePanes rebuilds a tab's split tree from the stored shape. Every pane is
+// created without connecting, and a shape this build cannot rebuild is ignored: an
+// unreadable layout must not cost the user the tab.
+func (s *screen) restorePanes(panel *sessionPanel, layout *profiles.PaneLayout) {
+	if layout == nil || !layout.Split || layout.Validate() != nil {
+		return
+	}
+	s.growPanes(panel, layout)
+}
+
+// growPanes applies one stored split: the existing pane keeps the left/top side and a
+// fresh pane takes the other, which is the order the split command produces.
+func (s *screen) growPanes(panel *sessionPanel, layout *profiles.PaneLayout) {
+	if panel == nil || layout == nil || !layout.Split {
+		return
+	}
+	dup, ok := s.addPane(panel, layout.SideBySide)
+	if !ok {
+		return
+	}
+	s.growPanes(panel, layout.A)
+	s.growPanes(dup, layout.B)
+}

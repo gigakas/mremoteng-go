@@ -19,12 +19,13 @@ func (f *fakeStore) Load() (profiles.Document, error) {
 		return profiles.Document{}, f.loadErr
 	}
 	return profiles.Document{
-		Profiles:  append([]profiles.Profile(nil), f.profiles...),
-		Folders:   append([]string(nil), f.folders...),
-		Defaults:  append([]profiles.FolderDefault(nil), f.defaults...),
-		Collapsed: append([]string(nil), f.collapsed...),
-		OpenTabs:  append([]string(nil), f.openTabs...),
-		ActiveTab: f.activeTab,
+		Profiles:   append([]profiles.Profile(nil), f.profiles...),
+		Folders:    append([]string(nil), f.folders...),
+		Defaults:   append([]profiles.FolderDefault(nil), f.defaults...),
+		Collapsed:  append([]string(nil), f.collapsed...),
+		OpenTabs:   append([]string(nil), f.openTabs...),
+		ActiveTab:  f.activeTab,
+		TabLayouts: copyLayouts(f.layouts),
 	}, nil
 }
 
@@ -38,6 +39,7 @@ func (f *fakeStore) Save(document profiles.Document) error {
 	f.collapsed = append([]string(nil), document.Collapsed...)
 	f.openTabs = append([]string(nil), document.OpenTabs...)
 	f.activeTab = document.ActiveTab
+	f.layouts = copyLayouts(document.TabLayouts)
 	f.saves++
 	return nil
 }
