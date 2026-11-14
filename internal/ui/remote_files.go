@@ -59,7 +59,7 @@ func (s *screen) openRemoteFiles(target sshclient.Target, options sshclient.Opti
 	s.setStatus("Connecting to " + host + " for file transfer ...")
 	go func() {
 		files, _, err := sshclient.OpenRemoteFiles(target, options)
-		fyne.Do(func() {
+		runOnUI(func() {
 			if err == nil {
 				s.showRemoteBrowser(files, host)
 				return
@@ -192,13 +192,13 @@ func (b *remoteBrowser) transfer(label string, run func(context.Context, sshclie
 	go func() {
 		defer cancel()
 		progress := func(done, total int64) {
-			fyne.Do(func() {
+			runOnUI(func() {
 				b.setProgress(done, total)
 				b.status.SetText(progressText(label, done, total))
 			})
 		}
 		err := run(ctx, progress)
-		fyne.Do(func() {
+		runOnUI(func() {
 			b.cancel = nil
 			if errors.Is(err, context.Canceled) {
 				b.finishProgress()

@@ -46,6 +46,24 @@ func ParseFragment(data []byte) (Entry, error) {
 		return e, fmt.Errorf("front matter has no closing delimiter (---)")
 	}
 
+	if err := parseFrontMatter(head, &e); err != nil {
+		return e, err
+	}
+	if err := parseBody(body, &e); err != nil {
+		return e, err
+	}
+	if e.Timestamp.IsZero() {
+		return e, fmt.Errorf("fragment is missing the timestamp field")
+	}
+	if e.Agent == "" {
+		return e, fmt.Errorf("fragment is missing the agent field")
+	}
+	return e, nil
+}
+
+// parseFrontMatter fills the timestamp, agent and file list of e from the
+// lines between the "---" delimiters.
+func parseFrontMatter(head string, e *Entry) error {
 	inFiles := false
 	for _, line := range strings.Split(head, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -59,14 +77,14 @@ func ParseFragment(data []byte) (Entry, error) {
 		inFiles = false
 		key, value, found := strings.Cut(trimmed, ":")
 		if !found {
-			return e, fmt.Errorf("invalid front matter line: %q", trimmed)
+			return fmt.Errorf("invalid front matter line: %q", trimmed)
 		}
 		value = strings.TrimSpace(value)
 		switch strings.TrimSpace(key) {
 		case "timestamp":
 			ts, err := time.Parse(time.RFC3339, value)
 			if err != nil {
-				return e, fmt.Errorf("invalid timestamp %q: %w", value, err)
+				return fmt.Errorf("invalid timestamp %q: %w", value, err)
 			}
 			e.Timestamp = ts.UTC()
 		case "agent":
@@ -75,30 +93,24 @@ func ParseFragment(data []byte) (Entry, error) {
 			inFiles = true
 		}
 	}
+	return nil
+}
 
+// parseBody splits the text after the front matter into the summary (the first
+// paragraph) and the description (everything after the first blank line).
+func parseBody(body string, e *Entry) error {
 	e.Summary = strings.TrimSpace(body)
 	if e.Summary == "" {
-		return e, fmt.Errorf("fragment has no summary (empty body)")
+		return fmt.Errorf("fragment has no summary (empty body)")
 	}
-
-	// The body may contain a one-line summary followed by a detailed
-	// description separated by a blank line. The first paragraph is the
-	// summary; everything after the first blank line is the description.
 	if parts := strings.SplitN(e.Summary, "\n\n", 2); len(parts) == 2 {
 		e.Summary = strings.TrimSpace(parts[0])
 		e.Description = strings.TrimSpace(parts[1])
 		if e.Summary == "" {
-			return e, fmt.Errorf("fragment has no summary (empty body)")
+			return fmt.Errorf("fragment has no summary (empty body)")
 		}
 	}
-
-	if e.Timestamp.IsZero() {
-		return e, fmt.Errorf("fragment is missing the timestamp field")
-	}
-	if e.Agent == "" {
-		return e, fmt.Errorf("fragment is missing the agent field")
-	}
-	return e, nil
+	return nil
 }
 
 // LoadDir reads every *.md fragment in a directory (ignoring README.md) and

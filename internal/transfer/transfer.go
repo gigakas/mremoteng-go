@@ -93,10 +93,20 @@ func (p *Preview) collect(node connection.Node, parent string) {
 	if values.Password != "" {
 		p.Dropped++
 	}
-	id, err := profiles.NewID()
+	profile, err := importedProfile(values, protocol, parent)
 	if err != nil {
+		// Unusable rows are reported instead of silently stored broken.
 		p.Unsupported++
 		return
+	}
+	p.Profiles = append(p.Profiles, profile)
+}
+
+// importedProfile converts a supported connection into a native profile.
+func importedProfile(values connection.ConnectionValues, protocol profiles.Protocol, folder string) (profiles.Profile, error) {
+	id, err := profiles.NewID()
+	if err != nil {
+		return profiles.Profile{}, err
 	}
 	port := values.Port
 	if port == 0 {
@@ -105,7 +115,7 @@ func (p *Preview) collect(node connection.Node, parent string) {
 	profile := profiles.Profile{
 		ID:       id,
 		Name:     strings.TrimSpace(values.Name),
-		Folder:   parent,
+		Folder:   folder,
 		Protocol: protocol,
 		Host:     strings.TrimSpace(values.Hostname),
 		Port:     port,
@@ -114,12 +124,7 @@ func (p *Preview) collect(node connection.Node, parent string) {
 	if profile.Name == "" {
 		profile.Name = "Imported connection"
 	}
-	if err := profile.Validate(); err != nil {
-		// Unusable rows are reported instead of silently stored broken.
-		p.Unsupported++
-		return
-	}
-	p.Profiles = append(p.Profiles, profile)
+	return profile, profile.Validate()
 }
 
 // children returns the direct children of a node.

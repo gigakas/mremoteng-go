@@ -490,6 +490,68 @@
   - `cmd/mremoteng/profiling_test.go`
   - `cmd/mremoteng/main.go`
   - _2026-11-14 23:01:41 UTC — mimocode_
+- Cap the VNC desktop name and restrict the browser launcher to web URLs
+
+  A hostile VNC server could announce a 4 GiB desktop name and make the client allocate it; the name is now capped at 64 KiB. xdg-open only receives http and https URLs. Both have tests.
+
+  - `internal/protocol/vnc/vnc.go`
+  - `internal/protocol/vnc/vnc_test.go`
+  - `internal/ui/stream.go`
+  - `internal/ui/stream_test.go`
+  - _2026-11-14 23:17:50 UTC — claude-code_
+- Make the UI tests race-free and run check.sh with -race
+
+  Worker callbacks now go through runOnUI, which tests queue and drain on the test goroutine because Fyne's test driver runs fyne.Do inline. The session fakes block until closed like a real pty. go test -race ./... now passes and check.sh runs it.
+
+  - `internal/ui/dispatch.go`
+  - `internal/ui/dispatch_test.go`
+  - `internal/ui/helpers_test.go`
+  - `internal/ui/screen_test.go`
+  - `internal/ui/rdp_test.go`
+  - `internal/ui/tooltip_test.go`
+  - `internal/ui/embed.go`
+  - `internal/ui/remote_files.go`
+  - `internal/ui/serial.go`
+  - `internal/ui/sessionstate.go`
+  - `internal/ui/tooltip.go`
+  - `internal/ui/vnc.go`
+  - `internal/ui/webview.go`
+  - `scripts/check.sh`
+  - _2026-11-14 23:17:50 UTC — claude-code_
+- Split long functions and the largest UI files without changing behaviour
+
+  Extracted helpers from the XML and CSV serializers, the profile store, vault, VNC handshake, RDP arguments, serial termios, transfer import, changelog parser and Profile.Validate. Inheritance flags now copy through a field table derived by reflection, with tests that every flag maps to its value field. Moved RDP, terminal input, shortcut and tab code out of session.go, terminal.go and shell.go. XML attribute order is unchanged.
+
+  - `cmd/changelog/main.go`
+  - `cmd/changelog/main_test.go`
+  - `internal/changelog/changelog.go`
+  - `internal/connection/inheritance.go`
+  - `internal/connection/inheritance_test.go`
+  - `internal/profiles/profiles.go`
+  - `internal/profiles/store.go`
+  - `internal/protocol/rdp/rdp.go`
+  - `internal/protocol/serial/serial.go`
+  - `internal/protocol/telnet/telnet.go`
+  - `internal/serialize/csv/csv.go`
+  - `internal/serialize/xml`
+  - `internal/transfer/transfer.go`
+  - `internal/ui/session.go`
+  - `internal/ui/session_rdp.go`
+  - `internal/ui/shell.go`
+  - `internal/ui/shell_shortcuts.go`
+  - `internal/ui/shell_tabs.go`
+  - `internal/ui/terminal.go`
+  - `internal/ui/terminal_input.go`
+  - _2026-11-14 23:17:50 UTC — claude-code_
+- Tidy go.mod and cover vault format and failure paths
+
+  pkg/sftp is a direct dependency, so go mod tidy moves it out of the indirect block. New vault tests cover format validation, locked saves, nonce reuse, unwritable directories and Exists.
+
+  - `go.mod`
+  - `go.sum`
+  - `internal/vault/vault.go`
+  - `internal/vault/vault_test.go`
+  - _2026-11-14 23:17:50 UTC — claude-code_
 
 ## 2026-11-12
 

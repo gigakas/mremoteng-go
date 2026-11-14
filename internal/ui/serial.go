@@ -48,7 +48,7 @@ func (p *sessionPanel) connectSerial() {
 	p.setConnecting("Opening " + config.Description() + " ...")
 	go func() {
 		session, err := p.screen.openSerial(config)
-		fyne.Do(func() {
+		runOnUI(func() {
 			if err != nil {
 				p.setConnected(false)
 				p.setProblem("Serial port failed: " + err.Error())

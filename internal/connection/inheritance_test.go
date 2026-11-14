@@ -226,3 +226,68 @@ func setDistinctInheritanceValues(parent, child reflect.Value) {
 		panic("unsupported ConnectionValues field kind: " + parent.Kind().String())
 	}
 }
+
+func TestInheritanceFlags_EachFlag_CopiesOnlyItsOwnField(t *testing.T) {
+	flagsType := reflect.TypeOf(InheritanceFlags{})
+	for i := 0; i < flagsType.NumField(); i++ {
+		name := flagsType.Field(i).Name
+		var flags InheritanceFlags
+		reflect.ValueOf(&flags).Elem().Field(i).SetBool(true)
+
+		src := ConnectionValues{}
+		fillNonZero(reflect.ValueOf(&src).Elem())
+		var dst ConnectionValues
+		flags.apply(&dst, src)
+
+		got := reflect.ValueOf(dst)
+		want := reflect.ValueOf(src)
+		for j := 0; j < got.NumField(); j++ {
+			field := got.Type().Field(j).Name
+			copied := !got.Field(j).IsZero()
+			if field == name {
+				if !copied || !reflect.DeepEqual(got.Field(j).Interface(), want.Field(j).Interface()) {
+					t.Errorf("flag %s did not copy its field", name)
+				}
+			} else if copied {
+				t.Errorf("flag %s also copied %s", name, field)
+			}
+		}
+	}
+}
+
+func TestInheritanceFlags_SetAll_CoversEveryFlag(t *testing.T) {
+	var flags InheritanceFlags
+	flags.SetAll(true)
+	value := reflect.ValueOf(flags)
+	for i := 0; i < value.NumField(); i++ {
+		if !value.Field(i).Bool() {
+			t.Errorf("SetAll(true) left %s off", value.Type().Field(i).Name)
+		}
+	}
+	if !flags.EverythingInherited() {
+		t.Error("EverythingInherited = false after SetAll(true)")
+	}
+	flags.SetAll(false)
+	if flags != (InheritanceFlags{}) {
+		t.Error("SetAll(false) left a flag on")
+	}
+}
+
+// fillNonZero gives every field of a struct a non-zero value of its own kind.
+func fillNonZero(v reflect.Value) {
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		switch field.Kind() {
+		case reflect.String:
+			field.SetString("x")
+		case reflect.Bool:
+			field.SetBool(true)
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			field.SetInt(1)
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			field.SetUint(1)
+		case reflect.Struct:
+			fillNonZero(field)
+		}
+	}
+}

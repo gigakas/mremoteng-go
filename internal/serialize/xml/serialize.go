@@ -48,13 +48,9 @@ func Serialize(document *Document, options SerializeOptions) ([]byte, error) {
 	if len(password) == 0 {
 		password = []byte(defaultPassword)
 	}
-	marker := "ThisIsProtected"
-	if bytes.Equal(password, []byte(defaultPassword)) {
-		marker = "ThisIsNotProtected"
-	}
-	protected, err := provider.Encrypt(marker, password)
+	protected, err := protectionMarker(provider, password)
 	if err != nil {
-		return nil, fmt.Errorf("xml: encrypt protection marker: %w", err)
+		return nil, err
 	}
 
 	serializer := nodeSerializer{provider: provider, password: password, filter: normalizedSaveFilter(options.SaveFilter)}
@@ -69,12 +65,26 @@ func Serialize(document *Document, options SerializeOptions) ([]byte, error) {
 		}
 		inner = []byte(ciphertext)
 	}
+	root := rootElement(document, options, iterations, protected)
+	return writeDocument(root, inner, options.FullFileEncryption)
+}
 
-	var output bytes.Buffer
-	output.WriteString("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
-	encoder := stdxml.NewEncoder(&output)
-	encoder.Indent("", "  ")
-	root := stdxml.StartElement{
+// protectionMarker encrypts the sentinel that lets a reader check the password
+// and tell a default-password file from a protected one.
+func protectionMarker(provider *security.AEAD, password []byte) (string, error) {
+	marker := "ThisIsProtected"
+	if bytes.Equal(password, []byte(defaultPassword)) {
+		marker = "ThisIsNotProtected"
+	}
+	protected, err := provider.Encrypt(marker, password)
+	if err != nil {
+		return "", fmt.Errorf("xml: encrypt protection marker: %w", err)
+	}
+	return protected, nil
+}
+
+func rootElement(document *Document, options SerializeOptions, iterations int, protected string) stdxml.StartElement {
+	return stdxml.StartElement{
 		Name: stdxml.Name{Space: "http://mremoteng.org", Local: "Connections"},
 		Attr: []stdxml.Attr{
 			stringXMLAttr("Name", document.Root.Base().Raw.Name),
@@ -87,10 +97,19 @@ func Serialize(document *Document, options SerializeOptions) ([]byte, error) {
 			stringXMLAttr("ConfVersion", "2.8"),
 		},
 	}
+}
+
+// writeDocument wraps inner in the root element: as escaped text when the file
+// is fully encrypted, as already-encoded child elements otherwise.
+func writeDocument(root stdxml.StartElement, inner []byte, fullFileEncryption bool) ([]byte, error) {
+	var output bytes.Buffer
+	output.WriteString("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
+	encoder := stdxml.NewEncoder(&output)
+	encoder.Indent("", "  ")
 	if err := encoder.EncodeToken(root); err != nil {
 		return nil, fmt.Errorf("xml: encode root: %w", err)
 	}
-	if options.FullFileEncryption {
+	if fullFileEncryption {
 		if err := encoder.EncodeToken(stdxml.CharData(inner)); err != nil {
 			return nil, fmt.Errorf("xml: encode encrypted payload: %w", err)
 		}

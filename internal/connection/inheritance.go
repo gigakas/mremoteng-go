@@ -1,5 +1,7 @@
 package connection
 
+import "reflect"
+
 // InheritanceFlags mirrors ConnectionInfoInheritance. A true field means the
 // corresponding value resolves from the parent when inheritance is active.
 type InheritanceFlags struct {
@@ -143,270 +145,52 @@ func (c *ContainerInfo) ApplyInheritanceToChildren() {
 	}
 }
 
+// inheritedField pairs an InheritanceFlags field with the ConnectionValues
+// field of the same name that it controls.
+type inheritedField struct {
+	flag, value int
+}
+
+// inheritedFields is derived once from the two struct definitions. Every flag
+// must name a ConnectionValues field; the init panic (and a test) catches a
+// flag added without its value, so the two types cannot drift apart silently.
+var inheritedFields = buildInheritedFields()
+
+func buildInheritedFields() []inheritedField {
+	flags := reflect.TypeOf(InheritanceFlags{})
+	values := reflect.TypeOf(ConnectionValues{})
+	fields := make([]inheritedField, 0, flags.NumField())
+	for i := 0; i < flags.NumField(); i++ {
+		name := flags.Field(i).Name
+		if flags.Field(i).Type.Kind() != reflect.Bool {
+			panic("connection: inheritance flag " + name + " is not a bool")
+		}
+		value, ok := values.FieldByName(name)
+		if !ok {
+			panic("connection: inheritance flag " + name + " has no ConnectionValues field")
+		}
+		fields = append(fields, inheritedField{flag: i, value: value.Index[0]})
+	}
+	return fields
+}
+
+// apply copies from src every field whose flag is set.
 func (f InheritanceFlags) apply(dst *ConnectionValues, src ConnectionValues) {
-	if f.Description {
-		dst.Description = src.Description
-	}
-	if f.Icon {
-		dst.Icon = src.Icon
-	}
-	if f.Panel {
-		dst.Panel = src.Panel
-	}
-	if f.Color {
-		dst.Color = src.Color
-	}
-	if f.TabColor {
-		dst.TabColor = src.TabColor
-	}
-	if f.ConnectionFrameColor {
-		dst.ConnectionFrameColor = src.ConnectionFrameColor
-	}
-	if f.ExternalCredentialProvider {
-		dst.ExternalCredentialProvider = src.ExternalCredentialProvider
-	}
-	if f.UserViaAPI {
-		dst.UserViaAPI = src.UserViaAPI
-	}
-	if f.Username {
-		dst.Username = src.Username
-	}
-	if f.VMID {
-		dst.VMID = src.VMID
-	}
-	if f.Password {
-		dst.Password = src.Password
-	}
-	if f.Domain {
-		dst.Domain = src.Domain
-	}
-	if f.Port {
-		dst.Port = src.Port
-	}
-	if f.SSHTunnelConnectionName {
-		dst.SSHTunnelConnectionName = src.SSHTunnelConnectionName
-	}
-	if f.OpeningCommand {
-		dst.OpeningCommand = src.OpeningCommand
-	}
-	if f.Protocol {
-		dst.Protocol = src.Protocol
-	}
-	if f.RDPVersion {
-		dst.RDPVersion = src.RDPVersion
-	}
-	if f.ExtApp {
-		dst.ExtApp = src.ExtApp
-	}
-	if f.PuttySession {
-		dst.PuttySession = src.PuttySession
-	}
-	if f.SSHOptions {
-		dst.SSHOptions = src.SSHOptions
-	}
-	if f.RDPAuthenticationLevel {
-		dst.RDPAuthenticationLevel = src.RDPAuthenticationLevel
-	}
-	if f.RDPMinutesToIdleTimeout {
-		dst.RDPMinutesToIdleTimeout = src.RDPMinutesToIdleTimeout
-	}
-	if f.RDPAlertIdleTimeout {
-		dst.RDPAlertIdleTimeout = src.RDPAlertIdleTimeout
-	}
-	if f.LoadBalanceInfo {
-		dst.LoadBalanceInfo = src.LoadBalanceInfo
-	}
-	if f.RenderingEngine {
-		dst.RenderingEngine = src.RenderingEngine
-	}
-	if f.UseConsoleSession {
-		dst.UseConsoleSession = src.UseConsoleSession
-	}
-	if f.UseCredSsp {
-		dst.UseCredSsp = src.UseCredSsp
-	}
-	if f.UseRestrictedAdmin {
-		dst.UseRestrictedAdmin = src.UseRestrictedAdmin
-	}
-	if f.UseRCG {
-		dst.UseRCG = src.UseRCG
-	}
-	if f.UseRedirectionServerName {
-		dst.UseRedirectionServerName = src.UseRedirectionServerName
-	}
-	if f.UseVMID {
-		dst.UseVMID = src.UseVMID
-	}
-	if f.UseEnhancedMode {
-		dst.UseEnhancedMode = src.UseEnhancedMode
-	}
-	if f.RDGatewayUsageMethod {
-		dst.RDGatewayUsageMethod = src.RDGatewayUsageMethod
-	}
-	if f.RDGatewayHostname {
-		dst.RDGatewayHostname = src.RDGatewayHostname
-	}
-	if f.RDGatewayUseConnectionCredentials {
-		dst.RDGatewayUseConnectionCredentials = src.RDGatewayUseConnectionCredentials
-	}
-	if f.RDGatewayUsername {
-		dst.RDGatewayUsername = src.RDGatewayUsername
-	}
-	if f.RDGatewayPassword {
-		dst.RDGatewayPassword = src.RDGatewayPassword
-	}
-	if f.RDGatewayAccessToken {
-		dst.RDGatewayAccessToken = src.RDGatewayAccessToken
-	}
-	if f.RDGatewayDomain {
-		dst.RDGatewayDomain = src.RDGatewayDomain
-	}
-	if f.RDGatewayExternalCredentialProvider {
-		dst.RDGatewayExternalCredentialProvider = src.RDGatewayExternalCredentialProvider
-	}
-	if f.RDGatewayUserViaAPI {
-		dst.RDGatewayUserViaAPI = src.RDGatewayUserViaAPI
-	}
-	if f.Resolution {
-		dst.Resolution = src.Resolution
-	}
-	if f.AutomaticResize {
-		dst.AutomaticResize = src.AutomaticResize
-	}
-	if f.Colors {
-		dst.Colors = src.Colors
-	}
-	if f.CacheBitmaps {
-		dst.CacheBitmaps = src.CacheBitmaps
-	}
-	if f.DisplayWallpaper {
-		dst.DisplayWallpaper = src.DisplayWallpaper
-	}
-	if f.DisplayThemes {
-		dst.DisplayThemes = src.DisplayThemes
-	}
-	if f.EnableFontSmoothing {
-		dst.EnableFontSmoothing = src.EnableFontSmoothing
-	}
-	if f.EnableDesktopComposition {
-		dst.EnableDesktopComposition = src.EnableDesktopComposition
-	}
-	if f.DisableFullWindowDrag {
-		dst.DisableFullWindowDrag = src.DisableFullWindowDrag
-	}
-	if f.DisableMenuAnimations {
-		dst.DisableMenuAnimations = src.DisableMenuAnimations
-	}
-	if f.DisableCursorShadow {
-		dst.DisableCursorShadow = src.DisableCursorShadow
-	}
-	if f.DisableCursorBlinking {
-		dst.DisableCursorBlinking = src.DisableCursorBlinking
-	}
-	if f.RedirectKeys {
-		dst.RedirectKeys = src.RedirectKeys
-	}
-	if f.RedirectDiskDrives {
-		dst.RedirectDiskDrives = src.RedirectDiskDrives
-	}
-	if f.RedirectDiskDrivesCustom {
-		dst.RedirectDiskDrivesCustom = src.RedirectDiskDrivesCustom
-	}
-	if f.RedirectPrinters {
-		dst.RedirectPrinters = src.RedirectPrinters
-	}
-	if f.RedirectClipboard {
-		dst.RedirectClipboard = src.RedirectClipboard
-	}
-	if f.RedirectPorts {
-		dst.RedirectPorts = src.RedirectPorts
-	}
-	if f.RedirectSmartCards {
-		dst.RedirectSmartCards = src.RedirectSmartCards
-	}
-	if f.RedirectSound {
-		dst.RedirectSound = src.RedirectSound
-	}
-	if f.SoundQuality {
-		dst.SoundQuality = src.SoundQuality
-	}
-	if f.RedirectAudioCapture {
-		dst.RedirectAudioCapture = src.RedirectAudioCapture
-	}
-	if f.PreExtApp {
-		dst.PreExtApp = src.PreExtApp
-	}
-	if f.PostExtApp {
-		dst.PostExtApp = src.PostExtApp
-	}
-	if f.MacAddress {
-		dst.MacAddress = src.MacAddress
-	}
-	if f.UserField {
-		dst.UserField = src.UserField
-	}
-	if f.EnvironmentTags {
-		dst.EnvironmentTags = src.EnvironmentTags
-	}
-	if f.Favorite {
-		dst.Favorite = src.Favorite
-	}
-	if f.VNCCompression {
-		dst.VNCCompression = src.VNCCompression
-	}
-	if f.VNCEncoding {
-		dst.VNCEncoding = src.VNCEncoding
-	}
-	if f.VNCAuthMode {
-		dst.VNCAuthMode = src.VNCAuthMode
-	}
-	if f.VNCProxyType {
-		dst.VNCProxyType = src.VNCProxyType
-	}
-	if f.VNCProxyIP {
-		dst.VNCProxyIP = src.VNCProxyIP
-	}
-	if f.VNCProxyPort {
-		dst.VNCProxyPort = src.VNCProxyPort
-	}
-	if f.VNCProxyUsername {
-		dst.VNCProxyUsername = src.VNCProxyUsername
-	}
-	if f.VNCProxyPassword {
-		dst.VNCProxyPassword = src.VNCProxyPassword
-	}
-	if f.VNCColors {
-		dst.VNCColors = src.VNCColors
-	}
-	if f.VNCSmartSizeMode {
-		dst.VNCSmartSizeMode = src.VNCSmartSizeMode
-	}
-	if f.VNCViewOnly {
-		dst.VNCViewOnly = src.VNCViewOnly
+	flags := reflect.ValueOf(f)
+	to := reflect.ValueOf(dst).Elem()
+	from := reflect.ValueOf(src)
+	for _, field := range inheritedFields {
+		if flags.Field(field.flag).Bool() {
+			to.Field(field.value).Set(from.Field(field.value))
+		}
 	}
 }
 
 func allInheritanceFlags(value bool) InheritanceFlags {
-	return InheritanceFlags{
-		Description: value, Icon: value, Panel: value, Color: value, TabColor: value, ConnectionFrameColor: value,
-		ExternalCredentialProvider: value, UserViaAPI: value, Username: value, VMID: value, Password: value,
-		Domain: value, Port: value, SSHTunnelConnectionName: value, OpeningCommand: value,
-		Protocol: value, RDPVersion: value, ExtApp: value, PuttySession: value, SSHOptions: value,
-		RDPAuthenticationLevel: value, RDPMinutesToIdleTimeout: value, RDPAlertIdleTimeout: value,
-		LoadBalanceInfo: value, RenderingEngine: value, UseConsoleSession: value, UseCredSsp: value,
-		UseRestrictedAdmin: value, UseRCG: value, UseRedirectionServerName: value, UseVMID: value, UseEnhancedMode: value,
-		RDGatewayUsageMethod: value, RDGatewayHostname: value, RDGatewayUseConnectionCredentials: value,
-		RDGatewayUsername: value, RDGatewayPassword: value, RDGatewayAccessToken: value, RDGatewayDomain: value,
-		RDGatewayExternalCredentialProvider: value, RDGatewayUserViaAPI: value,
-		Resolution: value, AutomaticResize: value, Colors: value, CacheBitmaps: value, DisplayWallpaper: value,
-		DisplayThemes: value, EnableFontSmoothing: value, EnableDesktopComposition: value,
-		DisableFullWindowDrag: value, DisableMenuAnimations: value, DisableCursorShadow: value, DisableCursorBlinking: value,
-		RedirectKeys: value, RedirectDiskDrives: value, RedirectDiskDrivesCustom: value, RedirectPrinters: value,
-		RedirectClipboard: value, RedirectPorts: value, RedirectSmartCards: value, RedirectSound: value,
-		SoundQuality: value, RedirectAudioCapture: value,
-		PreExtApp: value, PostExtApp: value, MacAddress: value, UserField: value, EnvironmentTags: value, Favorite: value,
-		VNCCompression: value, VNCEncoding: value, VNCAuthMode: value, VNCProxyType: value, VNCProxyIP: value,
-		VNCProxyPort: value, VNCProxyUsername: value, VNCProxyPassword: value, VNCColors: value,
-		VNCSmartSizeMode: value, VNCViewOnly: value,
+	var flags InheritanceFlags
+	target := reflect.ValueOf(&flags).Elem()
+	for _, field := range inheritedFields {
+		target.Field(field.flag).SetBool(value)
 	}
+	return flags
 }

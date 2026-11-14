@@ -7,6 +7,7 @@ import (
 	sshclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/ssh"
 	"image"
 	"io"
+	"sync"
 	"testing"
 )
 
@@ -77,6 +78,7 @@ type fakeShell struct {
 	output io.Reader
 	closed bool
 	sizes  []sshclient.TermSize
+	gate   closeGate
 }
 
 type fakeVNC struct {
@@ -89,6 +91,37 @@ type fakeVNC struct {
 type fakeStream struct {
 	written []byte
 	closed  bool
+	gate    closeGate
+}
+
+// closeGate makes a fake's read side block until the fake is closed, then
+// report EOF. The zero value is ready to use.
+type closeGate struct {
+	once sync.Once
+	done chan struct{}
+}
+
+func (g *closeGate) init() { g.once.Do(func() { g.done = make(chan struct{}) }) }
+
+func (g *closeGate) release() {
+	g.init()
+	select {
+	case <-g.done:
+	default:
+		close(g.done)
+	}
+}
+
+func (g *closeGate) reader() io.Reader {
+	g.init()
+	return gateReader{g.done}
+}
+
+type gateReader struct{ done chan struct{} }
+
+func (r gateReader) Read([]byte) (int, error) {
+	<-r.done
+	return 0, io.EOF
 }
 
 type fakeClipboard struct{ content string }

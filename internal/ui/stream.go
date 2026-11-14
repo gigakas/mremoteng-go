@@ -1,12 +1,12 @@
 package ui
 
 import (
+	"fmt"
 	"net"
+	"net/url"
 	"os/exec"
 	"strconv"
 	"time"
-
-	"fyne.io/fyne/v2"
 
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 	telnetclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/telnet"
@@ -57,7 +57,7 @@ func (p *sessionPanel) connectStream() {
 	config := telnetclient.Config{Mode: mode, Username: resolved.Username, Timeout: 10 * time.Second}
 	go func() {
 		session, err := p.screen.dialStream(address, config)
-		fyne.Do(func() {
+		runOnUI(func() {
 			if err != nil {
 				p.setConnected(false)
 				p.setProblem(string(mode) + " connection failed: " + err.Error())
@@ -71,7 +71,10 @@ func (p *sessionPanel) connectStream() {
 // startStream installs the terminal view over the byte stream.
 func (p *sessionPanel) startStream(session streamSession, label string) {
 	p.stream = session
-	p.term = newTermWidget(80, 24, func(data []byte) { _, _ = session.Write(data) }, nil)
+	p.term = newTermWidget(80, 24, func(data []byte) {
+		// A write error means the stream closed; the read pump reports that.
+		_, _ = session.Write(data)
+	}, nil)
 	// Same setup as an SSH terminal: clipboard, interrupt and zoom wiring, and
 	// the theme override that makes zoom affect only the console.
 	p.wireTerminal(p.term)
@@ -94,7 +97,23 @@ func (p *sessionPanel) streamClosed(session streamSession) {
 	p.setStatus("Session closed.")
 }
 
-// openExternalBrowser launches the default browser.
-func openExternalBrowser(url string) error {
-	return exec.Command("xdg-open", url).Start()
+// openExternalBrowser launches the default browser. Only http and https URLs
+// are handed to xdg-open: a profile host must never become a file:// path or an
+// arbitrary URL scheme handler invocation.
+func openExternalBrowser(target string) error {
+	if err := checkBrowserURL(target); err != nil {
+		return err
+	}
+	return exec.Command("xdg-open", target).Start()
+}
+
+func checkBrowserURL(target string) error {
+	parsed, err := url.Parse(target)
+	if err != nil {
+		return fmt.Errorf("open browser: %w", err)
+	}
+	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return fmt.Errorf("open browser: refusing %q: only http and https URLs are opened", target)
+	}
+	return nil
 }

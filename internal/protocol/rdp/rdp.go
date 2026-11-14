@@ -261,6 +261,15 @@ func (s *Session) PID() int {
 // Arguments builds the FreeRDP command line. Tests rely on this being free of
 // secrets: the password never appears here.
 func Arguments(target Target, options Options) []string {
+	args := targetArguments(target)
+	args = append(args, securityArguments(options)...)
+	args = append(args, redirectionArguments(options)...)
+	return append(args, displayArguments(options)...)
+}
+
+// targetArguments names the host and the account, and asks for the password on
+// stdin.
+func targetArguments(target Target) []string {
 	port := target.Port
 	if port == 0 {
 		port = 3389
@@ -272,7 +281,12 @@ func Arguments(target Target, options Options) []string {
 	if target.Domain != "" {
 		args = append(args, "/d:"+target.Domain)
 	}
-	args = append(args, "/from-stdin:force")
+	return append(args, "/from-stdin:force")
+}
+
+// securityArguments covers certificate handling and the security protocol.
+func securityArguments(options Options) []string {
+	var args []string
 	if options.IgnoreCertificate {
 		args = append(args, "/cert:ignore")
 	} else {
@@ -284,6 +298,12 @@ func Arguments(target Target, options Options) []string {
 	if options.AuthOnly {
 		args = append(args, "+auth-only")
 	}
+	return args
+}
+
+// redirectionArguments covers clipboard, printers, audio and drives.
+func redirectionArguments(options Options) []string {
+	var args []string
 	if options.Clipboard {
 		args = append(args, "+clipboard")
 	}
@@ -300,6 +320,12 @@ func Arguments(target Target, options Options) []string {
 		}
 		args = append(args, "/drive:"+drive)
 	}
+	return args
+}
+
+// displayArguments covers resolution, monitors, the gateway and embedding.
+func displayArguments(options Options) []string {
+	var args []string
 	if options.DynamicResolution {
 		args = append(args, "/dynamic-resolution")
 	}

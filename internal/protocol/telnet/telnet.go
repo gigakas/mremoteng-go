@@ -138,6 +138,7 @@ func (c *Conn) refuse(command, option byte) {
 	if command == do || command == dont {
 		reply = dont
 	}
+	// A failed negotiation reply surfaces as a read error on the next Read.
 	_, _ = c.conn.Write([]byte{iac, reply, option})
 }
 

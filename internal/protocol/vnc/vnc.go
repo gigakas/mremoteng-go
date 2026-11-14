@@ -83,7 +83,27 @@ func (c *Client) Name() string { return c.name }
 // Image returns the current framebuffer. It is updated in place by ReadMessage.
 func (c *Client) Image() *image.RGBA { return c.img }
 
+// maxDesktopName caps the desktop name a server may announce, so a hostile
+// server cannot make the client allocate gigabytes from a 32-bit length.
+const maxDesktopName = 1 << 16
+
 func (c *Client) handshake(password string) error {
+	steps := []func() error{
+		c.exchangeVersions,
+		func() error { return c.negotiateSecurity(password) },
+		c.readSecurityResult,
+		c.initialise,
+		c.setFormatAndEncodings,
+	}
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) exchangeVersions() error {
 	version := make([]byte, 12)
 	if _, err := io.ReadFull(c.reader, version); err != nil {
 		return fmt.Errorf("vnc: read server version: %w", err)
@@ -94,7 +114,12 @@ func (c *Client) handshake(password string) error {
 	if _, err := c.conn.Write([]byte("RFB 003.008\n")); err != nil {
 		return fmt.Errorf("vnc: write client version: %w", err)
 	}
+	return nil
+}
 
+// negotiateSecurity picks None over VNC authentication when both are offered,
+// announces the choice and runs the authentication it needs.
+func (c *Client) negotiateSecurity(password string) error {
 	count, err := c.reader.ReadByte()
 	if err != nil {
 		return fmt.Errorf("vnc: read security types: %w", err)
@@ -106,16 +131,7 @@ func (c *Client) handshake(password string) error {
 	if _, err := io.ReadFull(c.reader, offered); err != nil {
 		return fmt.Errorf("vnc: read security types: %w", err)
 	}
-	chosen := byte(0)
-	for _, candidate := range offered {
-		if candidate == securityNone {
-			chosen = securityNone
-			break
-		}
-		if candidate == securityVNCAuth {
-			chosen = securityVNCAuth
-		}
-	}
+	chosen := chooseSecurity(offered)
 	if chosen == 0 {
 		return ErrUnsupportedSecurity
 	}
@@ -123,10 +139,26 @@ func (c *Client) handshake(password string) error {
 		return fmt.Errorf("vnc: choose security: %w", err)
 	}
 	if chosen == securityVNCAuth {
-		if err := c.authenticate(password); err != nil {
-			return err
+		return c.authenticate(password)
+	}
+	return nil
+}
+
+// chooseSecurity returns the preferred supported type, or 0 when none is.
+func chooseSecurity(offered []byte) byte {
+	chosen := byte(0)
+	for _, candidate := range offered {
+		if candidate == securityNone {
+			return securityNone
+		}
+		if candidate == securityVNCAuth {
+			chosen = securityVNCAuth
 		}
 	}
+	return chosen
+}
+
+func (c *Client) readSecurityResult() error {
 	result := make([]byte, 4)
 	if _, err := io.ReadFull(c.reader, result); err != nil {
 		return fmt.Errorf("vnc: read security result: %w", err)
@@ -134,24 +166,34 @@ func (c *Client) handshake(password string) error {
 	if binary.BigEndian.Uint32(result) != 0 {
 		return ErrAuthFailed
 	}
-	if _, err := c.conn.Write([]byte{1}); err != nil { // shared session
+	return nil
+}
+
+// initialise sends ClientInit (shared session) and reads ServerInit.
+func (c *Client) initialise() error {
+	if _, err := c.conn.Write([]byte{1}); err != nil {
 		return fmt.Errorf("vnc: client init: %w", err)
 	}
-
 	header := make([]byte, 24)
 	if _, err := io.ReadFull(c.reader, header); err != nil {
 		return fmt.Errorf("vnc: read server init: %w", err)
 	}
 	c.width = int(binary.BigEndian.Uint16(header[0:2]))
 	c.height = int(binary.BigEndian.Uint16(header[2:4]))
-	nameLength := int(binary.BigEndian.Uint32(header[20:24]))
+	nameLength := binary.BigEndian.Uint32(header[20:24])
+	if nameLength > maxDesktopName {
+		return fmt.Errorf("vnc: desktop name of %d bytes exceeds the %d byte limit", nameLength, maxDesktopName)
+	}
 	name := make([]byte, nameLength)
 	if _, err := io.ReadFull(c.reader, name); err != nil {
 		return fmt.Errorf("vnc: read desktop name: %w", err)
 	}
 	c.name = string(name)
 	c.img = image.NewRGBA(image.Rect(0, 0, c.width, c.height))
+	return nil
+}
 
+func (c *Client) setFormatAndEncodings() error {
 	// 32bpp true colour with red in the high byte, little-endian pixels.
 	pixelFormat := []byte{
 		32, 24, 0, 1, // bits-per-pixel, depth, big-endian, true-colour
@@ -172,6 +214,8 @@ func (c *Client) readSecurityFailure() error {
 		return ErrAuthFailed
 	}
 	reason := make([]byte, binary.BigEndian.Uint32(length))
+	// The reason text is best effort: the handshake already failed and a short
+	// read only shortens the message.
 	_, _ = io.ReadFull(c.reader, reason)
 	return fmt.Errorf("%w: %s", ErrAuthFailed, strings.TrimSpace(string(reason)))
 }

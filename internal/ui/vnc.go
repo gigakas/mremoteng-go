@@ -100,10 +100,10 @@ func (p *sessionPanel) startVNC(session vncSession) {
 func (p *sessionPanel) readVNC(session vncSession) {
 	for {
 		if err := session.ReadMessage(); err != nil {
-			fyne.Do(func() { p.vncClosed(session) })
+			runOnUI(func() { p.vncClosed(session) })
 			return
 		}
-		fyne.Do(func() {
+		runOnUI(func() {
 			if p.vncView != nil {
 				p.vncView.refresh()
 			}
@@ -128,7 +128,7 @@ func (p *sessionPanel) connectVNC() {
 	address := net.JoinHostPort(resolved.Host, strconv.Itoa(resolved.Port))
 	go func() {
 		session, err := p.screen.dialVNC(address, vncclient.Config{Password: p.password.Text, Timeout: 10 * time.Second})
-		fyne.Do(func() {
+		runOnUI(func() {
 			if err != nil {
 				p.setConnected(false)
 				p.setProblem("VNC connection failed: " + err.Error())

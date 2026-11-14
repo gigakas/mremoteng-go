@@ -90,7 +90,16 @@ func TestCloseRequested_UnsavedChanges_AsksBeforeClosing(t *testing.T) {
 	}
 }
 
-func (f *fakeShell) Output() io.Reader { return f.output }
+// Output returns the scripted output. An empty script behaves like a live
+// session that has nothing to say yet: it blocks until Close, as a real pty
+// does. Returning EOF at once would run the pump's close handler on its own
+// goroutine, concurrently with the test (Fyne's test driver runs fyne.Do inline).
+func (f *fakeShell) Output() io.Reader {
+	if r, ok := f.output.(*strings.Reader); ok && r.Len() == 0 {
+		return f.gate.reader()
+	}
+	return f.output
+}
 
 func (f *fakeShell) Input(p []byte) error { f.input = append(f.input, p...); return nil }
 
@@ -99,7 +108,7 @@ func (f *fakeShell) Resize(size sshclient.TermSize) error {
 	return nil
 }
 
-func (f *fakeShell) Close() error { f.closed = true; return nil }
+func (f *fakeShell) Close() error { f.closed = true; f.gate.release(); return nil }
 
 func TestSessionContent_NarrowMinimumWidth_AvoidsHorizontalScroll(t *testing.T) {
 	s := newTestScreen(t, &fakeStore{})
@@ -151,14 +160,14 @@ func (f *fakeVNC) Pointer(x, y int, mask byte) error {
 
 func (f *fakeVNC) Close() error { f.closed = true; return nil }
 
-func (f *fakeStream) Read([]byte) (int, error) { return 0, io.EOF }
+func (f *fakeStream) Read([]byte) (int, error) { return f.gate.reader().Read(nil) }
 
 func (f *fakeStream) Write(p []byte) (int, error) {
 	f.written = append(f.written, p...)
 	return len(p), nil
 }
 
-func (f *fakeStream) Close() error { f.closed = true; return nil }
+func (f *fakeStream) Close() error { f.closed = true; f.gate.release(); return nil }
 
 func TestActivityLog_RecordsAndBoundsEntries(t *testing.T) {
 	var log activityLog

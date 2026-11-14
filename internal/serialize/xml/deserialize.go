@@ -82,18 +82,9 @@ func Deserialize(data []byte, options Options) (*Document, error) {
 	if err != nil {
 		return nil, err
 	}
-	metadata := Metadata{
-		Name:               strings.TrimSpace(attrs.string("Name")),
-		Export:             attrs.boolean("Export"),
-		EncryptionEngine:   defaultString(attrs.string("EncryptionEngine"), "AES"),
-		BlockCipherMode:    defaultString(attrs.string("BlockCipherMode"), "GCM"),
-		KDFIterations:      attrs.integer("KdfIterations"),
-		FullFileEncryption: attrs.boolean("FullFileEncryption"),
-		Protected:          attrs.string("Protected"),
-		ConfVersion:        normalizedVersion,
-	}
-	if !strings.EqualFold(metadata.EncryptionEngine, "AES") || !strings.EqualFold(metadata.BlockCipherMode, "GCM") {
-		return nil, fmt.Errorf("%w: %s/%s", ErrUnsupportedCipher, metadata.EncryptionEngine, metadata.BlockCipherMode)
+	metadata, err := readMetadata(attrs, normalizedVersion)
+	if err != nil {
+		return nil, err
 	}
 	provider, err := security.NewAEADWithIterations(metadata.KDFIterations)
 	if err != nil {
@@ -112,30 +103,33 @@ func Deserialize(data []byte, options Options) (*Document, error) {
 
 	nodes := envelope.Nodes
 	if metadata.FullFileEncryption {
-		plaintext, err := provider.Decrypt(compactCiphertext(envelope.Text), password)
+		nodes, err = decryptWrappedNodes(provider, envelope.Text, password)
 		if err != nil {
-			return nil, fmt.Errorf("%w: full-file payload: %v", ErrAuthentication, err)
+			return nil, err
 		}
-		var wrapper nodeWrapper
-		wrapped := []byte("<Wrapper>" + plaintext + "</Wrapper>")
-		if err := stdxml.Unmarshal(wrapped, &wrapper); err != nil {
-			return nil, fmt.Errorf("%w: decrypted payload: %v", ErrMalformedXML, err)
-		}
-		nodes = wrapper.Nodes
 	}
 
+	decoder := nodeDecoder{version: version, provider: provider, password: password}
+	root, err := buildTree(decoder, metadata.Name, nodes)
+	if err != nil {
+		return nil, err
+	}
+	return &Document{Root: root, Metadata: metadata}, nil
+}
+
+// buildTree creates the root container and decodes every top-level node under it.
+func buildTree(decoder nodeDecoder, name string, nodes []nodeElement) (*connection.ContainerInfo, error) {
 	root, err := connection.NewRootInfo()
 	if err != nil {
 		return nil, fmt.Errorf("xml: create root: %w", err)
 	}
-	root.Base().Raw.Name = metadata.Name
-	decoder := nodeDecoder{version: version, provider: provider, password: password}
+	root.Base().Raw.Name = name
 	for i := range nodes {
 		if err := decoder.addNode(root, nodes[i]); err != nil {
 			return nil, err
 		}
 	}
-	return &Document{Root: root, Metadata: metadata}, nil
+	return root, nil
 }
 
 func parseVersion(raw string) (int, string, error) {
@@ -170,4 +164,38 @@ func compactCiphertext(value string) string {
 		}
 		return r
 	}, value)
+}
+
+// readMetadata builds the document metadata from the root attributes and
+// rejects any cipher other than AES-GCM.
+func readMetadata(attrs attributes, confVersion string) (Metadata, error) {
+	metadata := Metadata{
+		Name:               strings.TrimSpace(attrs.string("Name")),
+		Export:             attrs.boolean("Export"),
+		EncryptionEngine:   defaultString(attrs.string("EncryptionEngine"), "AES"),
+		BlockCipherMode:    defaultString(attrs.string("BlockCipherMode"), "GCM"),
+		KDFIterations:      attrs.integer("KdfIterations"),
+		FullFileEncryption: attrs.boolean("FullFileEncryption"),
+		Protected:          attrs.string("Protected"),
+		ConfVersion:        confVersion,
+	}
+	if !strings.EqualFold(metadata.EncryptionEngine, "AES") || !strings.EqualFold(metadata.BlockCipherMode, "GCM") {
+		return Metadata{}, fmt.Errorf("%w: %s/%s", ErrUnsupportedCipher, metadata.EncryptionEngine, metadata.BlockCipherMode)
+	}
+	return metadata, nil
+}
+
+// decryptWrappedNodes decrypts a full-file payload and parses the node list it
+// holds.
+func decryptWrappedNodes(provider *security.AEAD, text string, password []byte) ([]nodeElement, error) {
+	plaintext, err := provider.Decrypt(compactCiphertext(text), password)
+	if err != nil {
+		return nil, fmt.Errorf("%w: full-file payload: %v", ErrAuthentication, err)
+	}
+	var wrapper nodeWrapper
+	wrapped := []byte("<Wrapper>" + plaintext + "</Wrapper>")
+	if err := stdxml.Unmarshal(wrapped, &wrapper); err != nil {
+		return nil, fmt.Errorf("%w: decrypted payload: %v", ErrMalformedXML, err)
+	}
+	return wrapper.Nodes, nil
 }

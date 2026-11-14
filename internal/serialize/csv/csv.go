@@ -149,6 +149,28 @@ func Deserialize(data []byte) (*connection.ContainerInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	records, byID, err := decodeRecords(lines)
+	if err != nil {
+		return nil, err
+	}
+	rootID := omittedRootID(records, byID)
+	var root *connection.ContainerInfo
+	if rootID == "" {
+		root, err = connection.NewRootInfo()
+	} else {
+		root, err = connection.NewRootInfoWithID(rootID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("csv: create root: %w", err)
+	}
+	if err := attachRecords(root, records, byID); err != nil {
+		return nil, err
+	}
+	return root, nil
+}
+
+// decodeRecords decodes every data line and indexes the nodes by ID.
+func decodeRecords(lines []inputLine) ([]csvRecord, map[string]connection.Node, error) {
 	headings := splitLine(lines[0].text)
 	descriptors, canonical := inputColumns(headings)
 	records := make([]csvRecord, 0, len(lines)-1)
@@ -160,26 +182,21 @@ func Deserialize(data []byte) (*connection.ContainerInfo, error) {
 		}
 		rec, err := decodeRecord(fields, descriptors)
 		if err != nil {
-			return nil, fmt.Errorf("csv: line %d: %w", line.number, err)
+			return nil, nil, fmt.Errorf("csv: line %d: %w", line.number, err)
 		}
 		if _, duplicate := byID[rec.node.Base().ID()]; duplicate {
 			// Dictionary.Add throws in C#; retain a typed structural error.
-			return nil, fmt.Errorf("%w: duplicate node ID %q", ErrMalformedRow, rec.node.Base().ID())
+			return nil, nil, fmt.Errorf("%w: duplicate node ID %q", ErrMalformedRow, rec.node.Base().ID())
 		}
 		byID[rec.node.Base().ID()] = rec.node
 		records = append(records, rec)
 	}
+	return records, byID, nil
+}
 
-	rootID := omittedRootID(records, byID)
-	var root *connection.ContainerInfo
-	if rootID == "" {
-		root, err = connection.NewRootInfo()
-	} else {
-		root, err = connection.NewRootInfoWithID(rootID)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("csv: create root: %w", err)
-	}
+// attachRecords links each node under its parent container, falling back to the
+// root when the parent is missing, is not a container or refuses the child.
+func attachRecords(root *connection.ContainerInfo, records []csvRecord, byID map[string]connection.Node) error {
 	for _, rec := range records {
 		parent := root
 		if candidate, exists := byID[rec.parentID]; exists {
@@ -189,11 +206,11 @@ func Deserialize(data []byte) (*connection.ContainerInfo, error) {
 		}
 		if err := parent.AddChild(rec.node); err != nil && parent != root {
 			if fallbackErr := root.AddChild(rec.node); fallbackErr != nil {
-				return nil, fmt.Errorf("%w: attach node %q: %v", ErrInvalidTree, rec.node.Base().ID(), fallbackErr)
+				return fmt.Errorf("%w: attach node %q: %v", ErrInvalidTree, rec.node.Base().ID(), fallbackErr)
 			}
 		}
 	}
-	return root, nil
+	return nil
 }
 
 type inputLine struct {

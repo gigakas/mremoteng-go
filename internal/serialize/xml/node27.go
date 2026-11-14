@@ -33,7 +33,11 @@ func (d nodeDecoder) decode27(info *connection.ConnectionInfo, a attributes) {
 	raw.RDGatewayExternalCredentialProvider = credentialProviderValue(a, "RDGatewayExternalCredentialProvider")
 	raw.RDGatewayUserViaAPI = a.string("RDGatewayUserViaAPI")
 
-	flags := &info.Inheritance
+	decodeInheritance27(&info.Inheritance, a)
+}
+
+// decodeInheritance27 reads the Inherit* flags introduced in 2.7.
+func decodeInheritance27(flags *connection.InheritanceFlags, a attributes) {
 	flags.RedirectClipboard = a.boolean("InheritRedirectClipboard")
 	flags.Favorite = a.boolean("InheritFavorite")
 	flags.RDPVersion = a.boolean("InheritRdpVersion")

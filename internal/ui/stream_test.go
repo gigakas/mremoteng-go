@@ -109,3 +109,20 @@ func TestQuickConnect_InvalidInput_DoesNotOpenTab(t *testing.T) {
 		t.Errorf("status = %q, want a port error", s.status.Text)
 	}
 }
+
+func TestCheckBrowserURL_Scheme_OnlyWebURLsPass(t *testing.T) {
+	cases := map[string]bool{
+		"http://host.example/":  true,
+		"https://host.example/": true,
+		"file:///etc/passwd":    false,
+		"ssh://host.example":    false,
+		"javascript:alert(1)":   false,
+		"https://":              false,
+		"":                      false,
+	}
+	for target, want := range cases {
+		if got := checkBrowserURL(target) == nil; got != want {
+			t.Errorf("checkBrowserURL(%q) accepted = %v, want %v", target, got, want)
+		}
+	}
+}

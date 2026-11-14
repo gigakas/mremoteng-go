@@ -68,42 +68,53 @@ func runNew(args []string) {
 	root := repoRoot()
 	var affected []string
 	if *files != "" {
-		for _, f := range strings.Split(*files, ",") {
-			if f = strings.TrimSpace(f); f != "" {
-				affected = append(affected, f)
-			}
-		}
+		affected = splitFiles(*files)
 	} else {
 		affected = changedFiles(root)
 	}
 
 	now := time.Now().UTC()
 	path := fragmentPath(root, now, *agent, *summary)
-
-	var b strings.Builder
-	b.WriteString("---\n")
-	fmt.Fprintf(&b, "timestamp: %s\n", now.Format(time.RFC3339))
-	fmt.Fprintf(&b, "agent: %s\n", *agent)
-	if len(affected) > 0 {
-		b.WriteString("files:\n")
-		for _, f := range affected {
-			fmt.Fprintf(&b, "  - %s\n", f)
-		}
-	}
-	b.WriteString("---\n\n")
-	b.WriteString(strings.TrimSpace(*summary) + "\n")
-	if strings.TrimSpace(*description) != "" {
-		b.WriteString("\n" + strings.TrimSpace(*description) + "\n")
-	}
 	if *description == "" {
 		fmt.Fprintln(os.Stderr, "warning: -description is empty; provide a detailed explanation for the changelog bitácora")
 	}
-
-	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+	content := renderFragment(now, *agent, *summary, *description, affected)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		fatal(err)
 	}
 	fmt.Println("fragment created:", path)
 	compile(root)
+}
+
+// splitFiles parses the comma-separated -files value, dropping blanks.
+func splitFiles(list string) []string {
+	var files []string
+	for _, f := range strings.Split(list, ",") {
+		if f = strings.TrimSpace(f); f != "" {
+			files = append(files, f)
+		}
+	}
+	return files
+}
+
+// renderFragment builds the markdown text of a changelog fragment.
+func renderFragment(now time.Time, agent, summary, description string, files []string) string {
+	var b strings.Builder
+	b.WriteString("---\n")
+	fmt.Fprintf(&b, "timestamp: %s\n", now.Format(time.RFC3339))
+	fmt.Fprintf(&b, "agent: %s\n", agent)
+	if len(files) > 0 {
+		b.WriteString("files:\n")
+		for _, f := range files {
+			fmt.Fprintf(&b, "  - %s\n", f)
+		}
+	}
+	b.WriteString("---\n\n")
+	b.WriteString(strings.TrimSpace(summary) + "\n")
+	if strings.TrimSpace(description) != "" {
+		b.WriteString("\n" + strings.TrimSpace(description) + "\n")
+	}
+	return b.String()
 }
 
 func runCompile() {

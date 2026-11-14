@@ -63,7 +63,7 @@ func (b *hintButton) schedule() {
 	b.gen++
 	gen := b.gen
 	time.AfterFunc(hintDelay, func() {
-		fyne.Do(func() {
+		runOnUI(func() {
 			if gen != b.gen {
 				return
 			}

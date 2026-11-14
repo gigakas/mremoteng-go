@@ -197,7 +197,7 @@ func (a *x11Area) track() {
 		case <-a.stop:
 			return
 		case <-ticker.C:
-			fyne.Do(func() { a.fit() })
+			runOnUI(func() { a.fit() })
 		}
 	}
 }

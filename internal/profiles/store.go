@@ -132,6 +132,18 @@ func (s *Store) Load() (Document, error) {
 // created in the target directory with owner-only permissions so a failed
 // write never truncates existing data.
 func (s *Store) Save(document Document) error {
+	if err := validateDocument(document); err != nil {
+		return err
+	}
+	payload, err := encodeDocument(document)
+	if err != nil {
+		return err
+	}
+	return writeAtomically(s.path, payload)
+}
+
+// validateDocument checks every part of a document before anything is written.
+func validateDocument(document Document) error {
 	if err := validateProfiles(document.Profiles); err != nil {
 		return err
 	}
@@ -149,9 +161,10 @@ func (s *Store) Save(document Document) error {
 			return err
 		}
 	}
-	if err := validateOrder(document.Order); err != nil {
-		return err
-	}
+	return validateOrder(document.Order)
+}
+
+func encodeDocument(document Document) ([]byte, error) {
 	payload, err := json.MarshalIndent(storeFile{
 		Version:    schemaVersion,
 		Folders:    document.Folders,
@@ -164,11 +177,15 @@ func (s *Store) Save(document Document) error {
 		Profiles:   document.Profiles,
 	}, "", "  ")
 	if err != nil {
-		return fmt.Errorf("profile store: encode: %w", err)
+		return nil, fmt.Errorf("profile store: encode: %w", err)
 	}
-	payload = append(payload, '\n')
+	return append(payload, '\n'), nil
+}
 
-	dir := filepath.Dir(s.path)
+// writeAtomically replaces path with payload through a temporary file in the
+// same directory, so a crash leaves either the old or the new content.
+func writeAtomically(path string, payload []byte) error {
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("profile store: create %s: %w", dir, err)
 	}
@@ -197,8 +214,8 @@ func (s *Store) Save(document Document) error {
 	if err := temp.Close(); err != nil {
 		return fmt.Errorf("profile store: close temporary file: %w", err)
 	}
-	if err := os.Rename(tempName, s.path); err != nil {
-		return fmt.Errorf("profile store: replace %s: %w", s.path, err)
+	if err := os.Rename(tempName, path); err != nil {
+		return fmt.Errorf("profile store: replace %s: %w", path, err)
 	}
 	return nil
 }

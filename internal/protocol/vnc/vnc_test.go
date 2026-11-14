@@ -234,3 +234,55 @@ func TestDial_UnsupportedSecurity_ReturnsError(t *testing.T) {
 		t.Fatalf("Dial error = %v, want ErrUnsupportedSecurity", err)
 	}
 }
+
+func TestDial_OversizedDesktopName_IsRejected(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		reader := bufio.NewReader(conn)
+		_, _ = conn.Write([]byte("RFB 003.008\n"))
+		if _, err := io.ReadFull(reader, make([]byte, 12)); err != nil {
+			return
+		}
+		_, _ = conn.Write([]byte{1, securityNone})
+		if _, err := reader.ReadByte(); err != nil {
+			return
+		}
+		_, _ = conn.Write([]byte{0, 0, 0, 0})
+		if _, err := reader.ReadByte(); err != nil {
+			return
+		}
+		init := make([]byte, 24)
+		binary.BigEndian.PutUint32(init[20:24], 0xFFFFFFFF)
+		_, _ = conn.Write(init)
+	}()
+	_, err = Dial(listener.Addr().String(), Config{Timeout: 2 * time.Second})
+	if err == nil {
+		t.Fatal("Dial accepted a 4 GiB desktop name")
+	}
+}
+
+func TestChooseSecurity_Offers_PrefersNoneThenVNCAuth(t *testing.T) {
+	cases := []struct {
+		offered []byte
+		want    byte
+	}{
+		{[]byte{securityVNCAuth, securityNone}, securityNone},
+		{[]byte{19, securityVNCAuth}, securityVNCAuth},
+		{[]byte{19, 30}, 0},
+		{nil, 0},
+	}
+	for _, c := range cases {
+		if got := chooseSecurity(c.offered); got != c.want {
+			t.Errorf("chooseSecurity(%v) = %d, want %d", c.offered, got, c.want)
+		}
+	}
+}

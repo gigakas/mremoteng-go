@@ -3,23 +3,50 @@ package xml
 import "github.com/mRemoteNG/mremoteng-go/internal/connection"
 
 func (d nodeDecoder) decode26(info *connection.ConnectionInfo, a attributes) error {
-	password, err := d.decryptAttribute(a.string("Password"))
+	secrets, err := d.decryptSecrets26(a)
 	if err != nil {
 		return err
 	}
-	vncPassword, err := d.decryptAttribute(a.string("VNCProxyPassword"))
-	if err != nil {
-		return err
-	}
-	gatewayPassword, err := d.decryptAttribute(a.string("RDGatewayPassword"))
-	if err != nil {
-		return err
-	}
-	gatewayToken, err := d.decryptAttribute(a.string("RDGatewayAccessToken"))
-	if err != nil {
-		return err
-	}
+	raw := &info.Raw
+	info.PleaseConnect = a.boolean("Connected")
+	decodeGeneral26(info, a, secrets)
+	decodeDisplay26(raw, a, secrets)
+	decodeSession26(raw, a, secrets)
+	decodeInheritance26(&info.Inheritance, a)
+	return nil
+}
 
+// secrets26 holds the decrypted secret attributes of a node.
+type secrets26 struct {
+	password        string
+	vnc             string
+	gatewayPassword string
+	gatewayToken    string
+}
+
+func (d nodeDecoder) decryptSecrets26(a attributes) (secrets26, error) {
+	var secrets secrets26
+	targets := []struct {
+		attribute string
+		out       *string
+	}{
+		{"Password", &secrets.password},
+		{"VNCProxyPassword", &secrets.vnc},
+		{"RDGatewayPassword", &secrets.gatewayPassword},
+		{"RDGatewayAccessToken", &secrets.gatewayToken},
+	}
+	for _, target := range targets {
+		plain, err := d.decryptAttribute(a.string(target.attribute))
+		if err != nil {
+			return secrets26{}, err
+		}
+		*target.out = plain
+	}
+	return secrets, nil
+}
+
+// decodeGeneral26 decodes the general, credentials and connection target settings.
+func decodeGeneral26(info *connection.ConnectionInfo, a attributes, secrets secrets26) {
 	raw := &info.Raw
 	raw.Name = a.stringDefault("Name", connection.Defaults().Name)
 	raw.Description = a.string("Descr")
@@ -28,7 +55,7 @@ func (d nodeDecoder) decode26(info *connection.ConnectionInfo, a attributes) err
 	raw.DisplayThemes = a.boolean("DisplayThemes")
 	raw.CacheBitmaps = a.boolean("CacheBitmaps")
 	raw.Username = a.string("Username")
-	raw.Password = password
+	raw.Password = secrets.password
 	raw.Domain = a.string("Domain")
 	raw.UseConsoleSession = a.boolean("ConnectToConsole")
 	raw.RedirectPrinters = a.boolean("RedirectPrinters")
@@ -46,9 +73,12 @@ func (d nodeDecoder) decode26(info *connection.ConnectionInfo, a attributes) err
 	raw.RedirectAudioCapture = a.boolean("RedirectAudioCapture")
 	raw.Icon = a.stringDefault("Icon", connection.Defaults().Icon)
 	raw.Panel = a.stringDefault("Panel", connection.Defaults().Panel)
+}
+
+// decodeDisplay26 decodes the display, redirection and VNC settings.
+func decodeDisplay26(raw *connection.ConnectionValues, a attributes, secrets secrets26) {
 	raw.TabColor = a.string("TabColor")
 	raw.ConnectionFrameColor = frameColorValue(a, "ConnectionFrameColor")
-	info.PleaseConnect = a.boolean("Connected")
 	raw.PreExtApp = a.string("PreExtApp")
 	raw.PostExtApp = a.string("PostExtApp")
 	raw.VNCCompression = vncCompressionValue(a, "VNCCompression")
@@ -58,7 +88,7 @@ func (d nodeDecoder) decode26(info *connection.ConnectionInfo, a attributes) err
 	raw.VNCProxyIP = a.string("VNCProxyIP")
 	raw.VNCProxyPort = a.integer("VNCProxyPort")
 	raw.VNCProxyUsername = a.string("VNCProxyUsername")
-	raw.VNCProxyPassword = vncPassword
+	raw.VNCProxyPassword = secrets.vnc
 	raw.VNCColors = vncColorsValue(a, "VNCColors")
 	raw.VNCSmartSizeMode = vncSmartSizeValue(a, "VNCSmartSizeMode")
 	raw.VNCViewOnly = a.boolean("VNCViewOnly")
@@ -71,8 +101,12 @@ func (d nodeDecoder) decode26(info *connection.ConnectionInfo, a attributes) err
 	raw.RDGatewayHostname = a.string("RDGatewayHostname")
 	raw.RDGatewayUseConnectionCredentials = gatewayCredentialValue(a, "RDGatewayUseConnectionCredentials")
 	raw.RDGatewayUsername = a.string("RDGatewayUsername")
-	raw.RDGatewayPassword = gatewayPassword
-	raw.RDGatewayAccessToken = gatewayToken
+}
+
+// decodeSession26 decodes the gateway, RDP session and disk redirection settings.
+func decodeSession26(raw *connection.ConnectionValues, a attributes, secrets secrets26) {
+	raw.RDGatewayPassword = secrets.gatewayPassword
+	raw.RDGatewayAccessToken = secrets.gatewayToken
 	raw.RDGatewayDomain = a.string("RDGatewayDomain")
 	raw.EnableFontSmoothing = a.boolean("EnableFontSmoothing")
 	raw.EnableDesktopComposition = a.boolean("EnableDesktopComposition")
@@ -87,11 +121,14 @@ func (d nodeDecoder) decode26(info *connection.ConnectionInfo, a attributes) err
 	} else {
 		raw.RedirectDiskDrives = connection.RDPDiskDrivesNone
 	}
-	decodeInheritance26(&info.Inheritance, a)
-	return nil
 }
 
 func decodeInheritance26(flags *connection.InheritanceFlags, a attributes) {
+	decodeInheritance26Display(flags, a)
+	decodeInheritance26Session(flags, a)
+}
+
+func decodeInheritance26Display(flags *connection.InheritanceFlags, a attributes) {
 	flags.CacheBitmaps = a.boolean("InheritCacheBitmaps")
 	flags.Colors = a.boolean("InheritColors")
 	flags.Description = a.boolean("InheritDescription")
@@ -120,6 +157,9 @@ func decodeInheritance26(flags *connection.InheritanceFlags, a attributes) {
 	flags.PostExtApp = a.boolean("InheritPostExtApp")
 	flags.VNCCompression = a.boolean("InheritVNCCompression")
 	flags.VNCEncoding = a.boolean("InheritVNCEncoding")
+}
+
+func decodeInheritance26Session(flags *connection.InheritanceFlags, a attributes) {
 	flags.VNCAuthMode = a.boolean("InheritVNCAuthMode")
 	flags.VNCProxyType = a.boolean("InheritVNCProxyType")
 	flags.VNCProxyIP = a.boolean("InheritVNCProxyIP")

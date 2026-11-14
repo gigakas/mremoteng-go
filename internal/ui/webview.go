@@ -4,8 +4,6 @@ import (
 	"net"
 	"strconv"
 
-	"fyne.io/fyne/v2"
-
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 	webviewclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/webview"
 )
@@ -60,7 +58,7 @@ func (p *sessionPanel) connectHTTP() {
 	}
 	go func() {
 		session, err := p.screen.launchWeb(area.ID(), url)
-		fyne.Do(func() {
+		runOnUI(func() {
 			if err != nil {
 				area.Destroy()
 				p.setConnected(false)
@@ -79,7 +77,7 @@ func (p *sessionPanel) connectHTTP() {
 // watchWebView reports the view closing, unless the user closed it first.
 func (p *sessionPanel) watchWebView(session webSession) {
 	_ = session.Wait()
-	fyne.Do(func() {
+	runOnUI(func() {
 		if p.web != session {
 			// Closed by disconnectShell, which has already cleaned up.
 			return

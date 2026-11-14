@@ -174,31 +174,15 @@ func Termios(config Config) (*unix.Termios, error) {
 	settings.Cflag |= baud
 	settings.Ispeed = baud
 	settings.Ospeed = baud
-	switch normalized.DataBits {
-	case 5:
-		settings.Cflag |= unix.CS5
-	case 6:
-		settings.Cflag |= unix.CS6
-	case 7:
-		settings.Cflag |= unix.CS7
-	case 8:
-		settings.Cflag |= unix.CS8
-	default:
-		return nil, fmt.Errorf("%w: %d data bits", ErrInvalidConfig, normalized.DataBits)
+	dataBits, err := dataBitsFlag(normalized.DataBits)
+	if err != nil {
+		return nil, err
 	}
-	switch normalized.Parity {
-	case "none":
-	case "even":
-		settings.Cflag |= unix.PARENB
-	case "odd":
-		settings.Cflag |= unix.PARENB | unix.PARODD
-	case "mark":
-		settings.Cflag |= unix.PARENB | unix.PARODD | unix.CMSPAR
-	case "space":
-		settings.Cflag |= unix.PARENB | unix.CMSPAR
-	default:
-		return nil, fmt.Errorf("%w: parity %q", ErrInvalidConfig, normalized.Parity)
+	parity, err := parityFlags(normalized.Parity)
+	if err != nil {
+		return nil, err
 	}
+	settings.Cflag |= dataBits | parity
 	if normalized.StopBits == 2 {
 		settings.Cflag |= unix.CSTOPB
 	}
@@ -258,4 +242,36 @@ var baudConstants = map[int]uint32{
 	57600:  unix.B57600,
 	115200: unix.B115200,
 	230400: unix.B230400,
+}
+
+// dataBitsFlag maps a data-bit count to its character-size flag.
+func dataBitsFlag(bits int) (uint32, error) {
+	switch bits {
+	case 5:
+		return unix.CS5, nil
+	case 6:
+		return unix.CS6, nil
+	case 7:
+		return unix.CS7, nil
+	case 8:
+		return unix.CS8, nil
+	}
+	return 0, fmt.Errorf("%w: %d data bits", ErrInvalidConfig, bits)
+}
+
+// parityFlags maps a parity name to its control flags.
+func parityFlags(parity string) (uint32, error) {
+	switch parity {
+	case "none":
+		return 0, nil
+	case "even":
+		return unix.PARENB, nil
+	case "odd":
+		return unix.PARENB | unix.PARODD, nil
+	case "mark":
+		return unix.PARENB | unix.PARODD | unix.CMSPAR, nil
+	case "space":
+		return unix.PARENB | unix.CMSPAR, nil
+	}
+	return 0, fmt.Errorf("%w: parity %q", ErrInvalidConfig, parity)
 }

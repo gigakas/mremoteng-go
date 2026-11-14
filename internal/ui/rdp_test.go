@@ -277,20 +277,6 @@ func TestRDPGatewayForm_InvalidInput_IsRefusedWithAReason(t *testing.T) {
 	}
 }
 
-// waitFor polls until check passes or the deadline expires: the RDP watcher runs
-// on its own goroutine, so the effect of a session ending is not synchronous.
-func waitFor(t *testing.T, check func() bool) bool {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if check() {
-			return true
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	return false
-}
-
 // TestSessionPanel_RDPImmediateExit_ReportsTheClientCause covers the report the
 // session bar could not give: FreeRDP's own line, plus what to try next, in a
 // dialog the user can read after the window has gone.

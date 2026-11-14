@@ -26,10 +26,7 @@ func TestHintButton_Hover_ShowsTheHintAndRestoresTheStatus(t *testing.T) {
 	button := newHintButton(theme.InfoIcon(), "Show or hide the activity log", func() {}, s.hint)
 	button.MouseIn(&desktop.MouseEvent{})
 
-	deadline := time.Now().Add(2 * time.Second)
-	for s.status.Text != "Show or hide the activity log" && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
+	waitFor(t, func() bool { return s.status.Text == "Show or hide the activity log" })
 	if got := s.status.Text; got != "Show or hide the activity log" {
 		t.Fatalf("status = %q, want the button hint", got)
 	}
@@ -55,6 +52,7 @@ func TestHintButton_LeaveBeforeTheDelay_ShowsNothing(t *testing.T) {
 	button.MouseIn(&desktop.MouseEvent{})
 	button.MouseOut()
 	time.Sleep(150 * time.Millisecond)
+	drainUI()
 
 	if got := s.status.Text; got != before {
 		t.Errorf("status = %q, want the untuched %q", got, before)
@@ -68,10 +66,7 @@ func TestHintButton_HoverWhileProblemIsShown_RestoresTheProblem(t *testing.T) {
 
 	button := newHintButton(theme.MenuIcon(), "Show or hide the connection tree", func() {}, s.hint)
 	button.MouseIn(&desktop.MouseEvent{})
-	deadline := time.Now().Add(2 * time.Second)
-	for s.hintSaved == nil && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
+	waitFor(t, func() bool { return s.hintSaved != nil })
 	button.MouseOut()
 
 	if got := s.status.Text; got != "Could not save" {

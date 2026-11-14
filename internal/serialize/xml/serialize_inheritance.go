@@ -6,11 +6,34 @@ import (
 	"github.com/mRemoteNG/mremoteng-go/internal/connection"
 )
 
+// inheritanceFlagAttr is one Inherit* attribute and the flag that controls it.
+type inheritanceFlagAttr struct {
+	name  string
+	value bool
+}
+
+// appendInheritanceAttributes writes an Inherit* attribute for every enabled
+// flag, in the order mRemoteNG writes them.
 func appendInheritanceAttributes(attrs []stdxml.Attr, f connection.InheritanceFlags) []stdxml.Attr {
-	flags := []struct {
-		name  string
-		value bool
-	}{
+	groups := [][]inheritanceFlagAttr{
+		displayInheritance(f),
+		redirectionInheritance(f),
+		toolsAndVNCInheritance(f),
+		gatewayInheritance(f),
+	}
+	for _, group := range groups {
+		for _, flag := range group {
+			if flag.value {
+				attrs = append(attrs, boolXMLAttr(flag.name, true))
+			}
+		}
+	}
+	return attrs
+}
+
+// displayInheritance lists the flags for display, credentials and connection target.
+func displayInheritance(f connection.InheritanceFlags) []inheritanceFlagAttr {
+	return []inheritanceFlagAttr{
 		{"InheritCacheBitmaps", f.CacheBitmaps},
 		{"InheritColors", f.Colors},
 		{"InheritDescription", f.Description},
@@ -37,6 +60,12 @@ func appendInheritanceAttributes(attrs []stdxml.Attr, f connection.InheritanceFl
 		{"InheritPuttySession", f.PuttySession},
 		{"InheritRedirectDiskDrives", f.RedirectDiskDrives},
 		{"InheritRedirectDiskDrivesCustom", f.RedirectDiskDrivesCustom},
+	}
+}
+
+// redirectionInheritance lists the flags for redirection, sound and RDP session settings.
+func redirectionInheritance(f connection.InheritanceFlags) []inheritanceFlagAttr {
+	return []inheritanceFlagAttr{
 		{"InheritRedirectKeys", f.RedirectKeys},
 		{"InheritRedirectPorts", f.RedirectPorts},
 		{"InheritRedirectPrinters", f.RedirectPrinters},
@@ -55,6 +84,12 @@ func appendInheritanceAttributes(attrs []stdxml.Attr, f connection.InheritanceFl
 		{"InheritRDPMinutesToIdleTimeout", f.RDPMinutesToIdleTimeout},
 		{"InheritRDPAlertIdleTimeout", f.RDPAlertIdleTimeout},
 		{"InheritLoadBalanceInfo", f.LoadBalanceInfo},
+	}
+}
+
+// toolsAndVNCInheritance lists the flags for external tools, user fields and VNC.
+func toolsAndVNCInheritance(f connection.InheritanceFlags) []inheritanceFlagAttr {
+	return []inheritanceFlagAttr{
 		{"InheritPreExtApp", f.PreExtApp},
 		{"InheritPostExtApp", f.PostExtApp},
 		{"InheritMacAddress", f.MacAddress},
@@ -73,6 +108,12 @@ func appendInheritanceAttributes(attrs []stdxml.Attr, f connection.InheritanceFl
 		{"InheritVNCColors", f.VNCColors},
 		{"InheritVNCSmartSizeMode", f.VNCSmartSizeMode},
 		{"InheritVNCViewOnly", f.VNCViewOnly},
+	}
+}
+
+// gatewayInheritance lists the flags for RD gateway, Hyper-V, providers and RDP server options.
+func gatewayInheritance(f connection.InheritanceFlags) []inheritanceFlagAttr {
+	return []inheritanceFlagAttr{
 		{"InheritRDGatewayUsageMethod", f.RDGatewayUsageMethod},
 		{"InheritRDGatewayHostname", f.RDGatewayHostname},
 		{"InheritRDGatewayUseConnectionCredentials", f.RDGatewayUseConnectionCredentials},
@@ -91,10 +132,4 @@ func appendInheritanceAttributes(attrs []stdxml.Attr, f connection.InheritanceFl
 		{"InheritUseRestrictedAdmin", f.UseRestrictedAdmin},
 		{"InheritUseRedirectionServerName", f.UseRedirectionServerName},
 	}
-	for _, flag := range flags {
-		if flag.value {
-			attrs = append(attrs, boolXMLAttr(flag.name, true))
-		}
-	}
-	return attrs
 }

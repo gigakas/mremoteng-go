@@ -61,10 +61,10 @@ func pumpBytes(r io.Reader, apply func([]byte), closed func()) {
 		n, err := r.Read(buffer)
 		if n > 0 {
 			chunk := append([]byte(nil), buffer[:n]...)
-			fyne.Do(func() { apply(chunk) })
+			runOnUI(func() { apply(chunk) })
 		}
 		if err != nil {
-			fyne.Do(closed)
+			runOnUI(closed)
 			return
 		}
 	}

@@ -346,40 +346,73 @@ func (p Profile) Validate() error {
 	}
 	host := strings.TrimSpace(p.Host)
 	if p.Protocol == SERIAL {
-		// A serial connection addresses a device, so the host is a path rather than a
-		// name: /dev/ttyS0 is valid and "ttyS0" is not.
-		if host == "" {
-			return ErrMissingHost
-		}
-		if !strings.HasPrefix(host, "/") || hasControlRunes(host) || hasSpaceRunes(host) ||
-			strings.Contains(host, "..") || len(host) > maxHostLength {
-			return fmt.Errorf("%w: %q is not a device path", ErrInvalidHost, p.Host)
+		if err := validateDevicePath(p.Host, host); err != nil {
+			return err
 		}
 		return p.Serial.Validate()
 	}
+	if err := validateNetworkHost(p.Host, host); err != nil {
+		return err
+	}
+	if err := p.validatePort(); err != nil {
+		return err
+	}
+	if err := validateUsername(p.Username); err != nil {
+		return err
+	}
+	return p.RDP.Validate()
+}
+
+// validateDevicePath checks a serial host. A serial connection addresses a
+// device, so the host is a path rather than a name: /dev/ttyS0 is valid and
+// "ttyS0" is not. raw is the value as entered, for the error message.
+func validateDevicePath(raw, host string) error {
+	if host == "" {
+		return ErrMissingHost
+	}
+	if !strings.HasPrefix(host, "/") || hasControlRunes(host) || hasSpaceRunes(host) ||
+		strings.Contains(host, "..") || len(host) > maxHostLength {
+		return fmt.Errorf("%w: %q is not a device path", ErrInvalidHost, raw)
+	}
+	return nil
+}
+
+// validateNetworkHost rejects hosts that are ambiguous in the store or could be
+// read as an option or URL by an external client.
+func validateNetworkHost(raw, host string) error {
 	switch {
 	case host == "":
 		return ErrMissingHost
 	case len(host) > maxHostLength, strings.HasPrefix(host, "-"), hasControlRunes(host), hasSpaceRunes(host),
 		strings.Contains(host, "://"), strings.Contains(host, "/"), strings.Contains(host, "@"):
-		return fmt.Errorf("%w: %q", ErrInvalidHost, p.Host)
+		return fmt.Errorf("%w: %q", ErrInvalidHost, raw)
 	case strings.Contains(host, ":") && !strings.HasPrefix(host, "["):
 		// A bare colon is ambiguous (host:port) or an unbracketed IPv6
 		// literal; require the bracketed form instead of guessing.
-		return fmt.Errorf("%w: %q", ErrInvalidHost, p.Host)
+		return fmt.Errorf("%w: %q", ErrInvalidHost, raw)
 	}
-	if !p.InheritPort && (p.Port < 1 || p.Port > 65535) {
+	return nil
+}
+
+// validatePort requires a port in range unless the port is inherited and unset.
+func (p Profile) validatePort() error {
+	if p.InheritPort && p.Port == 0 {
+		return nil
+	}
+	if p.Port < 1 || p.Port > 65535 {
 		return fmt.Errorf("%w: %d", ErrInvalidPort, p.Port)
 	}
-	if p.InheritPort && p.Port != 0 && (p.Port < 1 || p.Port > 65535) {
-		return fmt.Errorf("%w: %d", ErrInvalidPort, p.Port)
+	return nil
+}
+
+func validateUsername(username string) error {
+	if username == "" {
+		return nil
 	}
-	if p.Username != "" {
-		if len(p.Username) > maxUsernameLength || strings.HasPrefix(p.Username, "-") || hasControlRunes(p.Username) || hasSpaceRunes(p.Username) {
-			return fmt.Errorf("%w: %q", ErrInvalidUsername, p.Username)
-		}
+	if len(username) > maxUsernameLength || strings.HasPrefix(username, "-") || hasControlRunes(username) || hasSpaceRunes(username) {
+		return fmt.Errorf("%w: %q", ErrInvalidUsername, username)
 	}
-	return p.RDP.Validate()
+	return nil
 }
 
 func hasControlRunes(value string) bool {
