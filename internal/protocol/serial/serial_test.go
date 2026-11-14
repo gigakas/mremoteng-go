@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -186,5 +187,47 @@ func TestBaudRates_AreSortedAndIncludeTheDefaults(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("rates = %v, want the default %d", rates, DefaultBaud)
+	}
+}
+
+func TestTermios_MapsFlowControl(t *testing.T) {
+	hardware, err := Termios(Config{Device: "/dev/ttyS0", Flow: FlowRTSCTS})
+	if err != nil {
+		t.Fatalf("Termios: %v", err)
+	}
+	if hardware.Cflag&unix.CRTSCTS == 0 {
+		t.Error("rtscts did not set CRTSCTS")
+	}
+	if hardware.Iflag&(unix.IXON|unix.IXOFF) != 0 {
+		t.Error("rtscts also enabled the software handshake")
+	}
+
+	software, err := Termios(Config{Device: "/dev/ttyS0", Flow: FlowXONXOFF})
+	if err != nil {
+		t.Fatalf("Termios: %v", err)
+	}
+	if software.Iflag&unix.IXON == 0 || software.Iflag&unix.IXOFF == 0 {
+		t.Error("xonxoff did not set IXON and IXOFF")
+	}
+	if software.Cflag&unix.CRTSCTS != 0 {
+		t.Error("xonxoff also enabled the hardware handshake")
+	}
+
+	plain, err := Termios(Config{Device: "/dev/ttyS0"})
+	if err != nil {
+		t.Fatalf("Termios: %v", err)
+	}
+	if plain.Iflag != 0 || plain.Cflag&unix.CRTSCTS != 0 {
+		t.Errorf("the default enabled a handshake: iflag=%#x cflag=%#x", plain.Iflag, plain.Cflag)
+	}
+	if (Config{Device: "/dev/ttyS0", Flow: "sometimes"}).Validate() == nil {
+		t.Error("an unknown handshake was accepted")
+	}
+	if got := (Config{Device: "/dev/ttyS0", Flow: FlowRTSCTS}).LineDescription(); !strings.Contains(got, "rtscts") {
+		t.Errorf("description = %q, want the handshake named", got)
+	}
+	controls := FlowControls()
+	if len(controls) != 3 || controls[0] != FlowNone {
+		t.Errorf("FlowControls = %v, want none first", controls)
 	}
 }

@@ -118,20 +118,21 @@ func TestSessionPanel_ConnectSerial_OpenFailure_IsReported(t *testing.T) {
 }
 
 func TestSerialOptionsFromFields_RejectsWhatThePortCannotDo(t *testing.T) {
-	options, err := serialOptionsFromFields("9600", "8", "none", "1")
+	options, err := serialOptionsFromFields("9600", "8", "none", "1", "none")
 	if err != nil || options.Baud != 9600 || options.DataBits != 8 || options.Parity != "none" || options.StopBits != 1 {
 		t.Fatalf("options = %+v, %v", options, err)
 	}
-	cases := map[string][4]string{
-		"unknown baud":      {"1234", "8", "none", "1"},
-		"nine bits":         {"9600", "9", "none", "1"},
-		"bad parity":        {"9600", "8", "sometimes", "1"},
-		"three stops":       {"9600", "8", "none", "3"},
-		"not a number":      {"fast", "8", "none", "1"},
-		"bits not a number": {"9600", "eight", "none", "1"},
+	cases := map[string][5]string{
+		"unknown baud":      {"1234", "8", "none", "1", "none"},
+		"nine bits":         {"9600", "9", "none", "1", "none"},
+		"bad parity":        {"9600", "8", "sometimes", "1", "none"},
+		"three stops":       {"9600", "8", "none", "3", "none"},
+		"not a number":      {"fast", "8", "none", "1", "none"},
+		"bits not a number": {"9600", "eight", "none", "1", "none"},
+		"bad handshake":     {"9600", "8", "none", "1", "sometimes"},
 	}
 	for name, fields := range cases {
-		if _, err := serialOptionsFromFields(fields[0], fields[1], fields[2], fields[3]); err == nil {
+		if _, err := serialOptionsFromFields(fields[0], fields[1], fields[2], fields[3], fields[4]); err == nil {
 			t.Errorf("%s was accepted", name)
 		}
 	}

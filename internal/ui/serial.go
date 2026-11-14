@@ -33,6 +33,7 @@ func (p *sessionPanel) serialConfig() serialclient.Config {
 		DataBits: stored.DataBits,
 		Parity:   stored.Parity,
 		StopBits: stored.StopBits,
+		Flow:     stored.Flow,
 	}
 }
 
@@ -76,6 +77,9 @@ func (p *sessionPanel) requestSerialOptions() {
 	parity.SetSelected(orDefaultText(current.Parity, serialclient.DefaultParity))
 	stop := widget.NewSelect([]string{"1", "2"}, nil)
 	stop.SetSelected(strconv.Itoa(orDefault(current.StopBits, serialclient.DefaultStopBits)))
+	flows := serialclient.FlowControls()
+	flow := widget.NewSelect(flows, nil)
+	flow.SetSelected(orDefaultText(current.Flow, serialclient.DefaultFlow))
 	problem := widget.NewLabel("")
 	problem.Importance = widget.DangerImportance
 	problem.Wrapping = fyne.TextWrapWord
@@ -88,10 +92,11 @@ func (p *sessionPanel) requestSerialOptions() {
 		widget.NewLabel("Data bits"), bits,
 		widget.NewLabel("Parity"), parity,
 		widget.NewLabel("Stop bits"), stop,
+		widget.NewLabel("Flow control"), flow,
 		problem,
 		container.NewHBox(
 			widget.NewButton("Apply", func() {
-				options, err := serialOptionsFromFields(baud.Selected, bits.Selected, parity.Selected, stop.Selected)
+				options, err := serialOptionsFromFields(baud.Selected, bits.Selected, parity.Selected, stop.Selected, flow.Selected)
 				if err != nil {
 					problem.SetText(err.Error())
 					return
@@ -106,13 +111,13 @@ func (p *sessionPanel) requestSerialOptions() {
 			widget.NewButton("Cancel", func() { popup.Hide() }),
 		),
 	)
-	popup = p.screen.showModal(content, fyne.NewSize(420, 440))
+	popup = p.screen.showModal(content, fyne.NewSize(420, 480))
 }
 
 // serialOptionsFromFields turns the four pickers into stored settings, refusing what a
 // port cannot use before anything is written.
-func serialOptionsFromFields(baud, bits, parity, stop string) (profiles.SerialOptions, error) {
-	options := profiles.SerialOptions{Parity: parity}
+func serialOptionsFromFields(baud, bits, parity, stop, flow string) (profiles.SerialOptions, error) {
+	options := profiles.SerialOptions{Parity: parity, Flow: flow}
 	for name, value := range map[string]*int{
 		"baud rate": &options.Baud,
 	} {

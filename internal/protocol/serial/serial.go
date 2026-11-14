@@ -22,6 +22,13 @@ const (
 	DefaultDataBits = 8
 	DefaultParity   = "none"
 	DefaultStopBits = 1
+	DefaultFlow     = FlowNone
+
+	// FlowNone is no handshake at all; FlowRTSCTS is the hardware one and FlowXONXOFF
+	// the software one.
+	FlowNone    = "none"
+	FlowRTSCTS  = "rtscts"
+	FlowXONXOFF = "xonxoff"
 )
 
 // ErrUnknownBaud means the requested speed has no termios constant.
@@ -39,6 +46,8 @@ type Config struct {
 	DataBits int
 	Parity   string
 	StopBits int
+	// Flow is the handshake: "none" (the default), "rtscts" or "xonxoff".
+	Flow string
 }
 
 // Normalized fills the zero values with the defaults.
@@ -55,7 +64,11 @@ func (c Config) Normalized() Config {
 	if c.StopBits == 0 {
 		c.StopBits = DefaultStopBits
 	}
+	if c.Flow == "" {
+		c.Flow = DefaultFlow
+	}
 	c.Parity = strings.ToLower(c.Parity)
+	c.Flow = strings.ToLower(c.Flow)
 	return c
 }
 
@@ -79,6 +92,11 @@ func (c Config) Validate() error {
 	if config.StopBits != 1 && config.StopBits != 2 {
 		return fmt.Errorf("%w: %d stop bits", ErrInvalidConfig, config.StopBits)
 	}
+	switch config.Flow {
+	case FlowNone, FlowRTSCTS, FlowXONXOFF:
+	default:
+		return fmt.Errorf("%w: flow control %q", ErrInvalidConfig, config.Flow)
+	}
 	return nil
 }
 
@@ -91,7 +109,14 @@ func (c Config) Description() string {
 func (c Config) LineDescription() string {
 	config := c.Normalized()
 	parity := map[string]string{"none": "N", "even": "E", "odd": "O", "mark": "M", "space": "S"}[config.Parity]
-	return fmt.Sprintf("%d %d%s%d", config.Baud, config.DataBits, parity, config.StopBits)
+	description := fmt.Sprintf("%d %d%s%d", config.Baud, config.DataBits, parity, config.StopBits)
+	switch config.Flow {
+	case FlowRTSCTS:
+		description += " rtscts"
+	case FlowXONXOFF:
+		description += " xonxoff"
+	}
+	return description
 }
 
 // Conn is an open serial port; it is a plain byte stream.
@@ -186,6 +211,15 @@ func Termios(config Config) (*unix.Termios, error) {
 	settings.Lflag = 0
 	settings.Iflag = 0
 	settings.Oflag = 0
+	// Flow control is the one input/output flag a user may ask for: rtscts is the
+	// hardware handshake, xonxoff the software one. Both stay off by default, because a
+	// device that does not expect them stops sending.
+	switch normalized.Flow {
+	case FlowRTSCTS:
+		settings.Cflag |= unix.CRTSCTS
+	case FlowXONXOFF:
+		settings.Iflag |= unix.IXON | unix.IXOFF
+	}
 	return settings, nil
 }
 
@@ -197,6 +231,10 @@ func baudConstant(baud int) (uint32, error) {
 	}
 	return settings, nil
 }
+
+// FlowControls lists the handshakes this build offers, in the order the dialog shows
+// them.
+func FlowControls() []string { return []string{FlowNone, FlowRTSCTS, FlowXONXOFF} }
 
 // BaudRates lists the speeds this build accepts, slowest first.
 func BaudRates() []int {
