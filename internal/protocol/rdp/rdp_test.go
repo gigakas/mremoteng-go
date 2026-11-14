@@ -266,3 +266,17 @@ func TestLaunch_MissingExecutable_ReturnsError(t *testing.T) {
 		t.Fatal("Launch succeeded with a missing client")
 	}
 }
+
+// TestSummarize_DropsTheLoggerSeparator guards the line the session dialog shows:
+// the timestamp and level are stripped, and the "- " FreeRDP puts between them and
+// the message must go with them, not lead the sentence.
+func TestSummarize_DropsTheLoggerSeparator(t *testing.T) {
+	output := "[21:26:49:481] [1] [ERROR][com.freerdp.core] - [freerdp_tcp_connect_timeout]: connect to localhost:1 failed with error: Connection refused [111]\n"
+	summary := Summarize(output)
+	if strings.HasPrefix(summary, "-") || strings.Contains(summary, "[ERROR]") {
+		t.Errorf("summary = %q, want the message without its logger prefix", summary)
+	}
+	if !strings.Contains(summary, "Connection refused") {
+		t.Errorf("summary = %q, want the cause", summary)
+	}
+}

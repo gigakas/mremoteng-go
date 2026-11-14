@@ -275,3 +275,90 @@ func TestRDPGatewayForm_InvalidInput_IsRefusedWithAReason(t *testing.T) {
 		t.Error("a session without a gateway must not mention one")
 	}
 }
+
+// waitFor polls until check passes or the deadline expires: the RDP watcher runs
+// on its own goroutine, so the effect of a session ending is not synchronous.
+func waitFor(t *testing.T, check func() bool) bool {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if check() {
+			return true
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return false
+}
+
+// TestSessionPanel_RDPImmediateExit_ReportsTheClientCause covers the report the
+// session bar could not give: FreeRDP's own line, plus what to try next, in a
+// dialog the user can read after the window has gone.
+func TestSessionPanel_RDPImmediateExit_ReportsTheClientCause(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	notices := make([]string, 0, 1)
+	s.notice = func(title, message string) { notices = append(notices, title+"\n"+message) }
+	session := &fakeRDPSession{
+		done:   make(chan struct{}),
+		output: "[ERROR][com.freerdp.core.nego] - [nego_connect]: Failed to connect\n",
+	}
+	close(session.done)
+	panel := s.newSessionPanel(rdpProfile(t))
+
+	panel.applyConnectRDP(session, nil)
+
+	if !waitFor(t, func() bool { return len(notices) > 0 }) {
+		t.Fatalf("no dialog was reported; status = %q", s.status.Text)
+	}
+	if !strings.Contains(notices[0], "Failed to connect") {
+		t.Errorf("dialog = %q, want the client's cause", notices[0])
+	}
+	if !strings.Contains(notices[0], "did not answer") {
+		t.Errorf("dialog = %q, want the transport hint for a refused connection", notices[0])
+	}
+	if !strings.Contains(s.status.Text, "before opening a session") {
+		t.Errorf("status = %q, want the failure notice", s.status.Text)
+	}
+	if panel.rdp != nil {
+		t.Error("a dead session is still attached to the panel")
+	}
+}
+
+// TestSessionPanel_RDPLaterExit_ReportsInTheStatus keeps the dialog for failures:
+// a session that ran for a while and ended is reported, but not with a popup.
+func TestSessionPanel_RDPLaterExit_ReportsInTheStatus(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	notices := 0
+	s.notice = func(string, string) { notices++ }
+	session := &fakeRDPSession{done: make(chan struct{}), output: "connection closed by the server\n"}
+	panel := s.newSessionPanel(rdpProfile(t))
+	panel.applyConnectRDP(session, nil)
+	panel.rdpStart = time.Now().Add(-10 * time.Second)
+
+	close(session.done)
+
+	if !waitFor(t, func() bool { return strings.Contains(s.status.Text, "RDP session closed") }) {
+		t.Fatalf("status = %q, want a closed notice", s.status.Text)
+	}
+	if notices != 0 {
+		t.Errorf("dialogs = %d, want none for a session that had been open", notices)
+	}
+	if !strings.Contains(s.status.Text, "closed by the server") {
+		t.Errorf("status = %q, want the client's cause", s.status.Text)
+	}
+}
+
+func TestRDPFailureHint_PointsAtTheCause(t *testing.T) {
+	cases := map[string]string{
+		"Gateway authentication failed":                     "RD Gateway",
+		"server certificate is not trusted":                 "Ignore cert",
+		"Authentication only, exit status 1":                "credentials",
+		"connect to localhost:1 failed: Connection refused": "port",
+		"nego_connect failed: no protocol":                  "Legacy TLS",
+		"no diagnostic output":                              "Check the address",
+	}
+	for cause, want := range cases {
+		if got := rdpFailureHint(cause); !strings.Contains(got, want) {
+			t.Errorf("rdpFailureHint(%q) = %q, want it to mention %q", cause, got, want)
+		}
+	}
+}

@@ -41,3 +41,18 @@ func (m *modal) Hide() {
 	}
 	m.previous = nil
 }
+
+// showMessage reports something the user must not miss, in a modal with a single
+// button. A status line is invisible behind the window that raised it, which is how
+// the host-key and FreeRDP failures stayed unnoticed.
+func (s *screen) showMessage(title, message string) {
+	body := widget.NewLabel(message)
+	body.Wrapping = fyne.TextWrapWord
+	var popup *modal
+	content := container.NewVBox(
+		widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		body,
+		container.NewHBox(widget.NewButton("Close", func() { popup.Hide() })),
+	)
+	popup = s.showModal(content, fyne.NewSize(500, 220))
+}

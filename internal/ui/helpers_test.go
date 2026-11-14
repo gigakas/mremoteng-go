@@ -79,6 +79,7 @@ type fakeClipboard struct{ content string }
 type fakeRDPSession struct {
 	closed bool
 	done   chan struct{}
+	output string
 }
 
 type fakeArea struct {

@@ -438,6 +438,8 @@ func (f *fakeRDPSession) Wait() error {
 
 func (f *fakeRDPSession) Close() error { f.closed = true; close(f.done); return nil }
 
+func (f *fakeRDPSession) Output() string { return f.output }
+
 func rdpProfile(t *testing.T) profiles.Profile {
 	t.Helper()
 	profile := sampleProfile(t, "Office desktop", "", "RDP", "desk.example.com", 3389)

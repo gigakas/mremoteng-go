@@ -356,6 +356,13 @@ func stripLogPrefixes(line string) string {
 		}
 		line = strings.TrimSpace(line[end+1:])
 	}
+	// FreeRDP separates the logger prefix from the message with "- ", which reads
+	// like a dash in the middle of a sentence once the prefix is gone.
+	for _, separator := range []string{"- ", "@ "} {
+		if strings.HasPrefix(line, separator) {
+			line = strings.TrimSpace(line[len(separator):])
+		}
+	}
 	return line
 }
 

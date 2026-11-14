@@ -51,6 +51,8 @@ type screen struct {
 	win     fyne.Window
 	ws      *workspace
 	confirm confirm
+	// notice reports a failure the user must see; tests replace it.
+	notice func(title, message string)
 
 	suppressBranch    bool
 	rows              map[string]*treeRow
@@ -151,6 +153,7 @@ func newScreen(app fyne.App, store Store) *screen {
 			}
 		}, s.win)
 	}
+	s.notice = s.showMessage
 	s.win.SetIcon(AppIcon())
 	s.win.SetContent(s.build())
 	s.win.SetMainMenu(s.menu())

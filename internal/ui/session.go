@@ -35,6 +35,8 @@ type shellOpener func(sshclient.Target, sshclient.Options, sshclient.TermSize) (
 type rdpSession interface {
 	Wait() error
 	Close() error
+	// Output is the client's own log, which says why a session that died did so.
+	Output() string
 }
 
 // rdpLauncher starts an RDP session; tests substitute it.
@@ -302,13 +304,52 @@ func (p *sessionPanel) applyConnectRDPWithArea(session rdpSession, area embedded
 			p.rdp = nil
 			p.releaseEmbedded()
 			p.setConnected(false)
-			if time.Since(p.rdpStart) < 3*time.Second {
-				p.setProblem("RDP session ended immediately. If FreeRDP reported a changed or self-signed certificate, enable Ignore certificate and try again.")
+			cause := rdpclient.Summarize(session.Output())
+			if time.Since(p.rdpStart) < rdpQuickExit {
+				p.reportRDPExit(cause)
 				return
 			}
-			p.setStatus("RDP session closed.")
+			p.setStatus("RDP session closed: " + cause)
 		})
 	}()
+}
+
+// rdpQuickExit is how soon an exit counts as a failure rather than a session the
+// user ended. The detached check already covers an explicit disconnect, so a client
+// that dies inside this window never got a connection at all.
+const rdpQuickExit = 3 * time.Second
+
+// reportRDPExit explains why FreeRDP ended without opening a session. The cause is
+// the client's own line, reduced to one actionable sentence: "ended immediately"
+// on its own told the user nothing and the session bar could not be read behind the
+// window that had already closed.
+func (p *sessionPanel) reportRDPExit(cause string) {
+	message := "FreeRDP ended before opening a session: " + cause
+	p.setProblem(message)
+	if p.screen.notice == nil {
+		return
+	}
+	p.screen.notice("RDP session failed",
+		p.profile.Name+" ("+p.profile.Host+":"+strconv.Itoa(p.profile.Port)+")\n\n"+message+"\n\n"+rdpFailureHint(cause))
+}
+
+// rdpFailureHint turns the client's cause into the next thing to try.
+func rdpFailureHint(cause string) string {
+	lower := strings.ToLower(cause)
+	switch {
+	case strings.Contains(lower, "gateway"):
+		return "The RD Gateway refused the hop: check its host, its port and the usage method."
+	case strings.Contains(lower, "cert") || strings.Contains(lower, "tofu"):
+		return "The server certificate was refused: enable Ignore cert on the session bar if this host is trusted."
+	case strings.Contains(lower, "auth") || strings.Contains(lower, "password") || strings.Contains(lower, "logon"):
+		return "The credentials were refused: check the username, the domain and the password."
+	// Security before transport: a negotiation failure also mentions "connect".
+	case strings.Contains(lower, "legacy") || strings.Contains(lower, "protocol") || strings.Contains(lower, "negotiat"):
+		return "The server rejected the security settings: try Legacy TLS on the session bar for old servers."
+	case strings.Contains(lower, "refused") || strings.Contains(lower, "connect") || strings.Contains(lower, "timeout") || strings.Contains(lower, "resolv"):
+		return "The address did not answer: check the host, the port and the network."
+	}
+	return "Check the address, the credentials and the certificate policy (Ignore cert on the session bar)."
 }
 
 // setEmbeddedVisible shows or hides the embedded RDP window with its tab.
