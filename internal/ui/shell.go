@@ -107,6 +107,7 @@ type screen struct {
 	dialVNC     vncDialer
 	dialStream  streamDialer
 	openSerial  serialOpener
+	launchWeb   webLauncher
 	openBrowser func(string) error
 	clipboard   func() fyne.Clipboard
 	vault       *vault.Vault
@@ -151,6 +152,7 @@ func newScreen(app fyne.App, store Store) *screen {
 		dialVNC:           defaultVNCDialer,
 		dialStream:        defaultStreamDialer,
 		openSerial:        defaultSerialOpener,
+		launchWeb:         defaultWebLauncher,
 		openBrowser:       openExternalBrowser,
 		clipboard:         app.Clipboard,
 		embedder:          embedX11,

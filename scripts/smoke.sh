@@ -25,3 +25,6 @@ if ! git diff --quiet -- CHANGELOG.md; then
 fi
 
 echo "smoke OK: binaries build, mremoteng reports its version, changelog is reproducible"
+
+# The embedded web view is its own binary, so prove it starts and identifies itself.
+"$out_dir/mremoteng-webview" -version >/dev/null

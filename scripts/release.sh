@@ -32,6 +32,12 @@ go build -tags x11 -trimpath \
     -ldflags "-s -w -X main.version=$version -X main.commit=$commit -X main.built=$built" \
     -o "$dist/mremoteng" ./cmd/mremoteng
 
+# The web view helper ships beside the application; it links GTK and WebKit, which the
+# application itself deliberately does not.
+go build -tags x11 -trimpath \
+    -ldflags "-s -w -X main.version=$version" \
+    -o "$dist/mremoteng-webview" ./cmd/mremoteng-webview
+
 cp internal/ui/assets/icon.svg "$dist/icons/mremoteng-go.svg"
 cat >"$dist/mremoteng-go.desktop" <<EOF
 [Desktop Entry]
@@ -61,6 +67,7 @@ if [ "$install" = true ]; then
     app_dir="$prefix/share/applications"
     mkdir -p "$bin_dir" "$icon_dir" "$app_dir"
     install -m 755 "$dist/mremoteng" "$bin_dir/mremoteng"
+    install -m 755 "$dist/mremoteng-webview" "$bin_dir/mremoteng-webview"
     install -m 644 "$dist/icons/mremoteng-go.svg" "$icon_dir/mremoteng-go.svg"
     sed "s|^Exec=.*|Exec=$bin_dir/mremoteng|" "$dist/mremoteng-go.desktop" >"$app_dir/mremoteng-go.desktop"
     command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$app_dir" >/dev/null 2>&1 || true

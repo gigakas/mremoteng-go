@@ -83,10 +83,12 @@ type sessionPanel struct {
 	term  *termWidget
 	shell shellSession
 
-	rdp      rdpSession
-	stream   streamSession
-	vnc      vncSession
-	vncView  *vncView
+	rdp     rdpSession
+	stream  streamSession
+	vnc     vncSession
+	vncView *vncView
+	// web is the embedded WebKit view of an HTTP session.
+	web      webSession
 	rdpStart time.Time
 	embedded embeddedArea
 	note     *widget.Label
@@ -162,7 +164,7 @@ func (p *sessionPanel) content() fyne.CanvasObject {
 		return container.NewBorder(p.connectionBar(), nil, nil, nil, container.NewPadded(p.slot))
 	}
 	if p.profile.Protocol == profiles.HTTP {
-		note := widget.NewLabel("Connect opens the address in your default browser. An embedded webview is not implemented yet.")
+		note := widget.NewLabel(webViewNote())
 		note.Wrapping = fyne.TextWrapWord
 		note.Importance = widget.LowImportance
 		p.installSlot(container.NewVBox(note))
@@ -720,6 +722,7 @@ func (p *sessionPanel) sessionClosed() {
 // shutdown ends any live session without touching the UI, used on application
 // exit so no child process or embedded window survives.
 func (p *sessionPanel) shutdown() {
+	p.closeWebView()
 	if p.shell != nil {
 		_ = p.shell.Close()
 		p.shell = nil
@@ -777,6 +780,13 @@ func (p *sessionPanel) closeSelf() {
 }
 
 func (p *sessionPanel) disconnectShell() {
+	if p.web != nil {
+		p.closeWebView()
+		p.releaseEmbedded()
+		p.setConnected(false)
+		p.setStatus("Web view closed.")
+		return
+	}
 	if p.stream != nil {
 		session := p.stream
 		p.stream = nil

@@ -19,6 +19,9 @@ mkdir -p bin
 # Wayland sessions still work through XWayland.
 go build -tags x11 -ldflags "-X main.version=$version -X main.commit=$commit -X main.built=$built" \
     -o bin/mremoteng ./cmd/mremoteng
+# The embedded web view is a separate process (GTK + WebKit live there, never in the
+# application); it has to sit next to the binary, which is where the app looks first.
+go build -tags x11 -ldflags "-X main.version=$version" -o bin/mremoteng-webview ./cmd/mremoteng-webview
 
 pkill -x mremoteng || true
 sleep 1

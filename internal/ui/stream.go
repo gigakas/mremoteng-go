@@ -94,22 +94,6 @@ func (p *sessionPanel) streamClosed(session streamSession) {
 	p.setStatus("Session closed.")
 }
 
-// connectHTTP opens the address in the system browser: embedding a GTK webview
-// inside the Fyne window needs window parenting and is not implemented yet.
-func (p *sessionPanel) connectHTTP() {
-	resolved := p.screen.resolve(p.profile)
-	scheme := "http://"
-	url := scheme + net.JoinHostPort(resolved.Host, strconv.Itoa(resolved.Port))
-	if resolved.Port == 80 {
-		url = scheme + resolved.Host
-	}
-	if err := p.screen.openBrowser(url); err != nil {
-		p.setProblem("Could not open the browser: " + err.Error())
-		return
-	}
-	p.setStatus("Opened " + url + " in the system browser; embedding a webview in the window is not implemented yet.")
-}
-
 // openExternalBrowser launches the default browser.
 func openExternalBrowser(url string) error {
 	return exec.Command("xdg-open", url).Start()

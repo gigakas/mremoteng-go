@@ -21,6 +21,8 @@ install -d "$stage/DEBIAN" "$stage/usr/bin" \
     "$stage/usr/share/icons/hicolor/scalable/apps"
 
 install -m 755 "dist/mremoteng-go-${version}-linux-${arch}/mremoteng" "$stage/usr/bin/mremoteng"
+# The embedded web view lives in its own binary, beside the application.
+install -m 755 "dist/mremoteng-go-${version}-linux-${arch}/mremoteng-webview" "$stage/usr/bin/mremoteng-webview"
 install -m 644 internal/ui/assets/icon.svg "$stage/usr/share/icons/hicolor/scalable/apps/mremoteng-go.svg"
 sed 's|^Exec=.*|Exec=/usr/bin/mremoteng|' \
     "dist/mremoteng-go-${version}-linux-${arch}/mremoteng-go.desktop" \
@@ -34,7 +36,7 @@ Section: net
 Priority: optional
 Architecture: $debarch
 Installed-Size: $installed
-Depends: freerdp3-x11 | freerdp-x11
+Depends: freerdp3-x11 | freerdp-x11, libwebkit2gtk-4.1-0, libgtk-3-0
 Recommends: openssh-client
 Maintainer: mremoteng-go contributors
 Description: mRemoteNG-style connection manager for Linux
