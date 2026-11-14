@@ -8,7 +8,7 @@ historical phase dependencies. Existing completed stages and audits are retained
 |---|---|---|---|
 | L1 | mRemoteNG-style profile manager (tree, tabs, Config panel) | in progress (opencode; human usability pending) | opencode |
 | L2 | SSH/RDP session lifecycle and real connections | in progress (opencode; SSH terminal, embedded RDP and VNC done; modifier-key input, embedded webview and serial pending) | opencode |
-| L3 | Session UX, optional import, credential strategy | in progress (import/export, credential vault, quick connect, folders, terminal zoom, scrollback/copy done; see the matching backlog stages, no L3 audit yet) | opencode |
+| L3 | Session UX, optional import, credential strategy | in progress (import/export, credential vault, quick connect, folders, terminal zoom, scrollback/copy, reopened session tabs and the settings dialog done; see the matching backlog stages, no L3 audit yet) | opencode |
 | L4 | Linux packaging and human usability acceptance | partially done (`.deb` via `scripts/package-deb.sh`; rpm/Flatpak and human acceptance pending) | human + any |
 
 ## Ownership and coordination
