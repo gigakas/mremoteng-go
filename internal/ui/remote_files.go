@@ -146,6 +146,8 @@ func (b *remoteBrowser) show() {
 	b.remote.onNewFolder = func() { b.createFolder(b.remote, "Remote") }
 	b.local.onDelete = func(entries []fileEntry) { b.deleteEntries(b.local, entries, "Local") }
 	b.remote.onDelete = func(entries []fileEntry) { b.deleteEntries(b.remote, entries, "Remote") }
+	b.local.onRename = func(entries []fileEntry) { b.renameEntry(b.local, entries, "Local") }
+	b.remote.onRename = func(entries []fileEntry) { b.renameEntry(b.remote, entries, "Remote") }
 
 	b.popup = b.screen.showModal(content, fyne.NewSize(1000, 620))
 	b.local.start()
@@ -242,6 +244,47 @@ func (b *remoteBrowser) createFolder(pane *filePane, side string) {
 		pane.refresh()
 		b.status.SetText(side + " folder created: " + target)
 	})
+}
+
+// renameEntry gives one selected entry a new name inside its own directory. One
+// field can only name one thing, so a multiple selection is reported instead of
+// half-renamed.
+func (b *remoteBrowser) renameEntry(pane *filePane, entries []fileEntry, side string) {
+	if len(entries) != 1 {
+		b.status.SetText("Select one " + strings.ToLower(side) + " entry to rename.")
+		return
+	}
+	entry := entries[0]
+	name := widget.NewEntry()
+	name.SetText(entry.Name)
+	b.screen.showTextDialog("Rename "+side+" entry", "Rename", name, func() {
+		next := strings.TrimSpace(name.Text)
+		if !validEntryName(next) {
+			b.status.SetText("A name cannot be empty, contain a path separator, or be . or ..")
+			return
+		}
+		if next == entry.Name {
+			return
+		}
+		target := pane.source.Join(pane.dir, next)
+		if err := pane.source.Rename(entry.Path, target); err != nil {
+			b.status.SetText("Could not rename " + entry.Name + ": " + err.Error())
+			b.screen.setProblem("Could not rename " + side + " entry: " + err.Error())
+			return
+		}
+		pane.refresh()
+		b.status.SetText("Renamed " + entry.Name + " to " + next + ".")
+	})
+}
+
+// validEntryName rejects what the single-field dialog cannot mean: an empty name,
+// a path separator (which would move the entry rather than rename it) and the two
+// directory shorthands.
+func validEntryName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	return !strings.ContainsAny(name, "/\\\x00")
 }
 
 // deleteEntries confirms, then deletes the selected entries. A folder goes with

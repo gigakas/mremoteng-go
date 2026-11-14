@@ -362,3 +362,77 @@ func TestFilePane_Navigate_ResetsTheScrollToTheTop(t *testing.T) {
 		t.Errorf("scroll offset = %.1f after opening a short folder, want the top", pane.scroll.Offset.Y)
 	}
 }
+
+func TestLocalSource_Rename_MovesTheEntryAndRefusesAnExistingName(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"old.txt", "taken.txt"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(name), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	source := localSource{}
+
+	if err := source.Rename(filepath.Join(root, "old.txt"), filepath.Join(root, "new.txt")); err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+	if content, err := os.ReadFile(filepath.Join(root, "new.txt")); err != nil || string(content) != "old.txt" {
+		t.Errorf("renamed file = %q, %v; want the content moved", content, err)
+	}
+
+	if err := source.Rename(filepath.Join(root, "new.txt"), filepath.Join(root, "taken.txt")); err == nil {
+		t.Fatal("renaming onto an existing name was accepted")
+	}
+	if content, err := os.ReadFile(filepath.Join(root, "taken.txt")); err != nil || string(content) != "taken.txt" {
+		t.Errorf("the existing file was replaced: %q, %v", content, err)
+	}
+}
+
+func TestValidEntryName_RejectsSeparatorsAndShorthands(t *testing.T) {
+	for _, name := range []string{"notes.txt", "with space", ".hidden", "carpeta nueva"} {
+		if !validEntryName(name) {
+			t.Errorf("validEntryName(%q) = false, want true", name)
+		}
+	}
+	for _, name := range []string{"", ".", "..", "a/b", `a\b`, "../escape"} {
+		if validEntryName(name) {
+			t.Errorf("validEntryName(%q) = true, want false", name)
+		}
+	}
+}
+
+func TestRenameEntry_MultipleSelection_ReportsInsteadOfRenaming(t *testing.T) {
+	screen := newTestScreen(t, &fakeStore{})
+	browser := &remoteBrowser{screen: screen, status: widget.NewLabel("")}
+	pane := newFilePane(localSource{}, "Upload")
+	entries := []fileEntry{{Name: "a.txt"}, {Name: "b.txt"}}
+
+	browser.renameEntry(pane, entries, "Local")
+
+	if !strings.Contains(browser.status.Text, "Select one local entry") {
+		t.Errorf("status = %q, want the single-selection guidance", browser.status.Text)
+	}
+}
+
+// TestFilePane_ActionRow_OffersCreateRenameAndDelete keeps the three file verbs on
+// both panes: they are the reason the row exists, and a layout change must not
+// drop one silently.
+func TestFilePane_ActionRow_OffersCreateRenameAndDelete(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	pane := newFilePane(localSource{}, "Upload to remote")
+	objects := map[fyne.CanvasObject]bool{}
+	collectObjects(pane.content(), objects)
+
+	found := map[string]bool{}
+	for object := range objects {
+		if button, ok := object.(*widget.Button); ok {
+			found[button.Text] = true
+		}
+	}
+	for _, want := range []string{"New folder", "Rename", "Delete", "Up", "Open"} {
+		if !found[want] {
+			t.Errorf("the pane has no %q button", want)
+		}
+	}
+}

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 	"os"
 	"path"
@@ -47,6 +48,8 @@ type fileSource interface {
 	Mkdir(dir string) error
 	// Remove deletes a file, or a directory with everything inside it.
 	Remove(target string) error
+	// Rename gives an entry a new name in the same directory.
+	Rename(from, to string) error
 }
 
 // localSource reads the local filesystem.
@@ -90,6 +93,15 @@ func (localSource) Join(dir, name string) string { return filepath.Join(dir, nam
 func (localSource) Mkdir(dir string) error { return os.MkdirAll(dir, 0o755) }
 
 func (localSource) Remove(target string) error { return os.RemoveAll(target) }
+
+// Rename keeps local behaviour in step with the remote pane: it refuses to take
+// a name that is already in use, where os.Rename would replace the file.
+func (localSource) Rename(from, to string) error {
+	if _, err := os.Lstat(to); err == nil {
+		return fmt.Errorf("%s already exists", filepath.Base(to))
+	}
+	return os.Rename(from, to)
+}
 
 func (localSource) Parent(dir string) string {
 	cleaned := filepath.Clean(dir)
@@ -137,6 +149,8 @@ func (r remoteSource) Mkdir(dir string) error { return r.files.MkdirAll(dir) }
 
 func (r remoteSource) Remove(target string) error { return r.files.RemoveAll(target) }
 
+func (r remoteSource) Rename(from, to string) error { return r.files.Rename(from, to) }
+
 // sortEntries puts directories first, then files, each group by name.
 func sortEntries(entries []fileEntry) {
 	sort.SliceStable(entries, func(i, j int) bool {
@@ -170,6 +184,7 @@ type filePane struct {
 	onEnter       func(string)
 	onNewFolder   func()
 	onDelete      func([]fileEntry)
+	onRename      func([]fileEntry)
 }
 
 func newFilePane(source fileSource, transferLabel string) *filePane {
@@ -195,6 +210,11 @@ func (p *filePane) content() fyne.CanvasObject {
 			widget.NewButtonWithIcon("New folder", theme.ContentAddIcon(), func() {
 				if p.onNewFolder != nil {
 					p.onNewFolder()
+				}
+			}),
+			widget.NewButtonWithIcon("Rename", theme.DocumentCreateIcon(), func() {
+				if p.onRename != nil {
+					p.onRename(p.selection())
 				}
 			}),
 			widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {

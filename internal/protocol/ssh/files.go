@@ -126,6 +126,24 @@ func (r *RemoteFiles) RemoveAll(target string) error {
 	return removeAll(r.sftp, target)
 }
 
+// Rename moves a remote file or directory, keeping the target free: SFTP servers
+// disagree on whether a rename replaces an existing entry, and replacing one is
+// not what the pane's Rename promises.
+func (r *RemoteFiles) Rename(from, to string) error {
+	return renameRemote(r.sftp, from, to)
+}
+
+// renameRemote is the testable core of Rename.
+func renameRemote(client *sftp.Client, from, to string) error {
+	if _, err := client.Stat(to); err == nil {
+		return fmt.Errorf("transfer: rename %s: %s already exists", from, to)
+	}
+	if err := client.Rename(from, to); err != nil {
+		return fmt.Errorf("transfer: rename %s: %w", from, err)
+	}
+	return nil
+}
+
 // removeAll is the testable core of RemoveAll.
 func removeAll(client *sftp.Client, target string) error {
 	info, err := client.Stat(target)

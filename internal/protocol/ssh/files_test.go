@@ -400,3 +400,49 @@ func TestDownloadFile_CancelledContext_StopsAndReportsIt(t *testing.T) {
 		t.Errorf("error = %v, want context.Canceled", err)
 	}
 }
+
+func TestRename_MovesAFileAndLeavesNothingBehind(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "old.txt"), []byte("data"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	client := newTestSFTP(t, root)
+
+	if err := renameRemote(client, filepath.Join(root, "old.txt"), filepath.Join(root, "new.txt")); err != nil {
+		t.Fatalf("renameRemote: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "old.txt")); !os.IsNotExist(err) {
+		t.Errorf("the old name survived the rename: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(root, "new.txt"))
+	if err != nil || string(content) != "data" {
+		t.Errorf("renamed file = %q, %v; want the content moved", content, err)
+	}
+}
+
+func TestRename_ExistingTarget_IsRefusedAndKeepsBothFiles(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"keep.txt", "other.txt"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(name), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	client := newTestSFTP(t, root)
+
+	err := renameRemote(client, filepath.Join(root, "keep.txt"), filepath.Join(root, "other.txt"))
+	if err == nil {
+		t.Fatal("rename onto an existing file was accepted")
+	}
+	if content, readErr := os.ReadFile(filepath.Join(root, "other.txt")); readErr != nil || string(content) != "other.txt" {
+		t.Errorf("the existing file was replaced: %q, %v", content, readErr)
+	}
+}
+
+func TestRename_MissingSource_ReturnsError(t *testing.T) {
+	root := t.TempDir()
+	client := newTestSFTP(t, root)
+
+	if err := renameRemote(client, filepath.Join(root, "absent.txt"), filepath.Join(root, "x.txt")); err == nil {
+		t.Fatal("renaming a missing file was accepted")
+	}
+}

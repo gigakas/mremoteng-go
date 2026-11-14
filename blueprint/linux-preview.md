@@ -77,10 +77,12 @@ SSH is implemented in `internal/protocol/ssh` and exposed in the session tab:
 - Remote files: the SFTP icon on an SSH session bar (and Tools > Remote files)
   opens a two-pane transfer window, local on the left and the remote host on the
   right, each listing a directory with folder and file icons, sortable headers
-  and its own New folder/Delete and transfer button. Upload and download recurse
-  into folders, show one aggregate progress bar in a log, and can be stopped. It
-  reuses the session's host-key checks and one-off password; there is still no
-  resume, queue or rename.
+  and its own New folder/Rename/Delete and transfer button. Upload and download
+  recurse into folders, show one aggregate progress bar in a log, and can be
+  stopped. Rename works on one entry at a time and refuses a name that is already
+  taken, on both sides, so a rename never replaces a file. It reuses the
+  session's host-key checks and one-off password; there is still no resume or
+  queue.
 - Unknown hosts require explicit approval of the shown SHA-256 fingerprint; the
   password lives only in the widget for that attempt.
 
