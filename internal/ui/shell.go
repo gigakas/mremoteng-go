@@ -490,6 +490,11 @@ func (s *screen) registerControlShortcuts() {
 		canvas.AddShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: fyne.KeyModifierControl},
 			func(fyne.Shortcut) { s.sendControlToFocused(key) })
 	}
+	// Shift-Tab is the one shifted key a terminal tells apart from its plain form, and it
+	// cannot arrive as a typed key: key events carry no modifier state, so Tab alone is
+	// completion. A registered chord is the only way to see the shift.
+	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyTab, Modifier: fyne.KeyModifierShift},
+		func(fyne.Shortcut) { s.sendKeySequenceToFocused("\x1b[Z") })
 	// Zoom is keys only: Fyne scroll events carry no modifiers, and reading the
 	// Ctrl state from X misreported it on Wayland/XWayland, so a plain wheel
 	// zoomed instead of scrolling and froze the console.
@@ -499,6 +504,16 @@ func (s *screen) registerControlShortcuts() {
 		func(fyne.Shortcut) { s.zoomFocusedTerminal(-2) })
 	canvas.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.Key0, Modifier: fyne.KeyModifierControl},
 		func(fyne.Shortcut) { s.resetFocusedTerminalZoom() })
+}
+
+// sendKeySequenceToFocused writes raw bytes to the focused terminal. It is how keys the
+// terminal has to synthesise (the shift-tab sequence) reach the shell.
+func (s *screen) sendKeySequenceToFocused(sequence string) {
+	term, ok := s.focusedTerminal()
+	if !ok || sequence == "" {
+		return
+	}
+	term.sendBytes([]byte(sequence))
 }
 
 // zoomFocusedTerminal changes the font size of the focused terminal.

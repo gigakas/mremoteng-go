@@ -424,6 +424,13 @@
   - `internal/ui/rdp_test.go`
   - `internal/profiles/profiles_test.go`
   - _2026-11-14 22:17:31 UTC — mimocode-l11_
+- Send Shift-Tab to the shell
+
+  Terminals tell Shift-Tab apart from Tab, and the shell never saw it: key events carry no modifier state, so Tab is completion and the shifted form arrived as another Tab. It is now a registered chord that writes the standard CSI Z sequence to whichever terminal owns the keyboard, which is the only way Fyne reports a modifier it does not type. The control shortcuts for letters and punctuation were already complete. Validated with ./scripts/check.sh.
+
+  - `internal/ui/shell.go`
+  - `internal/ui/terminal_test.go`
+  - _2026-11-14 22:17:40 UTC — mimocode-c1_
 
 ## 2026-11-12
 

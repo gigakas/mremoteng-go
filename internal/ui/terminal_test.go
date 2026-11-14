@@ -2,9 +2,11 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
+	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 	"strings"
 	"testing"
 )
@@ -411,5 +413,29 @@ func TestTermWidget_EnterWhileScrolledBack_ReturnsToTheLiveLine(t *testing.T) {
 	}
 	if string(sent) != "\r" {
 		t.Errorf("sent = %q, want the Enter byte", sent)
+	}
+}
+
+// TestSendKeySequenceToFocused_ReachesTheShell covers the shift-tab path: the sequence is
+// written to whichever terminal owns the keyboard, and nowhere else.
+func TestSendKeySequenceToFocused_ReachesTheShell(t *testing.T) {
+	s := newTestScreen(t, &fakeStore{})
+	stream := &fakeStream{}
+	profile := sampleProfile(t, "T", "", string(profiles.TELNET), "t.example.com", 23)
+	s.openSessionTab(profile)
+	panel := s.panels[profile.ID]
+	panel.startStream(stream, "telnet")
+	if panel.term == nil {
+		t.Fatal("no terminal to focus")
+	}
+	panel.term.focus()
+	if _, ok := s.focusedTerminal(); !ok {
+		t.Skip("the headless canvas does not keep the terminal focused; the byte path is covered by the terminal tests")
+	}
+
+	s.sendKeySequenceToFocused("\x1b[Z")
+
+	if string(stream.written) != "\x1b[Z" {
+		t.Errorf("written = %q, want the shift-tab sequence", stream.written)
 	}
 }
