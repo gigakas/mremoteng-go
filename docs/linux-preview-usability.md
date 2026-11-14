@@ -23,6 +23,21 @@ Two trial inputs are needed by later scenarios:
   `cp testdata/corpus/v26-default.xml /tmp/usability-import.xml`. Never point
   Import or Export at a file under `testdata/corpus/`.
 
+Scenarios 23 and 25 need the embedded windows, which the single build above does
+not give you: RDP embedding needs the `x11` tag, and the web view is a separate
+helper binary that is looked for next to the application first and on the PATH
+second. Build both into the same directory when you intend to run them:
+
+```bash
+go build -tags x11 -o /tmp/mremoteng ./cmd/mremoteng
+go build -tags x11 -o /tmp/mremoteng-webview ./cmd/mremoteng-webview
+```
+
+Scenario 23 needs a reachable address (`example.com` is enough) and scenario 25 a
+reachable RDP host with `xfreerdp3` on the PATH; scenario 24 needs a serial
+device on the machine, so it is optional. The other scenarios need nothing beyond
+the trial inputs listed above.
+
 `-profiles` does not redirect the credential vault: it lives at
 `$XDG_CONFIG_HOME/mremoteng-go/secrets.json` (normally
 `~/.config/mremoteng-go/secrets.json`). Move that file aside before scenario 18
@@ -127,12 +142,128 @@ if it already exists and restore it afterwards.
     wrong master password reports a failure and the vault still unlocks with the
     correct one, and a fresh start of the binary begins locked.
 
+19. **Settings** — File > Settings, choose `Dark` and press Apply: the window
+    repaints at once and the status bar reports
+    `Settings saved: dark colours, new connections start with SSH.` Repeat with
+    `Light` and then `System`, which follows the desktop again. Pass when the
+    last choice is still in force after a restart with the same `-profiles`
+    file, including the very first paint, so the window does not start light and
+    turn dark. Then set the protocol to `TELNET` and the port to `2323`, Apply,
+    and press File > New connection: the Config panel starts with TELNET and
+    2323. Clear the port field instead and a new connection starts with the
+    protocol's own default (TELNET/23). A port of `abc` reports
+    `the default port "abc" is not a number` and `70000` reports
+    `the default port 70000 is outside 1-65535`, both inside the dialog, which
+    stays open and leaves the previous settings untouched. The protocol picker
+    here offers SSH, RDP, VNC, TELNET, RAW, rlogin and HTTP; SERIAL is created
+    from the Config panel, not as a default. The colour choice, the defaults and
+    the reopen toggle live in the window's preferences rather than in the
+    `-profiles` file, so deleting the trial store does not reset them.
+20. **Session restore** — open three connections so three session tabs exist,
+    close the third with its own X, select the second, then quit and start again
+    with the same `-profiles` file, leaving
+    `Reopen the tabs of the last session at startup` ticked in File > Settings
+    (that is the default). Pass when exactly the two tabs that were still open
+    come back, in the same order, each unconnected — the placeholder is shown
+    and the session bar offers Connect rather than Disconnect — and the tab that
+    was selected when you quit is selected again. Then split one of them
+    (View > Split pane right or down), connect both panes, quit and restart: the
+    divided tab comes back divided, with both panes unconnected and the divider
+    where you left it (a fresh split sits at half). A quick-connect tab never returns, a tab whose connection was
+    deleted is dropped instead of being resurrected, and unticking the reopen
+    toggle makes the next start open with the Welcome tab and no sessions.
+21. **Notifications** — create a connection to a dead port (`127.0.0.1`, port
+    `1`, username `tester` so the attempt reaches the network) and press Connect
+    twice, waiting for each attempt to fail. Pass when
+    the status-bar badge on the warning icon counts `1` and then `2`, its hover
+    hint reads `Show 2 problems the status bar has already forgotten`, and the
+    panel (View > Notifications or the badge) is titled `Notifications (2)`,
+    lists both failures oldest first, each as a time, its level and the message
+    the status bar has already replaced. Clear empties the list to
+    `No problems reported.`, removes the badge count and reports
+    `Notifications cleared.` The panel and the activity log share the one bottom
+    slot: opening either closes the other, and neither takes height the terminal
+    needs. The history is this run only, so a restart begins with an empty list.
+22. **Manual tree order** — with a few connections in one folder, right-click
+    one of them and choose Move up twice. Pass when the row climbs one place per
+    click among the connections of that folder, the status bar reports
+    `Moved <name> up.` each time and the row stays selected, folders keep the
+    positions above the connections (so a connection never jumps over a folder,
+    and at the top of its group Move up is greyed out), and the order is
+    unchanged after a restart with the same `-profiles` file. Move down works
+    the same way, folders can be reordered among themselves, and reordering
+    while the filter is active still leaves the hidden rows where they were once
+    the filter is cleared.
+23. **Embedded web view** — build the helper as described in Preparation, create
+    a connection with protocol HTTP, host `example.com`, port `443`, Save and
+    press Connect. Pass when the page is painted inside the tab (the address is
+    `https://example.com`, because port 443 is the scheme's own and is not
+    shown), the status bar reports
+    `HTTP session for example.com embedded in the tab.`, the page disappears
+    while another tab is selected and returns with its own tab, a dialog opened
+    on top of the session is fully visible instead of hidden behind the page,
+    and resizing the window keeps the page inside its tab without spilling over
+    the tree, the status bar or the neighbouring panes. Then close the helper
+    case: move `/tmp/mremoteng-webview` aside, restart and connect the same
+    profile — the placeholder above the terminal already says the system browser
+    will be used, Connect does exactly that, and the status bar names the reason
+    as `Opened https://example.com in the system browser because …` (the
+    embedded view could not start, or there was no window to embed into).
+24. **Serial (optional — needs a device)** — skip this one on a machine without
+    a serial port, it needs hardware. Create a connection with protocol SERIAL
+    and host `/dev/ttyS0` (or a real device such as `/dev/ttyUSB0`), port left
+    empty. Pass when saving the bare name `ttyS0` is refused with
+    `… is not a device path`, the `Line` button on the session bar opens the line
+    settings with device, Baud rate, Data bits, Parity and Stop bits, Apply
+    stores them in the profile and the status bar reports
+    `Serial settings saved: /dev/ttyS0 9600 8N1.` (9600 8N1 are the defaults,
+    the dialog shows what is stored), the settings are still there after a
+    restart, and Connect opens a terminal in the tab that shows what the device
+    sends and passes what you type back to it.
+25. **RDP keys, full screen and options** — open an RDP connection to a
+    reachable host and let it embed in the tab. With that tab selected, use
+    View > Send keys > Ctrl+Alt+Del: the remote desktop shows its own security
+    screen and the status bar reports `Sent Ctrl+Alt+Del to the session.` The
+    computer-icon button on the session bar sends the same chord, and its hover
+    hint names it. Pass when the menu and the button both reach the embedded
+    session, and a session that ended up in its own window (multiple monitors)
+    reports `Special keys need the session embedded in the tab; …` instead of
+    silently doing nothing. View > Full screen then grows the window to the
+    screen and reports
+    `Full screen. View > Full screen returns to the window.`, the menu item is
+    marked while it lasts, and choosing it again reports `Left full screen.`
+    Edit the RDP options on the session bar (clipboard, audio, dynamic
+    resolution, the gateway): Apply reports `RDP options saved for <name>…`, and
+    the ticks, along with what the next Connect uses, are unchanged after a
+    restart, because they belong to the profile and no longer to the window.
+    Finally point the connection at a port nothing listens on and press Connect:
+    the status bar reports the failure and a dialog titled `RDP session failed`
+    shows the connection and its address,
+    `FreeRDP ended before opening a session: ` with FreeRDP's own sentence, and
+    the hint that sentence calls for.
+
+## Known limits
+
+- Modifier-key input is not available in the terminal: the toolkit delivers no
+  modifier state, so Ctrl-C and Ctrl-D are buttons next to the terminal. The
+  View > Send keys chords are the exception, and they only reach an embedded
+  session.
+- A pane never reconnects by itself when a tab is restored: no credential is
+  stored, so every pane waits for its own Connect.
+- The embedded web view has no navigation controls of its own — no back,
+  forward, reload or address bar. Use the system browser for that.
+- Serial connections offer no flow control beyond the handshake the Line dialog
+  sets (none, RTS/CTS or XON/XOFF), and no modem lines (DTR, DSR, RI, DCD).
+- Notifications are a plain text list, not clickable: an entry cannot be
+  selected, clicked or copied, and the same line lives on in the activity log
+  only until one of the two is cleared.
+
 ## Report
 
 Record for each scenario: pass/fail, the window size, and a screenshot of any
 layout problem. Sessions are in scope: SSH with the embedded terminal, RDP
-through the embedded FreeRDP window, VNC, Telnet/RAW/rlogin, and the HTTP
-handoff to the system browser (the embedded webview is not implemented). This
-script is still pending human execution; stage L1 in
+through the embedded FreeRDP window, VNC, Telnet/RAW/rlogin, the embedded HTTP
+web view with the system browser as its fallback, and serial when a device is at
+hand. This script is still pending human execution; stage L1 in
 `blueprint/linux-preview.md` stays open until the recorded run exists, and
 scenario 18 does not close stage L9.

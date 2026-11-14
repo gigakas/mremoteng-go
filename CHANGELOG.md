@@ -449,6 +449,23 @@
   - `internal/ui/serial.go`
   - `internal/ui/serial_test.go`
   - _2026-11-14 22:25:24 UTC — mimocode-d2_
+- Delete the credential providers nothing imported
+
+  internal/credential held five external providers (Vault/OpenBao, 1Password, Delinea, PasswordSTATE, AWS EC2) plus shared HTTP plumbing: 1655 lines, unit-tested in isolation and imported by nothing since the day they were written. L9's remaining item was to decide between wiring them and deleting them. Wiring needs a resolution step at connect time, a picker per connection and a threat model, and no real provider is reachable from this machine to verify any of it, which is the rule this repository applies to security-relevant code. They are deleted instead, and the stage now says what it ships: an encrypted local vault, with a password stored only when the user asks. The packages stay in git history if they are ever wanted. The L3 audit, the usability runbook and the backlog were updated in the same wave. Validated with ./scripts/check.sh.
+
+  - `internal/credential`
+  - `blueprint/backlog.md`
+  - `blueprint/linux-preview.md`
+  - `auditory/linux-l3-20261115-mimocode-a1.md`
+  - `docs/linux-preview-usability.md`
+  - _2026-11-14 22:25:34 UTC — mimocode-e1_
+- Record the L3 audit and refresh the acceptance runbook
+
+  L3 was the one stage of the active plan with no audit, because its scope was delivered in pieces by later increments. The audit writes that down: what L3 owns (import/export, folder defaults, the credential vault, quick connect, folder management, terminal zoom and scrollback, restored session tabs with their layout, the settings dialog, the notifications panel and manual tree ordering), where each piece lives, and the gaps a reader should know about - no L3-owned end-to-end test, the two one-field dialogs that should merge, the stale wheel-zoom comment and the fact that -profiles does not redirect the vault. The usability runbook gained scenarios 19-25 for everything that landed after it was written (settings, session restore, notifications, manual order, the embedded web view, serial as optional, and the RDP chords, full screen and per-profile options) plus a known-limits list, and two of its claims were corrected the same day: a divider position is now remembered and serial connections do offer a handshake. Validated with ./scripts/check.sh.
+
+  - `auditory/linux-l3-20261115-mimocode-a1.md`
+  - `docs/linux-preview-usability.md`
+  - _2026-11-14 22:26:12 UTC — mimocode-a1_
 
 ## 2026-11-12
 
