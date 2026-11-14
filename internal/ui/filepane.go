@@ -9,6 +9,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -134,7 +135,7 @@ type filePane struct {
 	selected int
 
 	pathEntry *widget.Entry
-	list      *widget.List
+	rows      *fyne.Container
 	status    *widget.Label
 	onSelect  func(fileEntry)
 	onEnter   func(string)
@@ -146,14 +147,7 @@ func newFilePane(source fileSource) *filePane {
 	pane.pathEntry.OnSubmitted = func(text string) { pane.navigate(text) }
 	pane.status = widget.NewLabel("")
 	pane.status.Importance = widget.LowImportance
-	pane.list = widget.NewList(pane.listLength, pane.createRow, pane.updateRow)
-	pane.list.OnSelected = pane.rowSelected
-	pane.list.OnUnselected = func(widget.ListItemID) {
-		pane.selected = -1
-		if pane.onSelect != nil {
-			pane.onSelect(fileEntry{})
-		}
-	}
+	pane.rows = container.NewVBox()
 	return pane
 }
 
@@ -166,7 +160,7 @@ func (p *filePane) content() fyne.CanvasObject {
 		container.NewVBox(heading, container.NewBorder(nil, nil, container.NewHBox(up, open), nil, p.pathEntry), widget.NewSeparator()),
 		container.NewVBox(widget.NewSeparator(), p.status),
 		nil, nil,
-		p.list,
+		container.NewVScroll(p.rows),
 	)
 }
 
@@ -195,8 +189,7 @@ func (p *filePane) navigate(dir string) {
 	p.entries = entries
 	p.selected = -1
 	p.pathEntry.SetText(dir)
-	p.list.UnselectAll()
-	p.list.Refresh()
+	p.rebuildRows()
 	p.status.SetText(countLabel(len(entries), dir))
 	if p.onEnter != nil {
 		p.onEnter(dir)
@@ -219,65 +212,92 @@ func (p *filePane) selection() (fileEntry, bool) {
 	return entry, true
 }
 
-func (p *filePane) rowSelected(id widget.ListItemID) {
-	if id < 0 || id >= len(p.entries) {
-		return
+// rebuildRows replaces the visible rows. Rows are built instead of recycled: a
+// widget.List was tried first and its item templates stayed empty in the real
+// window, which showed icons without names.
+func (p *filePane) rebuildRows() {
+	p.rows.Objects = p.rows.Objects[:0]
+	for i, entry := range p.entries {
+		row := newFileRow(entry, p.rowTapped)
+		row.index = i
+		p.rows.Add(row)
 	}
-	entry := p.entries[id]
+	p.rows.Refresh()
+}
+
+// rowTapped enters a directory or selects a file.
+func (p *filePane) rowTapped(entry fileEntry, id int) {
 	if entry.IsDir {
 		p.navigate(entry.Path)
 		return
 	}
-	p.selected = int(id)
+	p.selected = id
 	if p.onSelect != nil {
 		p.onSelect(entry)
 	}
 }
 
-// listLength satisfies widget.List.
-func (p *filePane) listLength() int { return len(p.entries) }
-
-// createRow builds one reusable row. It is a typed struct rather than a bare
-// container: container.NewBorder keeps its nil slots, so recovering widgets by
-// index panics on the first empty slot.
-func (p *filePane) createRow() fyne.CanvasObject {
-	icon := widget.NewIcon(theme.FileIcon())
-	name := widget.NewLabel("")
-	size := widget.NewLabel("")
-	size.Alignment = fyne.TextAlignTrailing
-	date := widget.NewLabel("")
-	date.Importance = widget.LowImportance
-	box := container.NewBorder(nil, nil, container.NewCenter(icon), nil,
-		container.NewBorder(nil, nil, name, container.NewHBox(size, date)))
-	return &fileRow{Container: box, icon: icon, name: name, size: size, date: date}
-}
-
-// updateRow fills one row for the entry at id.
-func (p *filePane) updateRow(id widget.ListItemID, object fyne.CanvasObject) {
-	row, ok := object.(*fileRow)
-	if !ok || id < 0 || id >= len(p.entries) {
-		return
-	}
-	entry := p.entries[id]
-	if entry.IsDir {
-		row.icon.SetResource(theme.FolderIcon())
-		row.name.SetText(entry.Name + "/")
-		row.size.SetText("")
-	} else {
-		row.icon.SetResource(theme.FileIcon())
-		row.name.SetText(entry.Name)
-		row.size.SetText(formatSize(entry.Size))
-	}
-	row.date.SetText(formatModified(entry.Modified))
-}
-
-// fileRow is one listing row: a container plus the widgets the update step needs.
+// fileRow is one tappable line: icon, name, size and date. It is a widget so it
+// can receive taps, and it holds its own labels so nothing is looked up by index.
 type fileRow struct {
-	*fyne.Container
-	icon *widget.Icon
-	name *widget.Label
-	size *widget.Label
-	date *widget.Label
+	widget.BaseWidget
+
+	entry fileEntry
+	index int
+	icon  *widget.Icon
+	name  *widget.Label
+	size  *widget.Label
+	date  *widget.Label
+	onTap func(fileEntry, int)
+}
+
+func newFileRow(entry fileEntry, onTap func(fileEntry, int)) *fileRow {
+	row := &fileRow{entry: entry, onTap: onTap}
+	row.icon = widget.NewIcon(theme.FileIcon())
+	row.name = widget.NewLabel("")
+	row.size = widget.NewLabel("")
+	row.size.Alignment = fyne.TextAlignTrailing
+	row.date = widget.NewLabel("")
+	row.date.Importance = widget.LowImportance
+	row.apply(entry)
+	row.ExtendBaseWidget(row)
+	return row
+}
+
+// apply fills the row for entry.
+func (r *fileRow) apply(entry fileEntry) {
+	if entry.IsDir {
+		r.icon.SetResource(theme.FolderIcon())
+		r.name.SetText(entry.Name + "/")
+		r.size.SetText("")
+	} else {
+		r.icon.SetResource(theme.FileIcon())
+		r.name.SetText(entry.Name)
+		r.size.SetText(formatSize(entry.Size))
+	}
+	r.date.SetText(formatModified(entry.Modified))
+}
+
+// CreateRenderer lays the row out: icon, then the name, then size and date.
+func (r *fileRow) CreateRenderer() fyne.WidgetRenderer {
+	iconBox := container.NewGridWrap(fyne.NewSize(18, 18), r.icon)
+	tail := container.NewHBox(layout.NewSpacer(), r.size, r.date)
+	body := container.NewBorder(nil, nil, r.name, tail)
+	return widget.NewSimpleRenderer(
+		container.NewBorder(nil, nil, container.NewCenter(iconBox), nil, body),
+	)
+}
+
+// Tapped enters the directory or selects the file.
+func (r *fileRow) Tapped(*fyne.PointEvent) {
+	if r.onTap != nil {
+		r.onTap(r.entry, r.index)
+	}
+}
+
+// MinSize keeps every row the same height regardless of its labels.
+func (r *fileRow) MinSize() fyne.Size {
+	return fyne.NewSize(120, 26)
 }
 
 // trimDir normalises a typed path without inventing one.

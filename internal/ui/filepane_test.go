@@ -4,10 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
-	"fyne.io/fyne/v2/widget"
 )
 
 func TestLocalSource_List_DirectoriesFirstThenFilesByName(t *testing.T) {
@@ -56,35 +55,47 @@ func TestLocalSource_Parent_StopsAtTheRoot(t *testing.T) {
 	}
 }
 
-func TestFilePane_UpdateRow_FillsEachKindWithoutPanic(t *testing.T) {
+func TestFilePane_Navigate_BuildsRowsWithNames(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "reports"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
 	pane := newFilePane(localSource{})
-	pane.entries = []fileEntry{
-		{Name: "reports", IsDir: true, Modified: time.Date(2026, 11, 12, 8, 0, 0, 0, time.UTC)},
-		{Name: "notes.txt", Size: 2048, Modified: time.Date(2026, 11, 12, 9, 30, 0, 0, time.UTC)},
-	}
-	if got := pane.listLength(); got != 2 {
-		t.Fatalf("listLength = %d, want 2", got)
-	}
+	window := test.NewWindow(pane.content())
+	t.Cleanup(window.Close)
+	window.Resize(fyne.NewSize(600, 300))
 
-	row := pane.createRow().(*fileRow)
-	pane.updateRow(0, row)
-	if row.name.Text != "reports/" || row.size.Text != "" {
-		t.Errorf("directory row = %q/%q, want a trailing slash and no size", row.name.Text, row.size.Text)
-	}
-	pane.updateRow(1, row)
-	if row.name.Text != "notes.txt" || row.size.Text != "2.0 KiB" {
-		t.Errorf("file row = %q/%q, want the name and a readable size", row.name.Text, row.size.Text)
-	}
-	if row.date.Text != "2026-11-12 09:30" {
-		t.Errorf("date = %q, want the modification time", row.date.Text)
-	}
+	pane.navigate(root)
 
-	// The list recycles rows while the entry slice shrinks, so these must not panic.
-	pane.updateRow(9, row)
-	pane.updateRow(0, widget.NewLabel("not a row"))
+	if got := len(pane.rows.Objects); got != 2 {
+		t.Fatalf("rows = %d, want one per entry", got)
+	}
+	first, ok := pane.rows.Objects[0].(*fileRow)
+	if !ok {
+		t.Fatalf("row type = %T, want *fileRow", pane.rows.Objects[0])
+	}
+	second := pane.rows.Objects[1].(*fileRow)
+
+	// The reported bug: rows were drawn with an icon and no text.
+	if first.name.Text != "reports/" || first.size.Text != "" {
+		t.Errorf("directory row = %q/%q, want a trailing slash and no size", first.name.Text, first.size.Text)
+	}
+	if second.name.Text != "notes.txt" || second.size.Text != "5 B" {
+		t.Errorf("file row = %q/%q, want the name and the readable size", second.name.Text, second.size.Text)
+	}
+	if second.date.Text == "" {
+		t.Error("file row has no modification date")
+	}
+	if first.index != 0 || second.index != 1 {
+		t.Errorf("row indexes = %d/%d, want 0/1", first.index, second.index)
+	}
 }
 
 func TestFilePane_Selection_DirectoryIsNavigationNotATransfer(t *testing.T) {
