@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -126,6 +127,10 @@ func (b *remoteBrowser) show() {
 	)
 	b.local.onSelect = func(entry fileEntry) { b.describeSelection("Local", entry) }
 	b.remote.onSelect = func(entry fileEntry) { b.describeSelection("Remote", entry) }
+	b.local.onNewFolder = func() { b.createFolder(b.local, "Local") }
+	b.remote.onNewFolder = func() { b.createFolder(b.remote, "Remote") }
+	b.local.onDelete = func(entry fileEntry) { b.deleteEntry(b.local, entry, "Local") }
+	b.remote.onDelete = func(entry fileEntry) { b.deleteEntry(b.remote, entry, "Remote") }
 
 	b.popup = b.screen.showModal(content, fyne.NewSize(1000, 620))
 	b.local.start()
@@ -185,6 +190,50 @@ func (b *remoteBrowser) transfer(label string, run func(sshclient.TransferProgre
 			b.remote.refresh()
 		})
 	}()
+}
+
+// createFolder asks for a name and makes it in the pane's current directory.
+func (b *remoteBrowser) createFolder(pane *filePane, side string) {
+	entry := widget.NewEntry()
+	entry.SetPlaceHolder("new-folder")
+	b.screen.showTextDialog("New folder", "Create", entry, func() {
+		name := strings.TrimSpace(entry.Text)
+		if name == "" {
+			return
+		}
+		target := pane.source.Join(pane.dir, name)
+		if err := pane.source.Mkdir(target); err != nil {
+			b.status.SetText("Could not create the folder: " + err.Error())
+			b.screen.setProblem("Could not create " + side + " folder: " + err.Error())
+			return
+		}
+		pane.refresh()
+		b.status.SetText(side + " folder created: " + target)
+	})
+}
+
+// deleteEntry confirms, then deletes the selected file or folder. A folder goes
+// with everything inside it, and the current directory is never a target.
+func (b *remoteBrowser) deleteEntry(pane *filePane, entry fileEntry, side string) {
+	if entry.Path == pane.dir {
+		b.status.SetText("That is the directory being shown; select an entry inside it.")
+		return
+	}
+	what := "file"
+	if entry.IsDir {
+		what = "folder and everything inside it"
+	}
+	b.screen.confirm("Delete "+side+" "+what+"?",
+		fmt.Sprintf("Delete %q (%s)? This cannot be undone.", entry.Name, what),
+		func() {
+			if err := pane.source.Remove(entry.Path); err != nil {
+				b.status.SetText("Could not delete: " + err.Error())
+				b.screen.setProblem("Could not delete " + side + " entry: " + err.Error())
+				return
+			}
+			pane.refresh()
+			b.status.SetText("Deleted " + entry.Name + ".")
+		}, nil)
 }
 
 // describeSelection says what the transfer buttons would move, so a click on a

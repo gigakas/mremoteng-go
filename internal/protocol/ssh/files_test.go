@@ -333,3 +333,33 @@ func TestDownloadTree_RecreatesNestedDirectories(t *testing.T) {
 		t.Errorf("progress = %d/%d, want the whole tree", last, total)
 	}
 }
+
+func TestRemoveAll_DeletesAWholeTree(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "shared", "docs"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "shared", "docs", "readme.md"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	client := newTestSFTP(t, root)
+
+	if err := removeAll(client, filepath.Join(root, "shared")); err != nil {
+		t.Fatalf("removeAll: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "shared")); !os.IsNotExist(err) {
+		t.Errorf("directory still present: %v", err)
+	}
+}
+
+func TestMkdirAll_CreatesNestedDirectories(t *testing.T) {
+	root := t.TempDir()
+	client := newTestSFTP(t, root)
+
+	if err := client.MkdirAll(filepath.Join(root, "a", "b", "c")); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if info, err := os.Stat(filepath.Join(root, "a", "b", "c")); err != nil || !info.IsDir() {
+		t.Errorf("nested directory missing: %v", err)
+	}
+}

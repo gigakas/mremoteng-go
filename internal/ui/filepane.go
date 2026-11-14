@@ -39,6 +39,12 @@ type fileSource interface {
 	List(dir string) ([]fileEntry, error)
 	// Parent returns the directory above dir, stopping at the root.
 	Parent(dir string) string
+	// Join builds a child path the way this source spells paths.
+	Join(dir, name string) string
+	// Mkdir creates a directory, including missing parents.
+	Mkdir(dir string) error
+	// Remove deletes a file, or a directory with everything inside it.
+	Remove(target string) error
 }
 
 // localSource reads the local filesystem.
@@ -76,6 +82,12 @@ func (localSource) List(dir string) ([]fileEntry, error) {
 	sortEntries(entries)
 	return entries, nil
 }
+
+func (localSource) Join(dir, name string) string { return filepath.Join(dir, name) }
+
+func (localSource) Mkdir(dir string) error { return os.MkdirAll(dir, 0o755) }
+
+func (localSource) Remove(target string) error { return os.RemoveAll(target) }
 
 func (localSource) Parent(dir string) string {
 	cleaned := filepath.Clean(dir)
@@ -117,6 +129,12 @@ func (r remoteSource) List(dir string) ([]fileEntry, error) {
 
 func (r remoteSource) Parent(dir string) string { return sshclient.ParentDir(dir) }
 
+func (r remoteSource) Join(dir, name string) string { return sshclient.JoinRemote(dir, name) }
+
+func (r remoteSource) Mkdir(dir string) error { return r.files.MkdirAll(dir) }
+
+func (r remoteSource) Remove(target string) error { return r.files.RemoveAll(target) }
+
 // sortEntries puts directories first, then files, each group by name.
 func sortEntries(entries []fileEntry) {
 	sort.SliceStable(entries, func(i, j int) bool {
@@ -136,11 +154,13 @@ type filePane struct {
 	selected    int
 	selectedRow *fileRow
 
-	pathEntry *widget.Entry
-	rows      *fyne.Container
-	status    *widget.Label
-	onSelect  func(fileEntry)
-	onEnter   func(string)
+	pathEntry   *widget.Entry
+	rows        *fyne.Container
+	status      *widget.Label
+	onSelect    func(fileEntry)
+	onEnter     func(string)
+	onNewFolder func()
+	onDelete    func(fileEntry)
 }
 
 func newFilePane(source fileSource) *filePane {
@@ -160,7 +180,18 @@ func (p *filePane) content() fyne.CanvasObject {
 	open := widget.NewButton("Open", func() { p.navigate(p.pathEntry.Text) })
 	return container.NewBorder(
 		container.NewVBox(heading, container.NewBorder(nil, nil, container.NewHBox(up, open), nil, p.pathEntry), widget.NewSeparator()),
-		container.NewVBox(widget.NewSeparator(), p.status),
+		container.NewVBox(widget.NewSeparator(), p.status, container.NewHBox(
+			widget.NewButtonWithIcon("New folder", theme.ContentAddIcon(), func() {
+				if p.onNewFolder != nil {
+					p.onNewFolder()
+				}
+			}),
+			widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {
+				if entry, ok := p.selection(); ok && p.onDelete != nil {
+					p.onDelete(entry)
+				}
+			}),
+		)),
 		nil, nil,
 		container.NewVScroll(p.rows),
 	)

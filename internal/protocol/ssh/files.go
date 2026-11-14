@@ -112,6 +112,49 @@ func (r *RemoteFiles) Download(remotePath, localPath string, progress TransferPr
 	return err
 }
 
+// MkdirAll creates a remote directory and any missing parent.
+func (r *RemoteFiles) MkdirAll(dir string) error {
+	if err := r.sftp.MkdirAll(dir); err != nil {
+		return fmt.Errorf("transfer: create directory %s: %w", dir, err)
+	}
+	return nil
+}
+
+// RemoveAll deletes a remote file, or a directory with everything inside it.
+func (r *RemoteFiles) RemoveAll(target string) error {
+	return removeAll(r.sftp, target)
+}
+
+// removeAll is the testable core of RemoveAll.
+func removeAll(client *sftp.Client, target string) error {
+	info, err := client.Stat(target)
+	if err != nil {
+		return fmt.Errorf("transfer: stat %s: %w", target, err)
+	}
+	if !info.IsDir() {
+		if err := client.Remove(target); err != nil {
+			return fmt.Errorf("transfer: delete %s: %w", target, err)
+		}
+		return nil
+	}
+	infos, err := client.ReadDir(target)
+	if err != nil {
+		return fmt.Errorf("transfer: list %s: %w", target, err)
+	}
+	for _, child := range infos {
+		if child.Name() == "." || child.Name() == ".." {
+			continue
+		}
+		if err := removeAll(client, path.Join(target, child.Name())); err != nil {
+			return err
+		}
+	}
+	if err := client.RemoveDirectory(target); err != nil {
+		return fmt.Errorf("transfer: delete directory %s: %w", target, err)
+	}
+	return nil
+}
+
 // listDir is the testable core of List: it needs only an SFTP client.
 func listDir(client *sftp.Client, dir string) ([]RemoteEntry, error) {
 	if dir == "" {
