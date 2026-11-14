@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image/color"
 	"os"
 	"path"
 	"path/filepath"
@@ -8,8 +9,8 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -129,10 +130,11 @@ func sortEntries(entries []fileEntry) {
 // filePane is one side of the browser: a path bar, a list and the current
 // selection. It knows nothing about transfers, which the dialog orchestrates.
 type filePane struct {
-	source   fileSource
-	dir      string
-	entries  []fileEntry
-	selected int
+	source      fileSource
+	dir         string
+	entries     []fileEntry
+	selected    int
+	selectedRow *fileRow
 
 	pathEntry *widget.Entry
 	rows      *fyne.Container
@@ -199,17 +201,13 @@ func (p *filePane) navigate(dir string) {
 // refresh re-lists the current directory, used after a transfer.
 func (p *filePane) refresh() { p.navigate(p.dir) }
 
-// selection returns the chosen file, or false when a directory or nothing is
-// selected. Directories are navigation, not transfer items.
+// selection returns the chosen entry, file or directory: a directory is a
+// transfer item too, because both directions copy trees recursively.
 func (p *filePane) selection() (fileEntry, bool) {
 	if p.selected < 0 || p.selected >= len(p.entries) {
 		return fileEntry{}, false
 	}
-	entry := p.entries[p.selected]
-	if entry.IsDir {
-		return fileEntry{}, false
-	}
-	return entry, true
+	return p.entries[p.selected], true
 }
 
 // rebuildRows replaces the visible rows. Rows are built instead of recycled: a
@@ -217,48 +215,64 @@ func (p *filePane) selection() (fileEntry, bool) {
 // window, which showed icons without names.
 func (p *filePane) rebuildRows() {
 	p.rows.Objects = p.rows.Objects[:0]
+	p.selected = -1
+	p.selectedRow = nil
 	for i, entry := range p.entries {
-		row := newFileRow(entry, p.rowTapped)
-		row.index = i
-		p.rows.Add(row)
+		p.rows.Add(newFileRow(entry, i, p))
 	}
 	p.rows.Refresh()
 }
 
-// rowTapped enters a directory or selects a file.
-func (p *filePane) rowTapped(entry fileEntry, id int) {
-	if entry.IsDir {
-		p.navigate(entry.Path)
-		return
+// rowTapped selects one row and tells the dialog, which is what the transfer
+// buttons act on. Entering a directory is a double tap, so a folder can be
+// selected and seen as selected.
+func (p *filePane) rowTapped(row *fileRow) {
+	if p.selectedRow != nil && p.selectedRow != row {
+		p.selectedRow.setSelected(false)
 	}
-	p.selected = id
+	p.selected = row.index
+	p.selectedRow = row
+	row.setSelected(true)
 	if p.onSelect != nil {
-		p.onSelect(entry)
+		p.onSelect(row.entry)
 	}
 }
 
-// fileRow is one tappable line: icon, name, size and date. It is a widget so it
-// can receive taps, and it holds its own labels so nothing is looked up by index.
+// rowOpened enters a directory on double tap; a file has nothing to open.
+func (p *filePane) rowOpened(row *fileRow) {
+	if row.entry.IsDir {
+		p.navigate(row.entry.Path)
+	}
+}
+
+// fileRow is one clickable line: icon, name, size and date. It is a widget so it
+// can receive taps, it holds its own labels so nothing is looked up by index, and
+// it draws a selection background so the user can see what a transfer will move.
 type fileRow struct {
 	widget.BaseWidget
 
-	entry fileEntry
-	index int
-	icon  *widget.Icon
-	name  *widget.Label
-	size  *widget.Label
-	date  *widget.Label
-	onTap func(fileEntry, int)
+	entry  fileEntry
+	index  int
+	pane   *filePane
+	icon   *widget.Icon
+	name   *widget.Label
+	size   *widget.Label
+	date   *widget.Label
+	back   *canvas.Rectangle
+	picked bool
 }
 
-func newFileRow(entry fileEntry, onTap func(fileEntry, int)) *fileRow {
-	row := &fileRow{entry: entry, onTap: onTap}
+func newFileRow(entry fileEntry, index int, pane *filePane) *fileRow {
+	row := &fileRow{entry: entry, index: index, pane: pane}
 	row.icon = widget.NewIcon(theme.FileIcon())
 	row.name = widget.NewLabel("")
+	// A long name truncates instead of running under the size and the date.
+	row.name.Truncation = fyne.TextTruncateEllipsis
 	row.size = widget.NewLabel("")
 	row.size.Alignment = fyne.TextAlignTrailing
 	row.date = widget.NewLabel("")
 	row.date.Importance = widget.LowImportance
+	row.back = canvas.NewRectangle(color.Transparent)
 	row.apply(entry)
 	row.ExtendBaseWidget(row)
 	return row
@@ -278,20 +292,41 @@ func (r *fileRow) apply(entry fileEntry) {
 	r.date.SetText(formatModified(entry.Modified))
 }
 
-// CreateRenderer lays the row out: icon, then the name, then size and date.
-func (r *fileRow) CreateRenderer() fyne.WidgetRenderer {
-	iconBox := container.NewGridWrap(fyne.NewSize(18, 18), r.icon)
-	tail := container.NewHBox(layout.NewSpacer(), r.size, r.date)
-	body := container.NewBorder(nil, nil, r.name, tail)
-	return widget.NewSimpleRenderer(
-		container.NewBorder(nil, nil, container.NewCenter(iconBox), nil, body),
-	)
+// setSelected paints or clears the selection background.
+func (r *fileRow) setSelected(on bool) {
+	if r.picked == on {
+		return
+	}
+	r.picked = on
+	if on {
+		r.back.FillColor = theme.Color(theme.ColorNameSelection)
+	} else {
+		r.back.FillColor = color.Transparent
+	}
+	r.back.Refresh()
 }
 
-// Tapped enters the directory or selects the file.
+// CreateRenderer lays the row out: icon, the name in the middle so it can
+// truncate, then size and date on the right.
+func (r *fileRow) CreateRenderer() fyne.WidgetRenderer {
+	iconBox := container.NewGridWrap(fyne.NewSize(18, 18), r.icon)
+	tail := container.NewHBox(r.size, r.date)
+	body := container.NewBorder(nil, nil, container.NewCenter(iconBox),
+		container.NewPadded(tail), container.NewPadded(r.name))
+	return widget.NewSimpleRenderer(container.NewStack(r.back, body))
+}
+
+// Tapped selects the row.
 func (r *fileRow) Tapped(*fyne.PointEvent) {
-	if r.onTap != nil {
-		r.onTap(r.entry, r.index)
+	if r.pane != nil {
+		r.pane.rowTapped(r)
+	}
+}
+
+// DoubleTapped enters a directory.
+func (r *fileRow) DoubleTapped(*fyne.PointEvent) {
+	if r.pane != nil {
+		r.pane.rowOpened(r)
 	}
 }
 

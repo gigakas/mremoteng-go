@@ -124,6 +124,9 @@ func (b *remoteBrowser) show() {
 		nil, nil,
 		panes,
 	)
+	b.local.onSelect = func(entry fileEntry) { b.describeSelection("Local", entry) }
+	b.remote.onSelect = func(entry fileEntry) { b.describeSelection("Remote", entry) }
+
 	b.popup = b.screen.showModal(content, fyne.NewSize(1000, 620))
 	b.local.start()
 	b.remote.start()
@@ -134,7 +137,7 @@ func (b *remoteBrowser) show() {
 func (b *remoteBrowser) uploadSelected() {
 	entry, ok := b.local.selection()
 	if !ok {
-		b.status.SetText("Select a file on the left to upload it.")
+		b.status.SetText("Select a file or folder on the left to upload it.")
 		return
 	}
 	remotePath := sshclient.JoinRemote(b.remote.dir, entry.Name)
@@ -148,7 +151,7 @@ func (b *remoteBrowser) uploadSelected() {
 func (b *remoteBrowser) downloadSelected() {
 	entry, ok := b.remote.selection()
 	if !ok {
-		b.status.SetText("Select a file on the right to download it.")
+		b.status.SetText("Select a file or folder on the right to download it.")
 		return
 	}
 	localPath := filepath.Join(b.local.dir, entry.Name)
@@ -182,6 +185,20 @@ func (b *remoteBrowser) transfer(label string, run func(sshclient.TransferProgre
 			b.remote.refresh()
 		})
 	}()
+}
+
+// describeSelection says what the transfer buttons would move, so a click on a
+// row is visibly a selection and not a silent no-op.
+func (b *remoteBrowser) describeSelection(side string, entry fileEntry) {
+	if entry.Name == "" {
+		b.status.SetText("")
+		return
+	}
+	kind := formatSize(entry.Size)
+	if entry.IsDir {
+		kind = "folder, copied recursively"
+	}
+	b.status.SetText(fmt.Sprintf("%s selection: %s (%s)", side, entry.Name, kind))
 }
 
 func (b *remoteBrowser) close() {

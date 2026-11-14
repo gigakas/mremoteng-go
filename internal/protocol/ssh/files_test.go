@@ -267,3 +267,69 @@ func TestRemoteFiles_LocalContainer(t *testing.T) {
 		t.Errorf("round trip content = %q, want %q", string(stored), body)
 	}
 }
+
+func TestUploadTree_RecreatesNestedDirectories(t *testing.T) {
+	root := t.TempDir()
+	source := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(source, "reports", "2026"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "top.txt"), []byte("top"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "reports", "2026", "q1.txt"), []byte("quarter"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	client := newTestSFTP(t, root)
+
+	var last, total int64
+	if _, err := uploadTree(client, source, filepath.Join(root, "uploaded"), &byteCounter{
+		total:    localTreeSize(source),
+		progress: func(done, size int64) { last, total = done, size },
+	}, 0); err != nil {
+		t.Fatalf("uploadTree: %v", err)
+	}
+
+	for _, want := range []string{"uploaded/top.txt", "uploaded/reports/2026/q1.txt"} {
+		if _, err := os.Stat(filepath.Join(root, want)); err != nil {
+			t.Errorf("missing %s: %v", want, err)
+		}
+	}
+	if body, err := os.ReadFile(filepath.Join(root, "uploaded/reports/2026/q1.txt")); err != nil || string(body) != "quarter" {
+		t.Errorf("nested content = %q, %v", body, err)
+	}
+	if total != int64(len("top")+len("quarter")) || last != total {
+		t.Errorf("progress = %d/%d, want the whole tree", last, total)
+	}
+}
+
+func TestDownloadTree_RecreatesNestedDirectories(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "shared", "docs"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "shared", "docs", "readme.md"), []byte("hello tree"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	client := newTestSFTP(t, root)
+	destination := filepath.Join(t.TempDir(), "copy")
+
+	var last, total int64
+	if _, err := downloadTree(client, filepath.Join(root, "shared"), destination, &byteCounter{
+		total:    remoteTreeSize(client, filepath.Join(root, "shared")),
+		progress: func(done, size int64) { last, total = done, size },
+	}, 0); err != nil {
+		t.Fatalf("downloadTree: %v", err)
+	}
+
+	body, err := os.ReadFile(filepath.Join(destination, "docs", "readme.md"))
+	if err != nil {
+		t.Fatalf("read copied file: %v", err)
+	}
+	if string(body) != "hello tree" {
+		t.Errorf("copied content = %q, want the remote content", body)
+	}
+	if total != int64(len("hello tree")) || last != total {
+		t.Errorf("progress = %d/%d, want the whole tree", last, total)
+	}
+}

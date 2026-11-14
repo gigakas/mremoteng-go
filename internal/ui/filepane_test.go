@@ -98,7 +98,7 @@ func TestFilePane_Navigate_BuildsRowsWithNames(t *testing.T) {
 	}
 }
 
-func TestFilePane_Selection_DirectoryIsNavigationNotATransfer(t *testing.T) {
+func TestFilePane_Selection_DirectoryIsATransferItem(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 
@@ -109,8 +109,8 @@ func TestFilePane_Selection_DirectoryIsNavigationNotATransfer(t *testing.T) {
 		t.Error("an empty selection reported a file")
 	}
 	pane.selected = 0
-	if _, ok := pane.selection(); ok {
-		t.Error("a directory reported itself as a transfer item")
+	if entry, ok := pane.selection(); !ok || !entry.IsDir {
+		t.Errorf("selection = %+v/%v, want the directory to be transferable", entry, ok)
 	}
 	pane.selected = 1
 	entry, ok := pane.selection()
