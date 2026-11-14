@@ -352,7 +352,7 @@ func (p *sessionPanel) requestRDPOptions() {
 	drives.SetText(strings.Join(p.rdpConfig.Drives, ","))
 	drives.SetPlaceHolder("Shared drives: name:path,name:path")
 
-	var popup *widget.PopUp
+	var popup *modal
 	content := container.NewVBox(
 		widget.NewLabelWithStyle("RDP options", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		clipboard, printers, audio, dynamic, multimon, drives,

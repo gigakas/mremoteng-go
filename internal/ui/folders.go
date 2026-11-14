@@ -64,7 +64,7 @@ const (
 
 // showTextDialog asks for a single line of text in a fixed-size popup.
 func (s *screen) showTextDialog(title, confirm string, entry *widget.Entry, onConfirm func()) {
-	var popup *widget.PopUp
+	var popup *modal
 	content := container.NewVBox(
 		widget.NewLabel(title),
 		entry,
@@ -93,7 +93,7 @@ func (s *screen) requestFolderDefaults(path string) {
 	}
 	username.SetPlaceHolder("Shared username")
 	port.SetPlaceHolder("Shared port")
-	var popup *widget.PopUp
+	var popup *modal
 	content := container.NewVBox(
 		widget.NewLabelWithStyle("Folder defaults: "+path, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		username,

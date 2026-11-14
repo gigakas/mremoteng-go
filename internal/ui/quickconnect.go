@@ -25,7 +25,7 @@ func (s *screen) requestQuickConnect() {
 	protocol.SetSelected(string(profiles.SSH))
 	port.SetPlaceHolder(strconv.Itoa(profiles.DefaultPort(profiles.SSH)))
 
-	var popup *widget.PopUp
+	var popup *modal
 	content := container.NewVBox(
 		widget.NewLabelWithStyle("Quick connect", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		host, protocol, port, user,

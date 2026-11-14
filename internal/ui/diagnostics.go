@@ -53,7 +53,7 @@ func (s *screen) requestDiagnostics() {
 	text := diagnosticsText(windowTitle(), storePath, len(s.ws.profiles), len(s.ws.folders), s.vaultState(), len(s.panels))
 	label := widget.NewLabel(text)
 	label.TextStyle = fyne.TextStyle{Monospace: true}
-	var popup *widget.PopUp
+	var popup *modal
 	content := container.NewVBox(
 		widget.NewLabelWithStyle("Diagnostics", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		label,

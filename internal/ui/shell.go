@@ -509,15 +509,14 @@ func (s *screen) showAbout() {
 	details.TextStyle = fyne.TextStyle{Monospace: true}
 	contact := widget.NewHyperlink(ContactAddress, aboutHyperlink())
 
-	var popup *widget.PopUp
+	var popup *modal
 	content := container.NewVBox(
 		title,
 		details,
 		container.NewHBox(widget.NewLabel("Contact:"), contact),
 		container.NewHBox(widget.NewButton("Close", func() { popup.Hide() })),
 	)
-	popup = widget.NewModalPopUp(container.NewGridWrap(fyne.NewSize(620, 420), container.NewPadded(content)), s.win.Canvas())
-	popup.Show()
+	popup = s.showModal(content, fyne.NewSize(620, 420))
 }
 
 // aboutHyperlink is the mailto URL used by the contact link.

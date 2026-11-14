@@ -71,7 +71,7 @@ func (s *screen) showImportPreview(path string, preview transfer.Preview) {
 		widget.NewLabelWithStyle(filepath.Base(path)+" ("+string(preview.Format)+")", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		widget.NewLabel(summary),
 	)
-	var popup *widget.PopUp
+	var popup *modal
 	buttons := container.NewHBox(
 		widget.NewButton("Merge", func() {
 			popup.Hide()
@@ -212,7 +212,7 @@ func (s *screen) showSecretDialog(title, confirm string, onConfirm func(string))
 	entry := widget.NewEntry()
 	entry.Password = true
 	entry.SetPlaceHolder("Password")
-	var popup *widget.PopUp
+	var popup *modal
 	content := container.NewVBox(
 		widget.NewLabel(title),
 		entry,

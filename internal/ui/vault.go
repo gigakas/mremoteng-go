@@ -29,7 +29,7 @@ func (s *screen) requestVault() {
 	}
 	notice := widget.NewLabel("Credential vault: " + state)
 	notice.Importance = widget.LowImportance
-	var popup *widget.PopUp
+	var popup *modal
 	content := container.NewVBox(
 		widget.NewLabelWithStyle("Credentials", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		notice,
