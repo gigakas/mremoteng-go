@@ -38,7 +38,9 @@ historical phase dependencies. Existing completed stages and audits are retained
   tooltips and its popups cover the canvas, stealing the hover that opened them.
   The Config panel's Delete button carries a text label instead, since that row
   has room. The Config panel is hidden by default and revealed by New/selection
-  or the settings icon. The bar's X ends the session of its pane; it asks for
+  or the settings icon. The bar's X ends the session of its pane and, in a split
+  tab, closes that pane too, so no sub-panel outlives its session; the last pane
+  of a tab stays, because it is where Connect opens the next session. It asks for
   confirmation only when that is the last open session of the tab, since a split
   tab holds one group of sessions and disconnecting one of several leaves the
   group on screen. The start page's **Buttons** card documents that rule, so the

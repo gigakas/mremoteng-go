@@ -158,7 +158,7 @@ var welcomeHelp = []welcomeHelpRow{
 	{theme.InfoIcon, "Activity log", "Show or hide the log."},
 	{theme.ContentAddIcon, "Quick connect", "Connect once without saving."},
 	{theme.MediaPlayIcon, "Connect", "Open the selected session."},
-	{theme.CancelIcon, "Disconnect", "End the session; asks first when it is the last pane."},
+	{theme.CancelIcon, "Disconnect", "End the session and a split pane; asks for the last one."},
 	{theme.FolderIcon, "SFTP", "Browse and transfer files on an SSH session."},
 	{theme.SearchIcon, "Test", "Check RDP credentials only."},
 	{theme.CheckButtonCheckedIcon, "Ignore cert", "Accept a self-signed certificate."},

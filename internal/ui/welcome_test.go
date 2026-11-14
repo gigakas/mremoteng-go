@@ -64,7 +64,10 @@ func TestWelcomeHelp_Disconnect_StatesTheConfirmation(t *testing.T) {
 		if row.icon == nil || row.icon() != theme.CancelIcon() {
 			t.Error("the Disconnect line does not show the icon the button uses")
 		}
-		if !strings.Contains(row.what, "last pane") {
+		if !strings.Contains(row.what, "split pane") {
+			t.Errorf("Disconnect line = %q, want it to say the pane closes too", row.what)
+		}
+		if !strings.Contains(row.what, "last") {
 			t.Errorf("Disconnect line = %q, want it to mention the confirmation", row.what)
 		}
 		if !strings.Contains(row.what, "session") {

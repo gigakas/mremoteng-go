@@ -134,6 +134,9 @@ func TestRequestDisconnect_AnotherSessionInTheGroup_SkipsTheQuestion(t *testing.
 	if sibling.shell == nil {
 		t.Error("the sibling session was disconnected as well")
 	}
+	if panels := s.tabPanels(panel.profile.ID); len(panels) != 1 || panels[0] != sibling {
+		t.Errorf("panes after the disconnect = %d, want the sibling alone", len(panels))
+	}
 }
 
 // TestRequestDisconnect_SiblingPaneWithoutASession_StillAsks keeps the rule about
@@ -154,8 +157,8 @@ func TestRequestDisconnect_SiblingPaneWithoutASession_StillAsks(t *testing.T) {
 	if panel.shell != nil {
 		t.Error("accepting the question did not end the session")
 	}
-	if len(s.tabPanels(panel.profile.ID)) != 2 {
-		t.Error("the sibling pane was removed by the disconnect")
+	if panels := s.tabPanels(panel.profile.ID); len(panels) != 1 {
+		t.Errorf("panes after the disconnect = %d, want the closed one gone", len(panels))
 	}
 }
 
@@ -174,5 +177,46 @@ func TestRequestDisconnect_Declined_KeepsTheSession(t *testing.T) {
 	}
 	if panel.shell == nil {
 		t.Error("declining the question ended the session anyway")
+	}
+}
+
+// TestRequestDisconnect_LastPaneOfATab_KeepsThePane pins the other half of the
+// rule: a tab always shows one pane, so the last one stays after its session ends
+// and Connect can open the next session in place.
+func TestRequestDisconnect_LastPaneOfATab_KeepsThePane(t *testing.T) {
+	s, panel := openSplitTestTab(t)
+	guard := &fakeConfirm{accept: true}
+	s.confirm = guard.ask
+	liveTestSession(panel)
+
+	panel.requestDisconnect()
+
+	if panels := s.tabPanels(panel.profile.ID); len(panels) != 1 || panels[0] != panel {
+		t.Fatalf("panes after the disconnect = %d, want the pane to stay", len(panels))
+	}
+	if len(panel.slot.Objects) != 1 {
+		t.Fatalf("slot objects = %d, want the closed placeholder", len(panel.slot.Objects))
+	}
+	if s.panels[panel.profile.ID] != panel {
+		t.Error("the tab still points at the closed pane")
+	}
+}
+
+// TestCloseSelf_SplitPane_SurvivorKeepsTheKeyboard guards the hand-over: removing
+// the pane that had focus must leave the sibling ready to type into.
+func TestCloseSelf_SplitPane_SurvivorKeepsTheKeyboard(t *testing.T) {
+	s, panel := openSplitTestTab(t)
+	s.splitPane(panel, true)
+	sibling := s.tabPanels(panel.profile.ID)[1]
+	sibling.term = newTermWidget(20, 5, func([]byte) {}, func(int, int) {})
+	sibling.installTerminal()
+
+	panel.closeSelf()
+
+	if sibling.term == nil {
+		t.Fatal("the surviving pane lost its terminal")
+	}
+	if len(s.tabPanels(panel.profile.ID)) != 1 {
+		t.Error("closing the pane left the split behind")
 	}
 }

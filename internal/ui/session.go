@@ -109,7 +109,7 @@ func (s *screen) newSessionPanel(profile profiles.Profile) *sessionPanel {
 	panel.connect.Importance = widget.HighImportance
 	// The X closes the connection; the words "Disconnect" spent bar width the
 	// terminal needs, and the tooltip says what it does.
-	panel.disconnect = newHintButton(theme.CancelIcon(), "End the session; asks first when it is the last pane", panel.requestDisconnect, s.hint)
+	panel.disconnect = newHintButton(theme.CancelIcon(), "End the session and a split pane; asks for the last one", panel.requestDisconnect, s.hint)
 	panel.sftp = newHintButton(theme.FolderIcon(), "Browse and transfer files over SFTP", panel.openSFTP, s.hint)
 	panel.disconnect.Importance = widget.LowImportance
 	panel.sftp.Importance = widget.LowImportance
@@ -550,19 +550,34 @@ func (p *sessionPanel) hasSession() bool {
 	return p.shell != nil || p.stream != nil || p.vnc != nil || p.rdp != nil
 }
 
-// requestDisconnect is what the X on the session bar runs. A tab is one group of
-// sessions, and splitting a terminal adds a session to that group, so asking on
-// every disconnect would be noise while the group is still on screen. The
-// question is kept for the last session of the group, which is where the
-// disconnect takes the whole tab's session away.
+// requestDisconnect is what the X on the session bar runs. It ends the session of
+// this pane and, when the tab is split, takes the pane with it: a sub-panel left
+// behind shows a closed session and has nothing left to do. The last pane of a
+// tab keeps its place, because removing it is closing the tab.
+//
+// A tab is one group of sessions, and splitting a terminal adds a session to that
+// group, so asking on every disconnect would be noise while the group is still on
+// screen. The question is kept for the last session of the group.
 func (p *sessionPanel) requestDisconnect() {
+	end := p.closeSelf
 	if p.screen.liveSessionsInTab(p) > 0 {
-		p.disconnectShell()
+		end()
 		return
 	}
 	p.screen.confirm("Disconnect session?",
 		fmt.Sprintf("%s is the last session in this tab. Disconnecting ends it.", p.profile.Name),
-		p.disconnectShell, nil)
+		end, nil)
+}
+
+// closeSelf ends this pane's session and gives a split pane's space back to its
+// sibling. The last pane of a tab stays: it is where Connect opens the next
+// session, and closing the tab is what removes it.
+func (p *sessionPanel) closeSelf() {
+	if p.pane != nil && p.pane.parent != nil {
+		p.screen.closePane(p)
+		return
+	}
+	p.disconnectShell()
 }
 
 func (p *sessionPanel) disconnectShell() {
