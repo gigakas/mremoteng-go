@@ -103,13 +103,21 @@ type remoteBrowser struct {
 	local  *filePane
 	remote *filePane
 
-	status *widget.Label
-	popup  *widget.PopUp
+	status   *widget.Label
+	progress *widget.ProgressBar
+	logBox   *fyne.Container
+	log      []string
+	popup    *widget.PopUp
 }
 
 func (b *remoteBrowser) show() {
 	b.status = widget.NewLabel("")
 	b.status.Wrapping = fyne.TextWrapWord
+	b.progress = widget.NewProgressBar()
+	b.progress.Hide()
+	b.logBox = container.NewVBox()
+	logScroll := container.NewVScroll(b.logBox)
+	logScroll.SetMinSize(fyne.NewSize(200, 84))
 
 	closeButton := widget.NewButton("Close", b.close)
 
@@ -118,7 +126,8 @@ func (b *remoteBrowser) show() {
 
 	content := container.NewBorder(
 		nil,
-		container.NewVBox(widget.NewSeparator(), b.status, container.NewHBox(closeButton)),
+		container.NewVBox(widget.NewSeparator(), b.progress, logScroll, b.status,
+			container.NewHBox(closeButton)),
 		nil, nil,
 		panes,
 	)
@@ -168,23 +177,27 @@ func (b *remoteBrowser) downloadSelected() {
 // and the status bar. Both panes are re-listed afterwards, so the copied file
 // appears without a manual refresh.
 func (b *remoteBrowser) transfer(label string, run func(sshclient.TransferProgress) error) {
-	b.status.SetText(label + " ...")
-	b.screen.setStatus(label + " ...")
+	b.startProgress(label)
 	go func() {
 		progress := func(done, total int64) {
 			fyne.Do(func() {
-				b.status.SetText(fmt.Sprintf("%s: %s of %s", label, formatSize(done), formatSize(total)))
+				b.setProgress(done, total)
+				b.status.SetText(progressText(label, done, total))
 			})
 		}
 		err := run(progress)
 		fyne.Do(func() {
 			if err != nil {
+				b.finishProgress()
 				b.status.SetText(label + " failed: " + err.Error())
 				b.screen.setProblem(label + " failed: " + err.Error())
+				b.logf("error", label+" failed: "+err.Error())
 				return
 			}
+			b.finishProgress()
 			b.status.SetText(label + ": done.")
 			b.screen.setStatus(label + ": done.")
+			b.logf("info", label+": done.")
 			b.local.refresh()
 			b.remote.refresh()
 		})
@@ -233,6 +246,77 @@ func (b *remoteBrowser) deleteEntry(pane *filePane, entry fileEntry, side string
 			pane.refresh()
 			b.status.SetText("Deleted " + entry.Name + ".")
 		}, nil)
+}
+
+// startProgress shows the bar at zero for a new transfer.
+func (b *remoteBrowser) startProgress(label string) {
+	if b.progress == nil {
+		return
+	}
+	b.progress.Min = 0
+	b.progress.Max = 1
+	b.progress.SetValue(0)
+	b.progress.Show()
+	b.status.SetText(label + " ...")
+	b.screen.setStatus(label + " ...")
+	b.logf("info", label+" started")
+}
+
+// setProgress moves the bar; an unknown total leaves it at zero rather than
+// claiming a percentage nobody measured.
+func (b *remoteBrowser) setProgress(done, total int64) {
+	if b.progress == nil || total <= 0 {
+		return
+	}
+	b.progress.Max = float64(total)
+	b.progress.SetValue(float64(done))
+}
+
+// finishProgress parks the bar at full so the finished transfer is visible, and
+// logs the outcome.
+func (b *remoteBrowser) finishProgress() {
+	if b.progress == nil {
+		return
+	}
+	if b.progress.Max <= 0 {
+		b.progress.Max = 1
+	}
+	b.progress.SetValue(b.progress.Max)
+}
+
+// logf appends one line to the window log and to the application activity log,
+// so a transfer is recorded whether the window is open or not.
+func (b *remoteBrowser) logf(kind, text string) {
+	line := time.Now().Format("15:04:05") + "  " + kind + "  " + text
+	b.log = append(b.log, line)
+	if len(b.log) > transferLogLimit {
+		b.log = b.log[len(b.log)-transferLogLimit:]
+	}
+	if b.logBox == nil {
+		return
+	}
+	b.logBox.Objects = b.logBox.Objects[:0]
+	for _, entry := range b.log {
+		label := widget.NewLabel(entry)
+		label.TextStyle = fyne.TextStyle{Monospace: true}
+		label.Importance = widget.LowImportance
+		b.logBox.Add(label)
+	}
+	b.logBox.Refresh()
+	if b.screen != nil {
+		b.screen.log.add(kind, text)
+	}
+}
+
+// transferLogLimit bounds the window log, like the activity log does.
+const transferLogLimit = 100
+
+// progressText is the status line shown under the bar.
+func progressText(label string, done, total int64) string {
+	if total <= 0 {
+		return fmt.Sprintf("%s: %s", label, formatSize(done))
+	}
+	return fmt.Sprintf("%s: %s of %s (%d%%)", label, formatSize(done), formatSize(total), done*100/total)
 }
 
 // describeSelection says what the transfer buttons would move, so a click on a
