@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
@@ -182,5 +183,61 @@ func TestRemoteBrowser_DeleteEntry_ConfirmedRemovesTheFile(t *testing.T) {
 	}
 	if !strings.Contains(browser.status.Text, "Deleted") {
 		t.Errorf("status = %q, want a deletion notice", browser.status.Text)
+	}
+}
+
+func TestSortFileEntries_KeepsDirectoriesFirstInEveryOrder(t *testing.T) {
+	entries := []fileEntry{
+		{Name: "b.txt", Modified: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+		{Name: "alpha", IsDir: true, Modified: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC)},
+		{Name: "a.txt", Modified: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)},
+		{Name: "zeta", IsDir: true, Modified: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+	}
+
+	cases := []struct {
+		choice string
+		want   []string
+	}{
+		{"Name A-Z", []string{"alpha", "zeta", "a.txt", "b.txt"}},
+		{"Name Z-A", []string{"zeta", "alpha", "b.txt", "a.txt"}},
+		{"Date newest", []string{"alpha", "zeta", "a.txt", "b.txt"}},
+		{"Date oldest", []string{"zeta", "alpha", "b.txt", "a.txt"}},
+	}
+	for _, tc := range cases {
+		copied := append([]fileEntry(nil), entries...)
+		key, descending := parseOrder(tc.choice)
+		sortFileEntries(copied, key, descending)
+		got := make([]string, 0, len(copied))
+		for _, entry := range copied {
+			got = append(got, entry.Name)
+		}
+		if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+			t.Errorf("%s = %v, want %v", tc.choice, got, tc.want)
+		}
+		if !copied[0].IsDir || !copied[1].IsDir {
+			t.Errorf("%s put a file before the directories: %v", tc.choice, got)
+		}
+	}
+}
+
+func TestFilePane_ApplyOrder_ResortsWithoutRelisting(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	pane := newFilePane(localSource{})
+	pane.entries = []fileEntry{
+		{Name: "b.txt", Modified: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+		{Name: "a.txt", Modified: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)},
+	}
+	pane.applyOrder("Date newest")
+	if pane.entries[0].Name != "a.txt" {
+		t.Errorf("newest first = %q, want a.txt", pane.entries[0].Name)
+	}
+	pane.applyOrder("Name Z-A")
+	if pane.entries[0].Name != "b.txt" {
+		t.Errorf("Z-A first = %q, want b.txt", pane.entries[0].Name)
+	}
+	if len(pane.rows.Objects) != 2 {
+		t.Errorf("rows = %d, want one per entry", len(pane.rows.Objects))
 	}
 }
