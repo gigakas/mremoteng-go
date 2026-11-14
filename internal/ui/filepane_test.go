@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 )
@@ -284,5 +285,46 @@ func TestColumns_HeaderAndRow_ShareTheSameOffsets(t *testing.T) {
 	headerOffsets := offsets(header)
 	if rowOffsets[0] != headerOffsets[0] || rowOffsets[1] != headerOffsets[1] {
 		t.Errorf("column offsets: row %v, header %v — want identical", rowOffsets, headerOffsets)
+	}
+}
+
+func TestFileRow_MouseDown_SelectsTheRowWithItsModifiers(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	root := t.TempDir()
+	for _, name := range []string{"a.txt", "b.txt"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("x"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	pane := newFilePane(localSource{}, "Transfer")
+	window := test.NewWindow(pane.content())
+	t.Cleanup(window.Close)
+	window.Resize(fyne.NewSize(600, 300))
+	pane.navigate(root)
+	if len(pane.rows.Objects) != 2 {
+		t.Fatalf("rows = %d, want 2", len(pane.rows.Objects))
+	}
+
+	first := pane.rows.Objects[0].(*fileRow)
+	first.MouseDown(&desktop.MouseEvent{Button: desktop.MouseButtonPrimary})
+	if chosen := pane.selection(); len(chosen) != 1 {
+		t.Fatalf("after a plain click the selection has %d entries, want 1", len(chosen))
+	}
+
+	// Control through the row, not through the pane, so the modifier path from
+	// the mouse event to the selection is covered end to end.
+	second := pane.rows.Objects[1].(*fileRow)
+	second.MouseDown(&desktop.MouseEvent{Button: desktop.MouseButtonPrimary, Modifier: fyne.KeyModifierControl})
+	if chosen := pane.selection(); len(chosen) != 2 {
+		t.Errorf("after Control+click the selection has %d entries, want 2", len(chosen))
+	}
+
+	// A click elsewhere during a drag, or the secondary button, must not select.
+	third := &fileRow{index: 0, pane: pane}
+	third.MouseDown(&desktop.MouseEvent{Button: desktop.MouseButtonSecondary})
+	if chosen := pane.selection(); len(chosen) != 2 {
+		t.Errorf("secondary click changed the selection to %d entries", len(chosen))
 	}
 }

@@ -543,6 +543,18 @@ func (r *fileRow) MouseDown(event *desktop.MouseEvent) {
 	r.pane.selectIndex(r.index, event.Modifier)
 }
 
+// MouseUp completes the desktop.Mouseable contract. Fyne requires both methods
+// before it dispatches MouseDown at all, so without this the row received no
+// click whatsoever.
+func (r *fileRow) MouseUp(*desktop.MouseEvent) {}
+
+// The rows must satisfy these interfaces or an entire class of clicks silently
+// disappears; asserting them at compile time is the cheapest guard there is.
+var (
+	_ desktop.Mouseable   = (*fileRow)(nil)
+	_ fyne.DoubleTappable = (*fileRow)(nil)
+)
+
 // DoubleTapped enters a directory.
 func (r *fileRow) DoubleTapped(*fyne.PointEvent) {
 	if r.pane != nil {
