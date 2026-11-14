@@ -115,9 +115,10 @@ test documents how to repeat the auth-only check against a compatible host.
 
 Open: modifier-key input (Fyne key events carry no modifier information, so
 Ctrl-C/Ctrl-D are buttons and Shift-Tab is indistinguishable from Tab; only the
-control combinations registered in `internal/ui/shell.go` reach the shell), the
-embedded webview (HTTP profiles open in the system browser, see
-`internal/ui/stream.go`), and serial ports. Tab is delivered to the shell via
+control combinations registered in `internal/ui/shell.go` reach the shell). It is the
+only item left from this list: serial sessions and the embedded WebKit view were
+delivered on 2026-11-14 (`auditory/linux-l8-serial-20261114-mimocode.md`,
+`auditory/linux-l8-webview-20261114-mimocode.md`). Tab is delivered to the shell via
 `fyne.Tabbable` so completion works.
 
 ## Audit naming for this track

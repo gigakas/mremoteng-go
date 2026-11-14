@@ -99,7 +99,7 @@ installer and tarball release.
   settings validation tested; manual usability script extended.
 - **Depends on**: L7/L8 for meaningful reconnect behaviour.
 
-## Stage L11 — Reliability and diagnostics — **partially done (2026-11-09)**: diagnostics dialog and session shutdown on exit (audit `auditory/linux-l11-20261109-opencode.md`); store repair path pending.
+## Stage L11 — Reliability and diagnostics — **partially done**: diagnostics dialog and session shutdown on exit (2026-11-09, audit `auditory/linux-l11-20261109-opencode.md`) and the store repair flow — move the damaged file aside under a timestamped name and start empty (Tools > Repair connection file, `internal/ui/repair.go`). Still pending: a test for the schema migration path, the "copy diagnostics" action and proof that no X11 child or FreeRDP process survives a crash.
 
 - **Scope**: structured logging with a "copy diagnostics" action, guarded store
   migration path (schema v2), crash-safe session cleanup (X11 children, child
