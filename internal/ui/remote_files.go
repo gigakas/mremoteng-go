@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -15,33 +16,79 @@ import (
 	sshclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/ssh"
 )
 
-// requestRemoteFiles opens the single-pane SFTP browser for the SSH session that
-// holds the keyboard. The password is the one-off value of that session, so a
-// transfer never needs a second prompt.
+// requestRemoteFiles opens the single-pane SFTP browser for the SSH session the
+// user is working in.
 func (s *screen) requestRemoteFiles() {
-	panel := s.focusedPanel()
-	if panel == nil || panel.profile.Protocol != profiles.SSH {
-		s.setStatus("Open an SSH session, click its terminal, then browse remote files.")
+	panel := s.sshPanelForTransfer()
+	if panel == nil {
+		s.setStatus("Open an SSH session before browsing remote files.")
 		return
 	}
-	target := panel.target()
 	options := sshclient.Options{Password: panel.passwordFor(), Timeout: 15 * time.Second}
-	s.setStatus("Connecting to " + panel.profile.Host + " for file transfer ...")
+	s.openRemoteFiles(panel.target(), options, panel.profile.Host)
+}
+
+// sshPanelForTransfer prefers the session that owns the keyboard and falls back
+// to the selected tab, so the menu works without clicking the terminal first.
+func (s *screen) sshPanelForTransfer() *sessionPanel {
+	if panel := s.focusedPanel(); panel != nil && panel.profile.Protocol == profiles.SSH {
+		return panel
+	}
+	selected := s.tabs.Selected()
+	if selected == nil {
+		return nil
+	}
+	for id, tab := range s.openTabs {
+		if tab != selected {
+			continue
+		}
+		for _, panel := range s.tabPanels(id) {
+			if panel.profile.Protocol == profiles.SSH {
+				return panel
+			}
+		}
+	}
+	return nil
+}
+
+// openRemoteFiles dials SFTP and shows the browser. An unknown host key asks for
+// approval with the same wording as the terminal, instead of failing with a
+// status message the user can miss.
+func (s *screen) openRemoteFiles(target sshclient.Target, options sshclient.Options, host string) {
+	s.setStatus("Connecting to " + host + " for file transfer ...")
 	go func() {
 		files, _, err := sshclient.OpenRemoteFiles(target, options)
 		fyne.Do(func() {
-			if err != nil {
-				s.setProblem("Could not open the remote files: " + err.Error())
+			if err == nil {
+				s.showRemoteBrowser(files, host)
 				return
 			}
-			startDir, dirErr := files.WorkingDir()
-			if dirErr != nil {
-				startDir = "/"
+			var unknown *sshclient.UnknownHostKeyError
+			if errors.As(err, &unknown) {
+				s.setProblem(fmt.Sprintf("Host key for %s is not in known_hosts (fingerprint %s).", unknown.HostPort, unknown.Fingerprint))
+				s.confirm("Unverified SSH host key",
+					fmt.Sprintf("The host key for %s is not in known_hosts.\n\nFingerprint: %s\n\nTrust it for this file transfer?",
+						unknown.HostPort, unknown.Fingerprint),
+					func() {
+						approved := options
+						approved.AcceptAnyHostKey = true
+						s.openRemoteFiles(target, approved, host)
+					}, nil)
+				return
 			}
-			browser := &remoteBrowser{screen: s, files: files, host: panel.profile.Host, dir: startDir, selected: -1}
-			browser.show()
+			s.setProblem("Could not open the remote files: " + err.Error())
 		})
 	}()
+}
+
+// showRemoteBrowser builds the dialog once the session is up.
+func (s *screen) showRemoteBrowser(files *sshclient.RemoteFiles, host string) {
+	startDir, err := files.WorkingDir()
+	if err != nil {
+		startDir = "/"
+	}
+	browser := &remoteBrowser{screen: s, files: files, host: host, dir: startDir, selected: -1}
+	browser.show()
 }
 
 // remoteBrowser is a modal remote directory view with upload and download by

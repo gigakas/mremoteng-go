@@ -1,11 +1,14 @@
 package ssh
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pkg/sftp"
 )
@@ -202,5 +205,65 @@ func TestJoinRemote_KeepsAbsoluteNames(t *testing.T) {
 	}
 	if got, want := JoinRemote("/home/tester/", ".."), "/home"; got != want {
 		t.Errorf("JoinRemote with .. = %q, want %q", got, want)
+	}
+}
+
+// TestRemoteFiles_LocalContainer exercises the whole stack against a real server:
+// SSH handshake, SFTP subsystem, listing, upload and download.
+//
+//	docker run -d --name ssh-test -p 2222:2222 -e USER_NAME=tester \
+//	  -e USER_PASSWORD=tester -e PASSWORD_ACCESS=true \
+//	  lscr.io/linuxserver/openssh-server:latest
+//	SSH_LOCAL=127.0.0.1:2222 SSH_LOCAL_USER=tester SSH_LOCAL_PASSWORD=tester \
+//	  go test ./internal/protocol/ssh/ -run LocalContainer -v
+func TestRemoteFiles_LocalContainer(t *testing.T) {
+	endpoint := os.Getenv("SSH_LOCAL")
+	if endpoint == "" {
+		t.Skip("SSH_LOCAL not set; no local SSH container to probe")
+	}
+	host, portText, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		t.Fatalf("SSH_LOCAL: %v", err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatalf("SSH_LOCAL port: %v", err)
+	}
+	files, _, err := OpenRemoteFiles(
+		Target{Host: host, Port: port, Username: os.Getenv("SSH_LOCAL_USER")},
+		Options{Password: os.Getenv("SSH_LOCAL_PASSWORD"), AcceptAnyHostKey: true, Timeout: 15 * time.Second},
+	)
+	if err != nil {
+		t.Fatalf("OpenRemoteFiles: %v", err)
+	}
+	defer func() { _ = files.Close() }()
+
+	dir, err := files.WorkingDir()
+	if err != nil || dir == "" {
+		t.Fatalf("WorkingDir = %q, %v", dir, err)
+	}
+	if _, err := files.List("."); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+
+	body := "sftp probe " + time.Now().UTC().Format("20060102T150405Z") + "\n"
+	local := filepath.Join(t.TempDir(), "probe.txt")
+	if err := os.WriteFile(local, []byte(body), 0o644); err != nil {
+		t.Fatalf("write local: %v", err)
+	}
+	remote := fmt.Sprintf("sftp-probe-%d.txt", time.Now().UnixNano())
+	if err := files.Upload(local, remote, nil); err != nil {
+		t.Fatalf("Upload: %v", err)
+	}
+	back := filepath.Join(t.TempDir(), "back.txt")
+	if err := files.Download(remote, back, nil); err != nil {
+		t.Fatalf("Download: %v", err)
+	}
+	stored, err := os.ReadFile(back)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if string(stored) != body {
+		t.Errorf("round trip content = %q, want %q", string(stored), body)
 	}
 }
