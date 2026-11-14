@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -326,5 +327,38 @@ func TestFileRow_MouseDown_SelectsTheRowWithItsModifiers(t *testing.T) {
 	third.MouseDown(&desktop.MouseEvent{Button: desktop.MouseButtonSecondary})
 	if chosen := pane.selection(); len(chosen) != 2 {
 		t.Errorf("secondary click changed the selection to %d entries", len(chosen))
+	}
+}
+
+func TestFilePane_Navigate_ResetsTheScrollToTheTop(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	busy := t.TempDir()
+	for i := 0; i < 40; i++ {
+		name := filepath.Join(busy, "file-"+strconv.Itoa(i)+".txt")
+		if err := os.WriteFile(name, []byte("x"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	quiet := t.TempDir()
+	if err := os.WriteFile(filepath.Join(quiet, "only.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	pane := newFilePane(localSource{}, "Transfer")
+	window := test.NewWindow(pane.content())
+	t.Cleanup(window.Close)
+	window.Resize(fyne.NewSize(600, 220))
+
+	pane.navigate(busy)
+	pane.scroll.ScrollToOffset(fyne.NewPos(0, 200))
+	if pane.scroll.Offset.Y == 0 {
+		t.Fatalf("the scroll did not move, so the reset cannot be observed")
+	}
+
+	pane.navigate(quiet)
+	if pane.scroll.Offset.Y != 0 {
+		t.Errorf("scroll offset = %.1f after opening a short folder, want the top", pane.scroll.Offset.Y)
 	}
 }

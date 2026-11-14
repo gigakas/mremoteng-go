@@ -162,6 +162,7 @@ type filePane struct {
 	headerButtons map[sortKey]*widget.Button
 	headerBox     fyne.CanvasObject
 	rows          *fyne.Container
+	scroll        *container.Scroll
 	status        *widget.Label
 	transferLabel string
 	onTransfer    func()
@@ -187,6 +188,7 @@ func (p *filePane) content() fyne.CanvasObject {
 	heading := widget.NewLabelWithStyle(p.source.Title(), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	up := widget.NewButtonWithIcon("Up", theme.MoveUpIcon(), func() { p.navigate(p.source.Parent(p.dir)) })
 	open := widget.NewButton("Open", func() { p.navigate(p.pathEntry.Text) })
+	p.scroll = container.NewVScroll(p.rows)
 	return container.NewBorder(
 		container.NewVBox(heading, container.NewBorder(nil, nil, container.NewHBox(up, open), nil, p.pathEntry), p.header(), widget.NewSeparator()),
 		container.NewVBox(widget.NewSeparator(), p.status, container.NewHBox(
@@ -207,7 +209,7 @@ func (p *filePane) content() fyne.CanvasObject {
 			}),
 		)),
 		nil, nil,
-		container.NewVScroll(p.rows),
+		p.scroll,
 	)
 }
 
@@ -382,6 +384,11 @@ func (p *filePane) rebuildRows() {
 		p.rows.Add(newFileRow(entry, i, p))
 	}
 	p.rows.Refresh()
+	// The scroll keeps the previous folder's offset, so a new folder with fewer
+	// entries opened halfway down its own list and had to be scrolled back up.
+	if p.scroll != nil {
+		p.scroll.ScrollToTop()
+	}
 }
 
 // selectIndex applies one click to the selection. A plain click selects only that
