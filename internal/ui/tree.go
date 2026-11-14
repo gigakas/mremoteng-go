@@ -26,7 +26,7 @@ type treeIndex struct {
 	connections int
 }
 
-func buildTreeIndex(all []profiles.Profile, folders []string, query string) *treeIndex {
+func buildTreeIndex(all []profiles.Profile, folders []string, query string, order map[string]int) *treeIndex {
 	index := &treeIndex{
 		profiles: map[string]profiles.Profile{},
 		children: map[string][]string{},
@@ -69,7 +69,7 @@ func buildTreeIndex(all []profiles.Profile, folders []string, query string) *tre
 		index.children[parentUID] = append(index.children[parentUID], uid)
 		index.connections++
 	}
-	index.sortChildren()
+	index.sortChildren(order)
 	return index
 }
 
@@ -97,18 +97,41 @@ func (index *treeIndex) ensureFolder(folder string) string {
 	return parent
 }
 
-// sortChildren orders folders before connections and each group by label.
-func (index *treeIndex) sortChildren() {
+// sortChildren orders folders before connections, then each group by the manual
+// order the user arranged, and by label for the nodes that order does not mention.
+// Folders stay ahead of connections in every arrangement: navigation must not depend
+// on where a folder happens to sit.
+func (index *treeIndex) sortChildren(order map[string]int) {
 	for parent, children := range index.children {
 		sort.SliceStable(children, func(i, j int) bool {
-			leftFolder, rightFolder := isFolderUID(children[i]), isFolderUID(children[j])
+			left, right := children[i], children[j]
+			leftFolder, rightFolder := isFolderUID(left), isFolderUID(right)
 			if leftFolder != rightFolder {
 				return leftFolder
 			}
-			return strings.ToLower(index.label(children[i])) < strings.ToLower(index.label(children[j]))
+			leftRank, leftRanked := order[left]
+			rightRank, rightRanked := order[right]
+			if leftRanked != rightRanked {
+				return leftRanked
+			}
+			if leftRanked && leftRank != rightRank {
+				return leftRank < rightRank
+			}
+			return strings.ToLower(index.label(left)) < strings.ToLower(index.label(right))
 		})
 		index.children[parent] = children
 	}
+}
+
+// orderRanks turns the stored order into the positions the tree compares.
+func orderRanks(order []string) map[string]int {
+	ranks := make(map[string]int, len(order))
+	for position, key := range order {
+		if _, known := ranks[key]; !known {
+			ranks[key] = position
+		}
+	}
+	return ranks
 }
 
 func (index *treeIndex) childUIDs(parent string) []string {

@@ -30,6 +30,10 @@ type Document struct {
 	// TabLayouts holds the split tree of the tabs that were divided, by connection
 	// id. A tab without an entry was a single pane.
 	TabLayouts map[string]PaneLayout
+	// Order lists tree nodes in the order the user arranged them, using the tree's own
+	// node identifiers. Nodes missing from the list keep the alphabetical rule, and
+	// nodes that no longer exist are simply ignored.
+	Order []string
 }
 
 // Store is the local JSON-backed profile store. It is the native application
@@ -47,7 +51,9 @@ type storeFile struct {
 	ActiveTab string          `json:"active_tab,omitempty"`
 	// TabLayouts maps a connection id to the shape of its divided tab.
 	TabLayouts map[string]PaneLayout `json:"tab_layouts,omitempty"`
-	Profiles   []Profile             `json:"profiles"`
+	// Order is the manual order of the tree, as tree node identifiers.
+	Order    []string  `json:"order,omitempty"`
+	Profiles []Profile `json:"profiles"`
 }
 
 // DefaultPath returns the native store location, honouring XDG_CONFIG_HOME.
@@ -114,6 +120,7 @@ func (s *Store) Load() (Document, error) {
 		OpenTabs:   file.OpenTabs,
 		ActiveTab:  file.ActiveTab,
 		TabLayouts: file.TabLayouts,
+		Order:      file.Order,
 	}
 	if document.Profiles == nil {
 		document.Profiles = []Profile{}
@@ -142,6 +149,9 @@ func (s *Store) Save(document Document) error {
 			return err
 		}
 	}
+	if err := validateOrder(document.Order); err != nil {
+		return err
+	}
 	payload, err := json.MarshalIndent(storeFile{
 		Version:    schemaVersion,
 		Folders:    document.Folders,
@@ -150,6 +160,7 @@ func (s *Store) Save(document Document) error {
 		OpenTabs:   document.OpenTabs,
 		ActiveTab:  document.ActiveTab,
 		TabLayouts: document.TabLayouts,
+		Order:      document.Order,
 		Profiles:   document.Profiles,
 	}, "", "  ")
 	if err != nil {
@@ -246,6 +257,17 @@ func validateProfiles(profiles []Profile) error {
 		seen[profile.ID] = true
 		if err := profile.Validate(); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// validateOrder refuses an order list the tree could not use: an entry has to be a
+// node identifier, and nothing else.
+func validateOrder(order []string) error {
+	for _, key := range order {
+		if strings.TrimSpace(key) == "" || strings.ContainsAny(key, "\n\r\t") {
+			return fmt.Errorf("%w: %q is not a tree node", ErrInvalidStore, key)
 		}
 	}
 	return nil

@@ -18,6 +18,7 @@ type fakeStore struct {
 	openTabs  []string
 	activeTab string
 	layouts   map[string]profiles.PaneLayout
+	order     []string
 	loadErr   error
 	saveErr   error
 	saves     int

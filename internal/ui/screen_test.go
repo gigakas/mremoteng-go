@@ -26,6 +26,7 @@ func (f *fakeStore) Load() (profiles.Document, error) {
 		OpenTabs:   append([]string(nil), f.openTabs...),
 		ActiveTab:  f.activeTab,
 		TabLayouts: copyLayouts(f.layouts),
+		Order:      append([]string(nil), f.order...),
 	}, nil
 }
 
@@ -40,6 +41,7 @@ func (f *fakeStore) Save(document profiles.Document) error {
 	f.openTabs = append([]string(nil), document.OpenTabs...)
 	f.activeTab = document.ActiveTab
 	f.layouts = copyLayouts(document.TabLayouts)
+	f.order = append([]string(nil), document.Order...)
 	f.saves++
 	return nil
 }

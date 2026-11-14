@@ -72,7 +72,7 @@ func (s *screen) setWritable(writable bool) {
 
 func (s *screen) refreshTree() {
 	query := strings.ToLower(strings.TrimSpace(s.filter.Text))
-	s.index = buildTreeIndex(s.ws.profiles, s.ws.folders, query)
+	s.index = buildTreeIndex(s.ws.profiles, s.ws.folders, query, orderRanks(s.ws.order))
 	s.rows = map[string]*treeRow{}
 	s.tree.Refresh()
 	s.setCounts()

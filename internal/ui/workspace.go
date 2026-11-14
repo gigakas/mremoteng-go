@@ -29,6 +29,8 @@ type workspace struct {
 	active   string
 	// layouts holds the split tree of the divided tabs, by connection id.
 	layouts map[string]profiles.PaneLayout
+	// order is the manual order of the tree, as node identifiers.
+	order []string
 }
 
 func newWorkspace(store Store) *workspace {
@@ -49,6 +51,7 @@ func (w *workspace) load() error {
 		w.sessions = nil
 		w.active = ""
 		w.layouts = nil
+		w.order = nil
 		return err
 	}
 	w.profiles = loaded.Profiles
@@ -60,6 +63,7 @@ func (w *workspace) load() error {
 	}
 	w.sessions = loaded.OpenTabs
 	w.active = loaded.ActiveTab
+	w.order = loaded.Order
 	w.layouts = loaded.TabLayouts
 	if w.layouts == nil {
 		w.layouts = map[string]profiles.PaneLayout{}
@@ -80,6 +84,7 @@ func (w *workspace) document(profs []profiles.Profile, folders []string) profile
 		OpenTabs:   w.sessions,
 		ActiveTab:  w.active,
 		TabLayouts: w.layouts,
+		Order:      w.order,
 	}
 }
 
@@ -97,6 +102,23 @@ func (w *workspace) save() error {
 		return nil
 	}
 	return w.store.Save(w.document(w.profiles, w.folders))
+}
+
+// setOrder persists the manual order of the tree. The write goes first, so a
+// rejected save leaves the previous order in place.
+func (w *workspace) setOrder(order []string) error {
+	next := append([]string(nil), order...)
+	document := w.document(w.profiles, w.folders)
+	document.Order = next
+	if w.store == nil || !w.writable {
+		w.order = next
+		return nil
+	}
+	if err := w.store.Save(document); err != nil {
+		return err
+	}
+	w.order = next
+	return nil
 }
 
 // setSessions persists the tabs the window has open. It is called on every tab

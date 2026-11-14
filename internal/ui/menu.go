@@ -23,6 +23,8 @@ func (s *screen) rowMenu(uid string) *fyne.Menu {
 			fyne.NewMenuItem("New folder inside", func() {
 				s.withDiscardGuard(func() { s.createFolderInside(folder) })
 			}),
+			s.orderItem("Move up", uid, -1),
+			s.orderItem("Move down", uid, 1),
 			fyne.NewMenuItem("Rename folder", func() {
 				s.withDiscardGuard(func() {
 					s.focusFolder(uid)
@@ -54,6 +56,8 @@ func (s *screen) rowMenu(uid string) *fyne.Menu {
 			s.withDiscardGuard(func() { s.openConnection(profile) })
 		}),
 		moveTo,
+		s.orderItem("Move up", uid, -1),
+		s.orderItem("Move down", uid, 1),
 		fyne.NewMenuItem("Delete connection", func() {
 			s.withDiscardGuard(func() {
 				s.focusConnection(profile)
@@ -155,4 +159,13 @@ func (s *screen) focusConnection(profile profiles.Profile) {
 	s.suppressTree = false
 	s.selected = profile.ID
 	s.selectedUID = connectionUID(profile.ID)
+}
+
+// orderItem is one context-menu entry for a manual move. It is disabled at the edge of
+// its group, so the menu says what is possible instead of accepting a click that
+// cannot do anything.
+func (s *screen) orderItem(label, uid string, delta int) *fyne.MenuItem {
+	item := fyne.NewMenuItem(label, func() { s.moveInOrder(uid, delta) })
+	item.Disabled = !s.hasRoom(uid, delta)
+	return item
 }

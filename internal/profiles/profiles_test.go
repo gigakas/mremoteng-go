@@ -592,3 +592,32 @@ func TestStore_Save_RejectsALayoutTheWindowCannotRebuild(t *testing.T) {
 		}
 	}
 }
+
+func TestStore_Order_RoundTripsAndIsValidated(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles.json")
+	store := NewStore(path)
+	profile := sampleProfile(t)
+	order := []string{"c:" + profile.ID, "f:Production", "f:Production/Web"}
+	if err := store.Save(Document{Profiles: []Profile{profile}, Order: order}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(loaded.Order) != len(order) {
+		t.Fatalf("order = %v, want %v", loaded.Order, order)
+	}
+	for i := range order {
+		if loaded.Order[i] != order[i] {
+			t.Errorf("order[%d] = %q, want %q", i, loaded.Order[i], order[i])
+		}
+	}
+
+	for _, broken := range [][]string{{""}, {"c:id\nc:other"}, {"  "}} {
+		if err := store.Save(Document{Order: broken}); err == nil {
+			t.Errorf("order %v was accepted", broken)
+		}
+	}
+}

@@ -68,7 +68,7 @@ func TestRowMenu_FolderOffersFolderActions(t *testing.T) {
 	for _, item := range menu.Items {
 		labels = append(labels, item.Label)
 	}
-	want := []string{"Folder defaults", "New folder inside", "Rename folder", "Delete folder"}
+	want := []string{"Folder defaults", "New folder inside", "Move up", "Move down", "Rename folder", "Delete folder"}
 	if len(labels) != len(want) {
 		t.Fatalf("menu = %v, want %v", labels, want)
 	}
@@ -147,14 +147,16 @@ func TestRowMenu_ConnectionOffersOpenMoveDelete(t *testing.T) {
 	connection := sampleProfile(t, "Web", "Production", "SSH", "web.example.com", 22)
 	s := newTestScreen(t, &fakeStore{profiles: []profiles.Profile{connection}, folders: []string{"Production"}})
 	menu := s.rowMenu(connectionUID(connection.ID))
-	if len(menu.Items) != 4 {
-		t.Fatalf("menu items = %d, want 4", len(menu.Items))
+	if len(menu.Items) != 6 {
+		t.Fatalf("menu items = %d, want 6", len(menu.Items))
 	}
-	if menu.Items[0].Label != "Rename" || menu.Items[2].Label != "Move to" || menu.Items[3].Label != "Delete connection" {
+	if menu.Items[0].Label != "Rename" || menu.Items[2].Label != "Move to" ||
+		menu.Items[3].Label != "Move up" || menu.Items[4].Label != "Move down" ||
+		menu.Items[5].Label != "Delete connection" {
 		t.Errorf("unexpected menu order: %v", menu.Items)
 	}
 	// The delete item must select the row before acting on it.
-	menu.Items[3].Action()
+	menu.Items[5].Action()
 	if s.selected != connection.ID {
 		t.Errorf("selection = %q, want the menu row", s.selected)
 	}
