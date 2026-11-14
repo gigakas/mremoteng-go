@@ -1,10 +1,17 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2/container"
 )
+
+// liveTestSession marks a panel as carrying an open session without dialling
+// anywhere, which is what the disconnect question looks at.
+func liveTestSession(panel *sessionPanel) {
+	panel.shell = &fakeShell{output: strings.NewReader("")}
+}
 
 // openSplitTestTab opens a tab whose profile has no username: connecting a
 // duplicate then fails synchronously instead of dialling on a goroutine, which
@@ -100,5 +107,72 @@ func TestSplitPane_RDP_IsRefused(t *testing.T) {
 
 	if got := len(s.tabPanels(profile.ID)); got != 1 {
 		t.Errorf("panes = %d, want RDP to stay unsplit", got)
+	}
+}
+
+// TestRequestDisconnect_AnotherSessionInTheGroup_SkipsTheQuestion covers the
+// reported annoyance: a split tab holds several sessions of the same group, and
+// disconnecting one of them leaves the group on screen, so there is nothing to
+// approve.
+func TestRequestDisconnect_AnotherSessionInTheGroup_SkipsTheQuestion(t *testing.T) {
+	s, panel := openSplitTestTab(t)
+	s.splitPane(panel, true)
+	sibling := s.tabPanels(panel.profile.ID)[1]
+	guard := &fakeConfirm{accept: true}
+	s.confirm = guard.ask
+	liveTestSession(panel)
+	liveTestSession(sibling)
+
+	panel.requestDisconnect()
+
+	if len(guard.asked) != 0 {
+		t.Errorf("confirmations = %v, want none while the group still has a session", guard.asked)
+	}
+	if panel.shell != nil {
+		t.Error("the session of the pane stayed open")
+	}
+	if sibling.shell == nil {
+		t.Error("the sibling session was disconnected as well")
+	}
+}
+
+// TestRequestDisconnect_SiblingPaneWithoutASession_StillAsks keeps the rule about
+// sessions and not about panes: an empty pane is not another session, so the
+// question is still due.
+func TestRequestDisconnect_SiblingPaneWithoutASession_StillAsks(t *testing.T) {
+	s, panel := openSplitTestTab(t)
+	s.splitPane(panel, true)
+	guard := &fakeConfirm{accept: true}
+	s.confirm = guard.ask
+	liveTestSession(panel)
+
+	panel.requestDisconnect()
+
+	if len(guard.asked) != 1 || guard.asked[0] != "Disconnect session?" {
+		t.Fatalf("confirmations = %v, want one disconnect question", guard.asked)
+	}
+	if panel.shell != nil {
+		t.Error("accepting the question did not end the session")
+	}
+	if len(s.tabPanels(panel.profile.ID)) != 2 {
+		t.Error("the sibling pane was removed by the disconnect")
+	}
+}
+
+// TestRequestDisconnect_Declined_KeepsTheSession is the reason the question
+// exists: a mistaken click on the X must not take the session away.
+func TestRequestDisconnect_Declined_KeepsTheSession(t *testing.T) {
+	s, panel := openSplitTestTab(t)
+	guard := &fakeConfirm{accept: false}
+	s.confirm = guard.ask
+	liveTestSession(panel)
+
+	panel.requestDisconnect()
+
+	if len(guard.asked) != 1 {
+		t.Fatalf("confirmations = %v, want one disconnect question", guard.asked)
+	}
+	if panel.shell == nil {
+		t.Error("declining the question ended the session anyway")
 	}
 }

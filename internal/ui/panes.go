@@ -114,6 +114,19 @@ func (s *screen) closePane(p *sessionPanel) {
 	}
 }
 
+// liveSessionsInTab counts the other sessions of p's tab that are still open.
+// Every tab holds one group of sessions — splitting duplicates the connection
+// into the same tab — so this is the group the disconnect question is about.
+func (s *screen) liveSessionsInTab(p *sessionPanel) int {
+	others := 0
+	for _, panel := range s.tabPanels(p.profile.ID) {
+		if panel != p && panel.hasSession() {
+			others++
+		}
+	}
+	return others
+}
+
 // tabPanels lists every session panel of the tab opened for a connection.
 func (s *screen) tabPanels(id string) []*sessionPanel {
 	main, ok := s.panels[id]

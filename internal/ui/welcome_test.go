@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 )
 
 // TestWelcomeHelp_DocumentsEveryIconButton guards the start page reference: every
@@ -44,11 +45,34 @@ func TestWelcomeHelp_DocumentsEveryIconButton(t *testing.T) {
 	}
 
 	joined := strings.ToLower(strings.Join(namesAndText(), " "))
-	for _, want := range []string{"connection tree", "config panel", "activity log", "quick connect", "vault", "split", "clipboard", "delete"} {
+	for _, want := range []string{"connection tree", "config panel", "activity log", "quick connect", "vault", "split", "clipboard", "delete", "disconnect", "sftp"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("welcome help does not mention %q", want)
 		}
 	}
+}
+
+// TestWelcomeHelp_Disconnect_StatesTheConfirmation is the page's half of the
+// disconnect contract: the X ends the session and asks only when the session is
+// the last one of its tab, so its line must say so instead of promising an
+// unconditional disconnect.
+func TestWelcomeHelp_Disconnect_StatesTheConfirmation(t *testing.T) {
+	for _, row := range welcomeHelp {
+		if row.name != "Disconnect" {
+			continue
+		}
+		if row.icon == nil || row.icon() != theme.CancelIcon() {
+			t.Error("the Disconnect line does not show the icon the button uses")
+		}
+		if !strings.Contains(row.what, "last pane") {
+			t.Errorf("Disconnect line = %q, want it to mention the confirmation", row.what)
+		}
+		if !strings.Contains(row.what, "session") {
+			t.Errorf("Disconnect line = %q, want it to name the session", row.what)
+		}
+		return
+	}
+	t.Fatal("the Disconnect button has no reference line")
 }
 
 func namesAndText() []string {

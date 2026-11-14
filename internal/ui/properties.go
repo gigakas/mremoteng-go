@@ -158,7 +158,8 @@ var welcomeHelp = []welcomeHelpRow{
 	{theme.InfoIcon, "Activity log", "Show or hide the log."},
 	{theme.ContentAddIcon, "Quick connect", "Connect once without saving."},
 	{theme.MediaPlayIcon, "Connect", "Open the selected session."},
-	{theme.MediaStopIcon, "Disconnect", "End the session, keep the profile."},
+	{theme.CancelIcon, "Disconnect", "End the session; asks first when it is the last pane."},
+	{theme.FolderIcon, "SFTP", "Browse and transfer files on an SSH session."},
 	{theme.SearchIcon, "Test", "Check RDP credentials only."},
 	{theme.CheckButtonCheckedIcon, "Ignore cert", "Accept a self-signed certificate."},
 	{theme.CheckButtonCheckedIcon, "Legacy TLS", "Use legacy RDP security."},
@@ -167,7 +168,6 @@ var welcomeHelp = []welcomeHelpRow{
 	{nil, "Ctrl-C / Ctrl-D", "Send control bytes as buttons."},
 	{theme.NavigateNextIcon, "Split right", "Second pane beside this one."},
 	{theme.MoveDownIcon, "Split down", "Second pane below this one."},
-	{theme.CancelIcon, "Close pane", "Close this pane."},
 	{theme.DocumentSaveIcon, "Save password", "Store it in the encrypted vault."},
 	{theme.DeleteIcon, "Delete", "Delete the selected connection."},
 }

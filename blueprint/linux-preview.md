@@ -38,7 +38,11 @@ historical phase dependencies. Existing completed stages and audits are retained
   tooltips and its popups cover the canvas, stealing the hover that opened them.
   The Config panel's Delete button carries a text label instead, since that row
   has room. The Config panel is hidden by default and revealed by New/selection
-  or the settings icon.
+  or the settings icon. The bar's X ends the session of its pane; it asks for
+  confirmation only when that is the last open session of the tab, since a split
+  tab holds one group of sessions and disconnecting one of several leaves the
+  group on screen. The start page's **Buttons** card documents that rule, so the
+  X and its confirmation are learnable without clicking anything.
 - L1 owns `internal/profiles/`, `internal/ui/`, `cmd/mremoteng/`, build/test
   integration and the active-plan documentation. No existing core package changes.
 - Independent L1 units may be delegated within disjoint files: profile storage,
@@ -68,13 +72,13 @@ SSH is implemented in `internal/protocol/ssh` and exposed in the session tab:
   browses the scrollback. Wheel zoom was tried but removed: Fyne scroll events
   carry no modifiers, and asking the X server for the Ctrl state misreported it
   on Wayland/XWayland, so every wheel event zoomed instead of scrolling.
-- Remote files: Tools > Remote files (SFTP) opens a single-pane browser over the
-  SSH session that has the keyboard, starting in the remote home directory. It
-  lists a directory, uploads a local file into the current one and downloads the
-  selected file, each chosen with the platform's own file chooser and each with
-  progress in the dialog and the status bar. It reuses
-  the session's host-key checks and one-off password; there is no remote delete,
-  rename, resume or local pane yet.
+- Remote files: the SFTP icon on an SSH session bar (and Tools > Remote files)
+  opens a two-pane transfer window, local on the left and the remote host on the
+  right, each listing a directory with folder and file icons, sortable headers
+  and its own New folder/Delete and transfer button. Upload and download recurse
+  into folders, show one aggregate progress bar in a log, and can be stopped. It
+  reuses the session's host-key checks and one-off password; there is still no
+  resume, queue or rename.
 - Unknown hosts require explicit approval of the shown SHA-256 fingerprint; the
   password lives only in the widget for that attempt.
 
