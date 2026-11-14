@@ -157,18 +157,22 @@ type filePane struct {
 	order       sortKey
 	descending  bool
 
-	pathEntry   *widget.Entry
-	orderSelect *widget.Select
-	rows        *fyne.Container
-	status      *widget.Label
-	onSelect    func(fileEntry)
-	onEnter     func(string)
-	onNewFolder func()
-	onDelete    func(fileEntry)
+	pathEntry     *widget.Entry
+	headerButtons map[sortKey]*widget.Button
+	headerBox     fyne.CanvasObject
+	rows          *fyne.Container
+	status        *widget.Label
+	transferLabel string
+	onTransfer    func()
+	onSelect      func(fileEntry)
+	onEnter       func(string)
+	onNewFolder   func()
+	onDelete      func(fileEntry)
 }
 
-func newFilePane(source fileSource) *filePane {
-	pane := &filePane{source: source, selected: -1}
+func newFilePane(source fileSource, transferLabel string) *filePane {
+	pane := &filePane{source: source, selected: -1, transferLabel: transferLabel,
+		headerButtons: map[sortKey]*widget.Button{}}
 	pane.pathEntry = widget.NewEntry()
 	pane.pathEntry.OnSubmitted = func(text string) { pane.navigate(text) }
 	pane.status = widget.NewLabel("")
@@ -182,10 +186,8 @@ func (p *filePane) content() fyne.CanvasObject {
 	heading := widget.NewLabelWithStyle(p.source.Title(), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	up := widget.NewButtonWithIcon("Up", theme.MoveUpIcon(), func() { p.navigate(p.source.Parent(p.dir)) })
 	open := widget.NewButton("Open", func() { p.navigate(p.pathEntry.Text) })
-	p.orderSelect = widget.NewSelect(orderChoices, func(choice string) { p.applyOrder(choice) })
-	p.orderSelect.SetSelected(orderChoices[0])
 	return container.NewBorder(
-		container.NewVBox(heading, container.NewBorder(nil, nil, container.NewHBox(up, open), p.orderSelect, p.pathEntry), widget.NewSeparator()),
+		container.NewVBox(heading, container.NewBorder(nil, nil, container.NewHBox(up, open), nil, p.pathEntry), p.header(), widget.NewSeparator()),
 		container.NewVBox(widget.NewSeparator(), p.status, container.NewHBox(
 			widget.NewButtonWithIcon("New folder", theme.ContentAddIcon(), func() {
 				if p.onNewFolder != nil {
@@ -195,6 +197,11 @@ func (p *filePane) content() fyne.CanvasObject {
 			widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {
 				if entry, ok := p.selection(); ok && p.onDelete != nil {
 					p.onDelete(entry)
+				}
+			}),
+			widget.NewButtonWithIcon(p.transferLabel, theme.NavigateNextIcon(), func() {
+				if p.onTransfer != nil {
+					p.onTransfer()
 				}
 			}),
 		)),
@@ -253,31 +260,20 @@ type sortKey int
 
 const (
 	sortByName sortKey = iota
+	sortBySize
 	sortByDate
 )
 
-// orderChoices are the labels of the pane order control, one per key and
-// direction so a single control says everything.
-var orderChoices = []string{
-	"Name A-Z",
-	"Name Z-A",
-	"Date newest",
-	"Date oldest",
+// headerLabels are the column titles, in the order they are drawn.
+var headerLabels = map[sortKey]string{
+	sortByName: "Name",
+	sortBySize: "Size",
+	sortByDate: "Date",
 }
 
-// parseOrder maps a control label back to a key and a direction.
-func parseOrder(choice string) (sortKey, bool) {
-	switch choice {
-	case "Name Z-A":
-		return sortByName, true
-	case "Date newest":
-		return sortByDate, true
-	case "Date oldest":
-		return sortByDate, false
-	default:
-		return sortByName, false
-	}
-}
+// defaultDescending is the direction a column takes when it gains the order:
+// names read A-Z, sizes and dates start from the largest and the newest.
+func defaultDescending(key sortKey) bool { return key != sortByName }
 
 // sortFileEntries orders entries the way the pane asked, keeping directories
 // before files in every order: navigation must not depend on the sort.
@@ -287,7 +283,15 @@ func sortFileEntries(entries []fileEntry, key sortKey, descending bool) {
 			return entries[i].IsDir
 		}
 		comparison := 0
-		if key == sortByDate {
+		switch key {
+		case sortBySize:
+			switch {
+			case entries[i].Size > entries[j].Size:
+				comparison = 1
+			case entries[i].Size < entries[j].Size:
+				comparison = -1
+			}
+		case sortByDate:
 			switch {
 			case entries[i].Modified.After(entries[j].Modified):
 				comparison = 1
@@ -311,14 +315,53 @@ func sortFileEntries(entries []fileEntry, key sortKey, descending bool) {
 	})
 }
 
-// applyOrder re-sorts what is on screen without listing the directory again.
-func (p *filePane) applyOrder(choice string) {
-	p.order, p.descending = parseOrder(choice)
+// sortColumn orders by one column, toggling the direction when the same column is
+// asked again. It re-sorts what is on screen instead of listing the directory.
+func (p *filePane) sortColumn(key sortKey) {
+	if p.order == key {
+		p.descending = !p.descending
+	} else {
+		p.order = key
+		p.descending = defaultDescending(key)
+	}
 	sortFileEntries(p.entries, p.order, p.descending)
 	p.selected = -1
 	p.selectedRow = nil
 	p.rebuildRows()
+	p.refreshHeader()
 	p.status.SetText(countLabel(len(p.entries), p.dir))
+}
+
+// refreshHeader marks the active column and its direction.
+func (p *filePane) refreshHeader() {
+	for key, button := range p.headerButtons {
+		label := headerLabels[key]
+		if key == p.order {
+			if p.descending {
+				label += " \u25bc"
+			} else {
+				label += " \u25b2"
+			}
+		}
+		button.SetText(label)
+	}
+}
+
+// header builds the clickable column titles, aligned like a row: a gap where the
+// icon sits, the name in the middle and the two numeric columns on the right.
+func (p *filePane) header() fyne.CanvasObject {
+	button := func(key sortKey) *widget.Button {
+		label := headerLabels[key]
+		button := widget.NewButton(label, func() { p.sortColumn(key) })
+		button.Importance = widget.LowImportance
+		button.Alignment = widget.ButtonAlignLeading
+		p.headerButtons[key] = button
+		return button
+	}
+	gap := container.NewGridWrap(fyne.NewSize(20, 20))
+	tail := container.NewHBox(button(sortBySize), button(sortByDate))
+	p.refreshHeader()
+	return container.NewBorder(nil, nil, gap, tail, button(sortByName))
 }
 
 // rebuildRows replaces the visible rows. Rows are built instead of recycled: a

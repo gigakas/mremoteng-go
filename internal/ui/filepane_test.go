@@ -70,7 +70,7 @@ func TestFilePane_Navigate_BuildsRowsWithNames(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 
-	pane := newFilePane(localSource{})
+	pane := newFilePane(localSource{}, "Transfer")
 	window := test.NewWindow(pane.content())
 	t.Cleanup(window.Close)
 	window.Resize(fyne.NewSize(600, 300))
@@ -105,7 +105,7 @@ func TestFilePane_Selection_DirectoryIsATransferItem(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 
-	pane := newFilePane(localSource{})
+	pane := newFilePane(localSource{}, "Transfer")
 	pane.entries = []fileEntry{{Name: "reports", IsDir: true}, {Name: "notes.txt"}}
 	pane.selected = -1
 	if _, ok := pane.selection(); ok {
@@ -147,7 +147,7 @@ func TestRemoteBrowser_DeleteEntry_RefusesTheCurrentDirectory(t *testing.T) {
 	t.Cleanup(app.Quit)
 
 	browser := &remoteBrowser{screen: newTestScreen(t, &fakeStore{}), status: widget.NewLabel("")}
-	pane := newFilePane(localSource{})
+	pane := newFilePane(localSource{}, "Transfer")
 	pane.dir = t.TempDir()
 
 	browser.deleteEntry(pane, fileEntry{Name: "here", Path: pane.dir, IsDir: true}, "Local")
@@ -173,7 +173,7 @@ func TestRemoteBrowser_DeleteEntry_ConfirmedRemovesTheFile(t *testing.T) {
 		}
 	}
 	browser := &remoteBrowser{screen: screen, status: widget.NewLabel("")}
-	pane := newFilePane(localSource{})
+	pane := newFilePane(localSource{}, "Transfer")
 	pane.dir = root
 
 	browser.deleteEntry(pane, fileEntry{Name: "notes.txt", Path: target}, "Local")
@@ -188,54 +188,67 @@ func TestRemoteBrowser_DeleteEntry_ConfirmedRemovesTheFile(t *testing.T) {
 
 func TestSortFileEntries_KeepsDirectoriesFirstInEveryOrder(t *testing.T) {
 	entries := []fileEntry{
-		{Name: "b.txt", Modified: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+		{Name: "b.txt", Size: 10, Modified: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
 		{Name: "alpha", IsDir: true, Modified: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC)},
-		{Name: "a.txt", Modified: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)},
+		{Name: "a.txt", Size: 900, Modified: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)},
 		{Name: "zeta", IsDir: true, Modified: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
 	}
-
 	cases := []struct {
-		choice string
-		want   []string
+		key        sortKey
+		descending bool
+		want       []string
 	}{
-		{"Name A-Z", []string{"alpha", "zeta", "a.txt", "b.txt"}},
-		{"Name Z-A", []string{"zeta", "alpha", "b.txt", "a.txt"}},
-		{"Date newest", []string{"alpha", "zeta", "a.txt", "b.txt"}},
-		{"Date oldest", []string{"zeta", "alpha", "b.txt", "a.txt"}},
+		{sortByName, false, []string{"alpha", "zeta", "a.txt", "b.txt"}},
+		{sortByName, true, []string{"zeta", "alpha", "b.txt", "a.txt"}},
+		{sortBySize, false, []string{"alpha", "zeta", "b.txt", "a.txt"}},
+		{sortBySize, true, []string{"zeta", "alpha", "a.txt", "b.txt"}},
+		{sortByDate, true, []string{"alpha", "zeta", "a.txt", "b.txt"}},
+		{sortByDate, false, []string{"zeta", "alpha", "b.txt", "a.txt"}},
 	}
 	for _, tc := range cases {
 		copied := append([]fileEntry(nil), entries...)
-		key, descending := parseOrder(tc.choice)
-		sortFileEntries(copied, key, descending)
+		sortFileEntries(copied, tc.key, tc.descending)
 		got := make([]string, 0, len(copied))
 		for _, entry := range copied {
 			got = append(got, entry.Name)
 		}
 		if strings.Join(got, ",") != strings.Join(tc.want, ",") {
-			t.Errorf("%s = %v, want %v", tc.choice, got, tc.want)
+			t.Errorf("%v desc=%v = %v, want %v", tc.key, tc.descending, got, tc.want)
 		}
 		if !copied[0].IsDir || !copied[1].IsDir {
-			t.Errorf("%s put a file before the directories: %v", tc.choice, got)
+			t.Errorf("%v desc=%v put a file before the directories: %v", tc.key, tc.descending, got)
 		}
 	}
 }
 
-func TestFilePane_ApplyOrder_ResortsWithoutRelisting(t *testing.T) {
+func TestFilePane_SortColumn_TogglesDirectionAndRefreshesHeader(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 
-	pane := newFilePane(localSource{})
+	pane := newFilePane(localSource{}, "Transfer")
 	pane.entries = []fileEntry{
-		{Name: "b.txt", Modified: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
-		{Name: "a.txt", Modified: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)},
+		{Name: "b.txt", Size: 10, Modified: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+		{Name: "a.txt", Size: 900, Modified: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)},
 	}
-	pane.applyOrder("Date newest")
+	pane.header()
+
+	pane.sortColumn(sortByDate)
 	if pane.entries[0].Name != "a.txt" {
-		t.Errorf("newest first = %q, want a.txt", pane.entries[0].Name)
+		t.Errorf("date order = %q first, want the newest", pane.entries[0].Name)
 	}
-	pane.applyOrder("Name Z-A")
+	pane.sortColumn(sortByDate)
 	if pane.entries[0].Name != "b.txt" {
-		t.Errorf("Z-A first = %q, want b.txt", pane.entries[0].Name)
+		t.Errorf("second date click = %q first, want the oldest", pane.entries[0].Name)
+	}
+	pane.sortColumn(sortBySize)
+	if pane.entries[0].Name != "a.txt" {
+		t.Errorf("size order = %q first, want the largest", pane.entries[0].Name)
+	}
+	if got := pane.headerButtons[sortBySize].Text; !strings.Contains(got, "Size") || !strings.Contains(got, "\u25bc") {
+		t.Errorf("size header = %q, want it marked as the active descending column", got)
+	}
+	if got := pane.headerButtons[sortByName].Text; got != "Name" {
+		t.Errorf("inactive header = %q, want a plain label", got)
 	}
 	if len(pane.rows.Objects) != 2 {
 		t.Errorf("rows = %d, want one per entry", len(pane.rows.Objects))

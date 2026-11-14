@@ -86,8 +86,8 @@ func (s *screen) showRemoteBrowser(files *sshclient.RemoteFiles, host string) {
 		screen: s,
 		files:  files,
 		host:   host,
-		local:  newFilePane(localSource{}),
-		remote: newFilePane(remoteSource{files: files, host: host}),
+		local:  newFilePane(localSource{}, "Upload to remote  \u2192"),
+		remote: newFilePane(remoteSource{files: files, host: host}, "\u2190  Download to local"),
 	}
 	browser.show()
 }
@@ -111,8 +111,6 @@ func (b *remoteBrowser) show() {
 	b.status = widget.NewLabel("")
 	b.status.Wrapping = fyne.TextWrapWord
 
-	upload := widget.NewButton("Upload to remote  \u2192", b.uploadSelected)
-	download := widget.NewButton("\u2190  Download to local", b.downloadSelected)
 	closeButton := widget.NewButton("Close", b.close)
 
 	panes := container.NewHSplit(b.local.content(), b.remote.content())
@@ -120,13 +118,14 @@ func (b *remoteBrowser) show() {
 
 	content := container.NewBorder(
 		nil,
-		container.NewVBox(widget.NewSeparator(), b.status,
-			container.NewHBox(upload, download, closeButton)),
+		container.NewVBox(widget.NewSeparator(), b.status, container.NewHBox(closeButton)),
 		nil, nil,
 		panes,
 	)
 	b.local.onSelect = func(entry fileEntry) { b.describeSelection("Local", entry) }
 	b.remote.onSelect = func(entry fileEntry) { b.describeSelection("Remote", entry) }
+	b.local.onTransfer = b.uploadSelected
+	b.remote.onTransfer = b.downloadSelected
 	b.local.onNewFolder = func() { b.createFolder(b.local, "Local") }
 	b.remote.onNewFolder = func() { b.createFolder(b.remote, "Remote") }
 	b.local.onDelete = func(entry fileEntry) { b.deleteEntry(b.local, entry, "Local") }
