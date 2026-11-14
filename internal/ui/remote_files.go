@@ -115,33 +115,7 @@ func (b *remoteBrowser) show() {
 	up := widget.NewButtonWithIcon("Up", theme.MoveUpIcon(), func() { b.navigate(sshclient.ParentDir(b.dir)) })
 	open := widget.NewButton("Open", func() { b.navigate(b.pathEntry.Text) })
 
-	b.list = widget.NewList(
-		func() int { return len(b.entries) },
-		func() fyne.CanvasObject {
-			return container.NewBorder(nil, nil, widget.NewIcon(theme.FileIcon()), nil,
-				container.NewHBox(widget.NewLabel("name"), widget.NewLabel("size"), widget.NewLabel("date")))
-		},
-		func(id widget.ListItemID, object fyne.CanvasObject) {
-			if id < 0 || id >= len(b.entries) {
-				return
-			}
-			entry := b.entries[id]
-			row := object.(*fyne.Container)
-			icon := row.Objects[0].(*widget.Icon)
-			labels := row.Objects[1].(*fyne.Container).Objects
-			if entry.IsDir {
-				icon.SetResource(theme.FolderIcon())
-				labels[0].(*widget.Label).SetText(entry.Name + "/")
-				labels[1].(*widget.Label).SetText("")
-				labels[2].(*widget.Label).SetText(formatModified(entry.Modified))
-				return
-			}
-			icon.SetResource(theme.FileIcon())
-			labels[0].(*widget.Label).SetText(entry.Name)
-			labels[1].(*widget.Label).SetText(formatSize(entry.Size))
-			labels[2].(*widget.Label).SetText(formatModified(entry.Modified))
-		},
-	)
+	b.list = widget.NewList(b.listLength, b.createRow, b.updateRow)
 	b.list.OnSelected = func(id widget.ListItemID) {
 		if id < 0 || id >= len(b.entries) {
 			return
@@ -265,6 +239,43 @@ func (b *remoteBrowser) close() {
 	}
 }
 
+// listLength satisfies widget.List: one row per entry.
+func (b *remoteBrowser) listLength() int { return len(b.entries) }
+
+// createRow builds one reusable row. The widget is a typed struct rather than a
+// bare container because container.NewBorder keeps its nil slots, so reaching
+// into Objects by index panicked as soon as a slot was empty.
+func (b *remoteBrowser) createRow() fyne.CanvasObject {
+	icon := widget.NewIcon(theme.FileIcon())
+	name := widget.NewLabel("")
+	size := widget.NewLabel("")
+	size.Alignment = fyne.TextAlignTrailing
+	date := widget.NewLabel("")
+	date.Importance = widget.LowImportance
+	box := container.NewBorder(nil, nil, container.NewCenter(icon), nil,
+		container.NewBorder(nil, nil, name, container.NewHBox(size, date)))
+	return &remoteRow{Container: box, icon: icon, name: name, size: size, date: date}
+}
+
+// updateRow fills one row for the entry at id.
+func (b *remoteBrowser) updateRow(id widget.ListItemID, object fyne.CanvasObject) {
+	row, ok := object.(*remoteRow)
+	if !ok || id < 0 || id >= len(b.entries) {
+		return
+	}
+	entry := b.entries[id]
+	if entry.IsDir {
+		row.icon.SetResource(theme.FolderIcon())
+		row.name.SetText(entry.Name + "/")
+		row.size.SetText("")
+	} else {
+		row.icon.SetResource(theme.FileIcon())
+		row.name.SetText(entry.Name)
+		row.size.SetText(formatSize(entry.Size))
+	}
+	row.date.SetText(formatModified(entry.Modified))
+}
+
 // formatSize renders a byte count for the list and the progress line.
 func formatSize(bytes int64) string {
 	if bytes < 0 {
@@ -290,4 +301,14 @@ func formatModified(when time.Time) string {
 		return ""
 	}
 	return when.Format("2006-01-02 15:04")
+}
+
+// remoteRow is one listing row: a container plus the widgets the update step
+// needs, so nothing is recovered by index.
+type remoteRow struct {
+	*fyne.Container
+	icon *widget.Icon
+	name *widget.Label
+	size *widget.Label
+	date *widget.Label
 }
