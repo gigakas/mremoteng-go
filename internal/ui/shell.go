@@ -78,7 +78,13 @@ type screen struct {
 	logConsole *logConsole
 	logVisible bool
 	logButton  *hintButton
-	bottom     *fyne.Container
+	// notifications keeps the problems the status bar has already replaced, and the
+	// panel and badge show them.
+	notifications        notifications
+	notificationPanel    *notificationPanel
+	notificationsButton  *hintButton
+	notificationsVisible bool
+	bottom               *fyne.Container
 
 	body             *fyne.Container
 	split            *container.Split
@@ -169,6 +175,7 @@ func (s *screen) build() fyne.CanvasObject {
 	s.props = newPropertiesPanel(s)
 	s.buildStatus()
 	s.logConsole = newLogConsole(s)
+	s.notificationPanel = newNotificationPanel(s)
 
 	// Both panel toggles live in the status bar as flat icons: no toolbar row,
 	// so the tabs and terminal own the full height. An icon alone does not say
@@ -180,6 +187,8 @@ func (s *screen) build() fyne.CanvasObject {
 	s.configButton.Importance = widget.LowImportance
 	s.logButton = newHintButton(theme.InfoIcon(), "Show or hide the activity log", s.toggleLog, s.hint)
 	s.logButton.Importance = widget.LowImportance
+	s.notificationsButton = newHintButton(theme.WarningIcon(), notificationsHint(0), s.toggleNotifications, s.hint)
+	s.notificationsButton.Importance = widget.LowImportance
 
 	sidebarTitle := widget.NewLabelWithStyle("Connections", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	quick := newHintButton(theme.ContentAddIcon(), "Quick connect without saving a connection", s.requestQuickConnect, s.hint)
@@ -194,12 +203,13 @@ func (s *screen) build() fyne.CanvasObject {
 	s.split.SetOffset(sidebarRatio)
 	s.body = container.NewStack(s.split)
 
-	toggles := container.NewHBox(s.sidebarButton, s.configButton, s.logButton)
+	toggles := container.NewHBox(s.sidebarButton, s.configButton, s.logButton, s.notificationsButton)
 	// Counts stay in the tree footer: a Border right-hand label was clipped by
 	// long status messages.
 	statusBar := container.NewBorder(nil, nil, toggles, nil, container.NewPadded(s.status))
 	s.logConsole.box.Hide()
-	s.bottom = container.NewVBox(s.logConsole.box, widget.NewSeparator(), statusBar)
+	s.notificationPanel.box.Hide()
+	s.bottom = container.NewVBox(s.logConsole.box, s.notificationPanel.box, widget.NewSeparator(), statusBar)
 	return container.NewBorder(nil, s.bottom, nil, nil, s.body)
 }
 
@@ -274,6 +284,7 @@ func (s *screen) menu() *fyne.MainMenu {
 		fyne.NewMenuItem("Close pane", s.closeFocusedPane),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Toggle Config panel", s.toggleProperties),
+		fyne.NewMenuItem("Notifications", s.toggleNotifications),
 	)
 	tools := fyne.NewMenu("Tools",
 		fyne.NewMenuItem("Remote files (SFTP)", s.requestRemoteFiles),
@@ -529,16 +540,33 @@ func (s *screen) sendControlToFocused(key fyne.KeyName) {
 	}
 }
 
+// toggleLog shows or hides the activity console. The two bottom panels share one
+// slot: two stacked panels would take the height the terminal needs.
 func (s *screen) toggleLog() {
 	s.logVisible = !s.logVisible
 	if s.logVisible {
+		s.notificationsVisible = false
+		s.notificationPanel.box.Hide()
 		s.logConsole.box.Show()
 		s.logConsole.refresh(s)
 	} else {
 		s.logConsole.box.Hide()
 	}
 	s.bottomRefresh()
-	s.logConsole.box.Refresh()
+}
+
+// toggleNotifications shows or hides the notifications panel, with the same rule.
+func (s *screen) toggleNotifications() {
+	s.notificationsVisible = !s.notificationsVisible
+	if s.notificationsVisible {
+		s.logVisible = false
+		s.logConsole.box.Hide()
+		s.notificationPanel.box.Show()
+		s.notificationPanel.refresh(s)
+	} else {
+		s.notificationPanel.box.Hide()
+	}
+	s.bottomRefresh()
 }
 
 // bottomRefresh repaints the area that hosts the console and the status line.

@@ -357,6 +357,17 @@ func (s *screen) setProblem(text string) {
 	s.status.SetText(text)
 	s.log.add("error", text)
 	s.logConsole.refresh(s)
+	s.notify(noticeError, text)
+}
+
+// setWarning reports something that went wrong without being a hard failure: the
+// status bar shows it as a warning and it joins the notification history too.
+func (s *screen) setWarning(text string) {
+	s.status.Importance = widget.WarningImportance
+	s.status.SetText(text)
+	s.log.add("warning", text)
+	s.logConsole.refresh(s)
+	s.notify(noticeWarning, text)
 }
 
 // hintRestore remembers the status bar before a hover hint replaced it.

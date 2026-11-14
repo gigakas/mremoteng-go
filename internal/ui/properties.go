@@ -156,6 +156,7 @@ var welcomeHelp = []welcomeHelpRow{
 	{theme.MenuIcon, "Connection tree", "Show or hide the tree."},
 	{theme.SettingsIcon, "Config panel", "Show or hide the connection form."},
 	{theme.InfoIcon, "Activity log", "Show or hide the log."},
+	{theme.WarningIcon, "Notifications", "Problems the status bar has forgotten."},
 	{theme.ContentAddIcon, "Quick connect", "Connect once without saving."},
 	{theme.MediaPlayIcon, "Connect", "Open the selected session."},
 	{theme.CancelIcon, "Disconnect", "End the session and a split pane; asks for the last one."},

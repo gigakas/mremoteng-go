@@ -309,7 +309,7 @@ func (p *sessionPanel) applyConnectRDPWithArea(session rdpSession, area embedded
 				p.reportRDPExit(cause)
 				return
 			}
-			p.setStatus("RDP session closed: " + cause)
+			p.screen.setWarning("RDP session closed: " + cause)
 		})
 	}()
 }

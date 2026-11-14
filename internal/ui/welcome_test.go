@@ -45,7 +45,7 @@ func TestWelcomeHelp_DocumentsEveryIconButton(t *testing.T) {
 	}
 
 	joined := strings.ToLower(strings.Join(namesAndText(), " "))
-	for _, want := range []string{"connection tree", "config panel", "activity log", "quick connect", "vault", "split", "clipboard", "delete", "disconnect", "sftp"} {
+	for _, want := range []string{"connection tree", "config panel", "activity log", "quick connect", "vault", "split", "clipboard", "delete", "disconnect", "sftp", "notifications"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("welcome help does not mention %q", want)
 		}
