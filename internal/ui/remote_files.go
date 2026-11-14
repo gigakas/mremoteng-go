@@ -160,8 +160,9 @@ func (b *remoteBrowser) uploadSelected() {
 		b.status.SetText("Select a file or folder on the left to upload it.")
 		return
 	}
+	files, remoteDir := b.files, b.remote.dir
 	b.transferMany("Uploading", entries, func(ctx context.Context, entry fileEntry, progress sshclient.TransferProgress) error {
-		return b.files.Upload(ctx, entry.Path, sshclient.JoinRemote(b.remote.dir, entry.Name), progress)
+		return files.Upload(ctx, entry.Path, sshclient.JoinRemote(remoteDir, entry.Name), progress)
 	})
 }
 
@@ -173,8 +174,9 @@ func (b *remoteBrowser) downloadSelected() {
 		b.status.SetText("Select a file or folder on the right to download it.")
 		return
 	}
+	files, localDir := b.files, b.local.dir
 	b.transferMany("Downloading", entries, func(ctx context.Context, entry fileEntry, progress sshclient.TransferProgress) error {
-		return b.files.Download(ctx, entry.Path, filepath.Join(b.local.dir, entry.Name), progress)
+		return files.Download(ctx, entry.Path, filepath.Join(localDir, entry.Name), progress)
 	})
 }
 
@@ -411,11 +413,22 @@ func (b *remoteBrowser) describeSelection(side string, entries []fileEntry) {
 }
 
 func (b *remoteBrowser) close() {
-	_ = b.files.Close()
+	if b.cancel != nil {
+		b.cancel()
+		b.cancel = nil
+	}
+	files := b.files
+	b.files = nil
 	if b.popup != nil {
 		b.popup.Hide()
 		b.popup = nil
 	}
+	if files == nil {
+		return
+	}
+	// Closing an SSH session writes a disconnect and waits for the socket, which
+	// on a remote host is long enough to freeze the window behind it.
+	go func() { _ = files.Close() }()
 }
 
 // formatSize renders a byte count for the list and the progress line.

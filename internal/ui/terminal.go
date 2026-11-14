@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"os"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -38,6 +39,13 @@ type termWidget struct {
 	// derived even when the driver sends Dragged without a preceding MouseDown.
 	dragX float32
 	dragY float32
+	// cellWidth, cellHeight and cellFont cache one character cell: measuring the
+	// font on every pointer move is what made a long selection feel frozen.
+	cellWidth  float32
+	cellHeight float32
+	cellFont   float32
+	// lastDragPaint throttles the drag repaint for the same reason.
+	lastDragPaint time.Time
 
 	// scrollOffset is how many buffer lines the view is scrolled up.
 	scrollOffset int
@@ -58,6 +66,9 @@ type termWidget struct {
 	renderer *termRenderer
 }
 
+// dragPaintInterval is how often a drag repaints the grid.
+const dragPaintInterval = 40 * time.Millisecond
+
 const (
 	minFontSize     = 8
 	maxFontSize     = 28
@@ -70,6 +81,16 @@ func (t *termWidget) textSize() float32 {
 		return theme.TextSize()
 	}
 	return t.fontSize
+}
+
+// cellSize returns the size of one character cell, measured once per text size.
+func (t *termWidget) cellSize() fyne.Size {
+	if t.cellFont == t.textSize() && t.cellWidth > 0 && t.cellHeight > 0 {
+		return fyne.NewSize(t.cellWidth, t.cellHeight)
+	}
+	measured := fyne.MeasureText("M", t.textSize(), fyne.TextStyle{Monospace: true})
+	t.cellFont, t.cellWidth, t.cellHeight = t.textSize(), measured.Width, measured.Height
+	return measured
 }
 
 // adjustZoom changes the terminal text size, clamped to a readable range.
@@ -208,7 +229,7 @@ func traceResize(size fyne.Size, cols, rows int) {
 }
 
 func (t *termWidget) fit(size fyne.Size) {
-	cell := fyne.MeasureText("M", t.textSize(), fyne.TextStyle{Monospace: true})
+	cell := t.cellSize()
 	if cell.Width <= 0 || cell.Height <= 0 {
 		return
 	}
@@ -258,7 +279,7 @@ type cellPos struct {
 
 // cellAt maps a widget position to a buffer cell.
 func (t *termWidget) cellAt(position fyne.Position) cellPos {
-	cell := fyne.MeasureText("M", t.textSize(), fyne.TextStyle{Monospace: true})
+	cell := t.cellSize()
 	if cell.Width <= 0 || cell.Height <= 0 {
 		return cellPos{}
 	}
@@ -412,13 +433,18 @@ func (t *termWidget) Dragged(event *fyne.DragEvent) {
 		t.selecting = true
 	}
 	t.extendSelection(event.Position)
-	t.render()
+	// Repainting the whole grid on every pointer move is what made a long
+	// selection freeze; the selection itself is still updated per event.
+	if now := time.Now(); now.Sub(t.lastDragPaint) >= dragPaintInterval {
+		t.lastDragPaint = now
+		t.render()
+	}
 }
 
 // extendSelection updates the drag end, scrolling the view when the pointer goes
 // past the top or bottom edge so long outputs can be selected in one drag.
 func (t *termWidget) extendSelection(position fyne.Position) {
-	cell := fyne.MeasureText("M", t.textSize(), fyne.TextStyle{Monospace: true})
+	cell := t.cellSize()
 	if cell.Width <= 0 || cell.Height <= 0 {
 		return
 	}

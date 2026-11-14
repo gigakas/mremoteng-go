@@ -115,3 +115,17 @@ func TestStopTransfer_CancelsTheRunningCopy(t *testing.T) {
 		t.Errorf("status = %q, want a stopping notice", browser.status.Text)
 	}
 }
+
+func TestRemoteBrowser_Close_IsIdempotent(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	browser := &remoteBrowser{screen: newTestScreen(t, &fakeStore{}), status: widget.NewLabel("")}
+	// No session was ever opened here, and closing twice must not panic: a
+	// browser is dismissed from more than one place.
+	browser.close()
+	browser.close()
+	if browser.files != nil {
+		t.Error("close left a session reference behind")
+	}
+}
