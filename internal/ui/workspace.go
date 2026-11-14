@@ -22,6 +22,11 @@ type workspace struct {
 	defaults  []profiles.FolderDefault
 	collapsed map[string]bool
 	writable  bool
+	// sessions are the tabs the window had open and active is the selected one.
+	// They are window state, not connection data, but they live in the same
+	// document so one atomic write keeps the workspace consistent.
+	sessions []string
+	active   string
 }
 
 func newWorkspace(store Store) *workspace {
@@ -39,6 +44,8 @@ func (w *workspace) load() error {
 		w.folders = nil
 		w.defaults = nil
 		w.collapsed = map[string]bool{}
+		w.sessions = nil
+		w.active = ""
 		return err
 	}
 	w.profiles = loaded.Profiles
@@ -48,6 +55,8 @@ func (w *workspace) load() error {
 	for _, folder := range loaded.Collapsed {
 		w.collapsed[folder] = true
 	}
+	w.sessions = loaded.OpenTabs
+	w.active = loaded.ActiveTab
 	w.writable = true
 	return nil
 }
@@ -61,6 +70,8 @@ func (w *workspace) document(profs []profiles.Profile, folders []string) profile
 		Folders:   folders,
 		Defaults:  w.defaults,
 		Collapsed: collapsedList(w.collapsed),
+		OpenTabs:  w.sessions,
+		ActiveTab: w.active,
 	}
 }
 
@@ -78,6 +89,25 @@ func (w *workspace) save() error {
 		return nil
 	}
 	return w.store.Save(w.document(w.profiles, w.folders))
+}
+
+// setSessions persists the tabs the window has open. It is called on every tab
+// change, so a rejected write is not reported: window state that could not be
+// saved must not interrupt the work it describes.
+func (w *workspace) setSessions(sessions []string, active string) error {
+	next := append([]string(nil), sessions...)
+	document := w.document(w.profiles, w.folders)
+	document.OpenTabs = next
+	document.ActiveTab = active
+	if w.store == nil || !w.writable {
+		w.sessions, w.active = next, active
+		return nil
+	}
+	if err := w.store.Save(document); err != nil {
+		return err
+	}
+	w.sessions, w.active = next, active
+	return nil
 }
 
 // upsert returns profiles with profile added or replaced and leaves the receiver

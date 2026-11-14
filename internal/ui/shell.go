@@ -87,8 +87,12 @@ type screen struct {
 	configButton     *hintButton
 	sidebarCollapsed bool
 
-	openTabs    map[string]*container.TabItem
-	panels      map[string]*sessionPanel
+	openTabs map[string]*container.TabItem
+	panels   map[string]*sessionPanel
+	// restoring is set while the previous run's tabs are reopened: the restore must
+	// not write back what it is reading.
+	restoring   bool
+	prefs       appPreferences
 	openShell   shellOpener
 	launchRDP   rdpLauncher
 	probeRDP    rdpProber
@@ -157,10 +161,12 @@ func newScreen(app fyne.App, store Store) *screen {
 	s.win.SetIcon(AppIcon())
 	s.win.SetContent(s.build())
 	s.win.SetMainMenu(s.menu())
+	s.prefs = appPreferences{prefs: app.Preferences()}
 	s.win.Resize(RestoreWindowSize(app.Preferences(), fyne.NewSize(1100, 720)))
 	s.win.SetCloseIntercept(s.closeRequested)
 	s.registerControlShortcuts()
 	s.reload()
+	s.restoreSessions()
 	return s
 }
 
@@ -299,6 +305,7 @@ func (s *screen) tabSelected(item *container.TabItem) {
 			panel.term.focus()
 		}
 	}
+	s.rememberSessions()
 }
 
 func (s *screen) tabClosed(item *container.TabItem) {
@@ -317,6 +324,7 @@ func (s *screen) tabClosed(item *container.TabItem) {
 		s.tabs.Append(s.welcome)
 		s.tabs.Select(s.welcome)
 	}
+	s.rememberSessions()
 }
 
 func (s *screen) openSessionTab(profile profiles.Profile) {
@@ -336,6 +344,7 @@ func (s *screen) openSessionTab(profile profiles.Profile) {
 		}
 		s.tabs.Refresh()
 		s.tabs.Select(tab)
+		s.rememberSessions()
 		return
 	}
 	panel := s.newSessionPanel(profile)
@@ -344,6 +353,84 @@ func (s *screen) openSessionTab(profile profiles.Profile) {
 	s.panels[profile.ID] = panel
 	s.tabs.Append(tab)
 	s.tabs.Select(tab)
+	s.rememberSessions()
+}
+
+// rememberSessions stores the tabs the window has open, in tab order, and the
+// selected one. The write is best effort and its error is dropped on purpose: this
+// is window state, and a read-only or full disk must not interrupt the click that
+// changed a tab.
+func (s *screen) rememberSessions() {
+	if s.restoring || s.ws == nil || s.tabs == nil {
+		return
+	}
+	byTab := make(map[*container.TabItem]string, len(s.openTabs))
+	for id, tab := range s.openTabs {
+		byTab[tab] = id
+	}
+	ids := make([]string, 0, len(byTab))
+	kept := map[string]bool{}
+	for _, item := range s.tabs.Items {
+		id, known := byTab[item]
+		if !known {
+			continue
+		}
+		// A quick-connect tab has no stored profile, so reopening it would show a tab
+		// for a connection that cannot come back. Leave it out.
+		if _, stored := s.profileByID(id); !stored {
+			continue
+		}
+		ids = append(ids, id)
+		kept[id] = true
+	}
+	selected, _ := byTab[s.tabs.Selected()]
+	if !kept[selected] {
+		selected = ""
+	}
+	// Nothing to record and nothing recorded: skip the write, so a quick-connect tab
+	// or a window with no sessions does not touch the file on every click.
+	if selected == s.ws.active && sameSessions(ids, s.ws.sessions) {
+		return
+	}
+	_ = s.ws.setSessions(ids, selected)
+}
+
+// sameSessions reports whether two tab lists are equal and in the same order.
+func sameSessions(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// restoreSessions reopens the tabs the previous run left open, unconnected: no
+// credential is stored, so each tab waits with Connect enabled for the user. Tabs
+// whose connection no longer exists are dropped, and the pruned list is written
+// back so the store stops carrying them.
+func (s *screen) restoreSessions() {
+	if !s.prefs.reopenTabs() || len(s.ws.sessions) == 0 {
+		return
+	}
+	s.restoring = true
+	for _, id := range s.ws.sessions {
+		profile, known := s.profileByID(id)
+		if !known {
+			continue
+		}
+		s.openSessionTab(profile)
+	}
+	s.restoring = false
+	if active, known := s.profileByID(s.ws.active); known {
+		if tab, open := s.openTabs[active.ID]; open {
+			s.tabs.Select(tab)
+		}
+	}
+	s.rememberSessions()
 }
 
 // toggleSidebar collapses or restores the connection tree pane. The toolbar

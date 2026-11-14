@@ -23,6 +23,8 @@ func (f *fakeStore) Load() (profiles.Document, error) {
 		Folders:   append([]string(nil), f.folders...),
 		Defaults:  append([]profiles.FolderDefault(nil), f.defaults...),
 		Collapsed: append([]string(nil), f.collapsed...),
+		OpenTabs:  append([]string(nil), f.openTabs...),
+		ActiveTab: f.activeTab,
 	}, nil
 }
 
@@ -34,6 +36,8 @@ func (f *fakeStore) Save(document profiles.Document) error {
 	f.folders = append([]string(nil), document.Folders...)
 	f.defaults = append([]profiles.FolderDefault(nil), document.Defaults...)
 	f.collapsed = append([]string(nil), document.Collapsed...)
+	f.openTabs = append([]string(nil), document.OpenTabs...)
+	f.activeTab = document.ActiveTab
 	f.saves++
 	return nil
 }

@@ -297,4 +297,5 @@ func (s *screen) closeSessionTab(id string) {
 	if s.selected == id {
 		s.resetEditor()
 	}
+	s.rememberSessions()
 }

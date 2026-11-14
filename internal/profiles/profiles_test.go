@@ -479,3 +479,46 @@ func TestProfile_SameFormAs_IgnoresTheStoredOptions(t *testing.T) {
 		t.Error("a rename was not detected")
 	}
 }
+
+func TestStore_OpenTabs_RoundTripAndSurviveOtherSaves(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles.json")
+	store := NewStore(path)
+	first := sampleProfile(t)
+	second := sampleProfile(t)
+	document := Document{
+		Profiles:  []Profile{first, second},
+		OpenTabs:  []string{second.ID, first.ID},
+		ActiveTab: first.ID,
+	}
+	if err := store.Save(document); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(loaded.OpenTabs) != 2 || loaded.OpenTabs[0] != second.ID || loaded.OpenTabs[1] != first.ID {
+		t.Errorf("open tabs = %v, want the stored order", loaded.OpenTabs)
+	}
+	if loaded.ActiveTab != first.ID {
+		t.Errorf("active tab = %q, want %q", loaded.ActiveTab, first.ID)
+	}
+
+	// A store written before this field existed must load with no tabs, and a save
+	// that does not mention them must not invent any.
+	legacy := filepath.Join(t.TempDir(), "legacy.json")
+	if err := os.WriteFile(legacy, []byte(`{"version":2,"profiles":[]}`), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := NewStore(legacy).Save(Document{Profiles: []Profile{first}}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	again, err := NewStore(legacy).Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(again.OpenTabs) != 0 || again.ActiveTab != "" {
+		t.Errorf("tabs = %v / %q, want none", again.OpenTabs, again.ActiveTab)
+	}
+}

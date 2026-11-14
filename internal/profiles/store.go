@@ -22,6 +22,11 @@ type Document struct {
 	// Collapsed lists folder paths the user collapsed in the tree, so the
 	// workspace looks the same after a restart.
 	Collapsed []string
+	// OpenTabs lists the connections whose session tab was open, in tab order, and
+	// ActiveTab is the one that was selected. They are restored unconnected: no
+	// credential is stored, so the user presses Connect.
+	OpenTabs  []string
+	ActiveTab string
 }
 
 // Store is the local JSON-backed profile store. It is the native application
@@ -35,6 +40,8 @@ type storeFile struct {
 	Folders   []string        `json:"folders,omitempty"`
 	Defaults  []FolderDefault `json:"folder_defaults,omitempty"`
 	Collapsed []string        `json:"collapsed_folders,omitempty"`
+	OpenTabs  []string        `json:"open_tabs,omitempty"`
+	ActiveTab string          `json:"active_tab,omitempty"`
 	Profiles  []Profile       `json:"profiles"`
 }
 
@@ -94,7 +101,14 @@ func (s *Store) Load() (Document, error) {
 	if err := validateFolders(file.Collapsed); err != nil {
 		return Document{}, fmt.Errorf("%w: %s: %v", ErrInvalidStore, s.path, err)
 	}
-	document := Document{Profiles: file.Profiles, Folders: file.Folders, Defaults: file.Defaults, Collapsed: file.Collapsed}
+	document := Document{
+		Profiles:  file.Profiles,
+		Folders:   file.Folders,
+		Defaults:  file.Defaults,
+		Collapsed: file.Collapsed,
+		OpenTabs:  file.OpenTabs,
+		ActiveTab: file.ActiveTab,
+	}
 	if document.Profiles == nil {
 		document.Profiles = []Profile{}
 	}
@@ -122,6 +136,8 @@ func (s *Store) Save(document Document) error {
 		Folders:   document.Folders,
 		Defaults:  document.Defaults,
 		Collapsed: document.Collapsed,
+		OpenTabs:  document.OpenTabs,
+		ActiveTab: document.ActiveTab,
 		Profiles:  document.Profiles,
 	}, "", "  ")
 	if err != nil {

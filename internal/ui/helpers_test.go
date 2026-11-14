@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 	sshclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/ssh"
@@ -14,6 +15,8 @@ type fakeStore struct {
 	folders   []string
 	defaults  []profiles.FolderDefault
 	collapsed []string
+	openTabs  []string
+	activeTab string
 	loadErr   error
 	saveErr   error
 	saves     int
@@ -23,6 +26,18 @@ type fakeConfirm struct {
 	asked    []string
 	accept   bool
 	declines int
+}
+
+// newTestScreenWithPreferences builds a screen after the test has set the
+// preferences it needs, which is what the startup path reads before anything else.
+func newTestScreenWithPreferences(t *testing.T, store Store, tweak func(fyne.Preferences)) *screen {
+	t.Helper()
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	if tweak != nil {
+		tweak(app.Preferences())
+	}
+	return newScreen(app, store)
 }
 
 func newTestScreen(t *testing.T, store Store) *screen {

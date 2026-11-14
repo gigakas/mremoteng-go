@@ -15,8 +15,10 @@ func TestSave_ValidProfile_AddsTreeEntryTabAndPersists(t *testing.T) {
 	fillConfig(s, "Production web", "Production/Web", "web.example.com", "22")
 	test.Tap(s.props.save)
 
-	if store.saves != 1 || len(store.profiles) != 1 {
-		t.Fatalf("store = %d saves, %d profiles; want 1/1", store.saves, len(store.profiles))
+	// Two writes now: the profile itself and the tab list, because saving opens the
+	// session tab and the open tabs are part of the workspace document.
+	if store.saves < 1 || len(store.profiles) != 1 {
+		t.Fatalf("store = %d saves, %d profiles; want the profile stored", store.saves, len(store.profiles))
 	}
 	saved := store.profiles[0]
 	if saved.Name != "Production web" || saved.Folder != "Production/Web" || saved.Host != "web.example.com" {
@@ -155,9 +157,10 @@ func TestDelete_NotConfirmed_KeepsProfile(t *testing.T) {
 	s.confirm = (&fakeConfirm{accept: false}).ask
 
 	s.tree.Select(connectionUID(existing.ID))
+	writes := store.saves
 	test.Tap(s.props.delete)
 
-	if store.saves != 0 || len(store.profiles) != 1 {
+	if store.saves != writes || len(store.profiles) != 1 {
 		t.Fatalf("store = %+v after declined delete, want unchanged", store.profiles)
 	}
 }
