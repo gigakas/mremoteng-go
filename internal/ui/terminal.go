@@ -2,13 +2,14 @@ package ui
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"os"
 	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -22,16 +23,27 @@ type termWidget struct {
 	widget.BaseWidget
 
 	emulator *terminal.Emulator
-	grid     *widget.TextGrid
 	send     func([]byte)
 	onResize func(cols, rows int)
-	styles   map[uint32]widget.TextGridStyle
 	cols     int
 	rows     int
 
+	// raster draws the whole screen as one image (see termraster.go). frame is
+	// the screen it draws, glyphs the cached characters, img the reused image
+	// and overlays the cells the monospace font cannot draw.
+	raster    *canvas.Raster
+	frame     []frameCell
+	frameCols int
+	frameRows int
+	glyphs    *glyphSet
+	img       *image.RGBA
+	overlays  []*canvas.Text
+	// frames counts the frames built, so tests can tell a redraw from a skip.
+	frames int
+
 	// paused is set while the terminal's tab is not the selected one. Output
-	// still reaches the emulator, but nothing is drawn: a refresh of a hidden
-	// grid rebuilds its canvas objects for a view nobody sees. stale records
+	// still reaches the emulator, but nothing is drawn: a hidden terminal has no
+	// view to update. stale records
 	// that the screen changed meanwhile, so showing the tab draws it once.
 	paused bool
 	stale  bool
@@ -64,8 +76,9 @@ type termWidget struct {
 	autoFocus bool
 	// fontSize is the terminal-only text size (Ctrl+scroll zoom).
 	fontSize float32
-	// zoom is the grid-level theme override; the grid owns its text size, so a
-	// refresh (typing, scroll, selection) cannot fall back to the app theme.
+	// zoom is the terminal-level theme override: it owns the text size and
+	// resolves the monospace font, so a refresh (typing, scroll, selection)
+	// cannot fall back to the app theme.
 	zoom *zoomTheme
 	// renderer is the termRenderer built in CreateRenderer, kept so a zoom step
 	// can update its font bookkeeping.
@@ -121,11 +134,11 @@ func (t *termWidget) adjustZoom(delta float32) {
 		// work again.
 		t.renderer.font = size
 	}
-	// rebuildGrid already renders once against the pre-zoom cols/rows, and fit
+	// applyFontSize already renders once against the pre-zoom cols/rows, and fit
 	// renders again if the new font size changed them (almost always, since
 	// cell measurements changed); a third unconditional render here only
 	// repeated that same work and made every zoom step noticeably sluggish.
-	t.rebuildGrid()
+	t.applyFontSize()
 	t.fit(t.Size())
 }
 
@@ -135,7 +148,6 @@ func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *
 		fontSize: theme.TextSize(),
 		send:     send,
 		onResize: onResize,
-		styles:   map[uint32]widget.TextGridStyle{},
 		cols:     cols,
 		rows:     rows,
 	}
@@ -145,45 +157,21 @@ func newTermWidget(cols, rows int, send func([]byte), onResize func(int, int)) *
 }
 
 func (t *termWidget) CreateRenderer() fyne.WidgetRenderer {
-	t.renderer = &termRenderer{parent: t, font: t.textSize()}
-	t.renderer.objects = []fyne.CanvasObject{t.installGrid(fyne.NewSize(1, 1))}
+	t.raster = canvas.NewRaster(t.paintFrame)
+	// The image is already at device resolution, so it must never be resampled.
+	t.raster.ScaleMode = canvas.ImageScalePixels
+	t.renderer = &termRenderer{parent: t, font: t.textSize(), objects: []fyne.CanvasObject{t.raster}}
 	t.render()
 	return t.renderer
 }
 
-// installGrid builds a text grid wrapped in the terminal's own theme override,
-// so the grid reads the terminal size on every refresh instead of the app theme.
-func (t *termWidget) installGrid(size fyne.Size) fyne.CanvasObject {
-	grid := widget.NewTextGrid()
-	grid.Scroll = fyne.ScrollNone
-	if t.zoom == nil {
-		t.zoom = &zoomTheme{base: fyne.CurrentApp().Settings().Theme(), size: t.textSize()}
-	}
-	t.grid = grid
-	wrap := container.NewThemeOverride(grid, t.zoom)
-	wrap.Resize(size)
-	return wrap
-}
-
-// rebuildGrid applies the current zoom size to the text grid. Fyne's
-// TextGrid already re-measures its cell size from the theme on every
-// Refresh (textGridContentRenderer.Refresh, fyne.io/fyne/v2@v2.8.2), so a
-// zoom step only needs to refresh the existing grid in place. The earlier
-// version tore down and recreated the whole widget on every step believing
-// that was the only way to make Fyne pick up the new size; that tear-down
-// (and the texture/geometry work it forced on the GPU painter) is what made
-// each zoom step visibly stall. installGrid still runs once, from
-// CreateRenderer, to build the grid the first time.
-func (t *termWidget) rebuildGrid() {
-	if t.grid != nil {
-		t.grid.Refresh()
-	} else if t.renderer != nil {
-		t.renderer.objects[0] = t.installGrid(t.Size())
-	}
-	t.render()
-	// A Refresh further up the widget (not just the inner grid) is still
-	// needed: without it, a zoom step from the keyboard shortcut sat
-	// invisible until some unrelated event (losing then regaining focus)
+// applyFontSize redraws the screen at the current zoom size. The cell size and
+// the glyph cache follow the text size on their own, so a zoom step only needs
+// a new frame.
+func (t *termWidget) applyFontSize() {
+	// Refresh redraws through the renderer. It is needed (rather than only
+	// rendering the raster): without it, a zoom step from the keyboard shortcut
+	// sat invisible until some unrelated event (losing then regaining focus)
 	// forced a full repaint.
 	t.Refresh()
 }
@@ -191,18 +179,17 @@ func (t *termWidget) rebuildGrid() {
 type termRenderer struct {
 	parent  *termWidget
 	objects []fyne.CanvasObject
-	// font is the text size the grid was last refreshed at, so Layout can tell
-	// when the size changed and the grid needs refreshing and refitting.
+	// font is the text size the screen was last drawn at, so Layout can tell
+	// when the size changed and the screen needs redrawing and refitting.
 	font float32
 }
 
 func (r *termRenderer) Layout(size fyne.Size) {
-	if r.font != r.parent.textSize() || r.parent.grid == nil {
+	r.objects[0].Resize(size)
+	if r.font != r.parent.textSize() {
 		r.font = r.parent.textSize()
-		r.parent.rebuildGrid()
+		r.parent.applyFontSize()
 		r.parent.fit(size)
-	} else {
-		r.objects[0].Resize(size)
 	}
 	if r.parent.autoFocus {
 		r.parent.autoFocus = false
@@ -210,7 +197,7 @@ func (r *termRenderer) Layout(size fyne.Size) {
 	}
 }
 func (r *termRenderer) MinSize() fyne.Size           { return fyne.NewSize(160, 80) }
-func (r *termRenderer) Refresh()                     { r.objects[0].Refresh() }
+func (r *termRenderer) Refresh()                     { r.parent.render() }
 func (r *termRenderer) Objects() []fyne.CanvasObject { return r.objects }
 func (r *termRenderer) Destroy()                     {}
 
@@ -353,7 +340,7 @@ func (t *termWidget) screenText() string {
 }
 
 func (t *termWidget) render() {
-	if t.grid == nil {
+	if t.raster == nil {
 		return
 	}
 	if t.paused {
@@ -361,7 +348,8 @@ func (t *termWidget) render() {
 		return
 	}
 	snapshot := t.emulator.Snapshot()
-	rows := make([]widget.TextGridRow, snapshot.Rows)
+	t.frames++
+	t.resetFrame(snapshot.Cols, snapshot.Rows)
 	start := t.viewStart()
 	historyLen := t.emulator.HistoryLen()
 	// History only, never the current screen: on-screen rows get their rune
@@ -371,7 +359,6 @@ func (t *termWidget) render() {
 	historyCells := t.emulator.HistoryCells()
 	for y := 0; y < snapshot.Rows; y++ {
 		bufferRow := start + y
-		cells := make([]widget.TextGridCell, snapshot.Cols)
 		for x := 0; x < snapshot.Cols; x++ {
 			var char rune = ' '
 			foreground, background := terminal.DefaultFG, terminal.DefaultBG
@@ -397,12 +384,21 @@ func (t *termWidget) render() {
 			if t.selected(x, bufferRow) {
 				foreground, background = background, foreground
 			}
-			cells[x] = widget.TextGridCell{Rune: char, Style: t.style(foreground, background)}
+			t.frame[y*snapshot.Cols+x] = frameCell{r: char, fg: foreground, bg: background}
 		}
-		rows[y] = widget.TextGridRow{Cells: cells}
 	}
-	t.grid.Rows = rows
-	t.grid.Refresh()
+	t.syncOverlays()
+	t.raster.Refresh()
+}
+
+// resetFrame sizes the frame for a screen, reusing its storage when it fits.
+func (t *termWidget) resetFrame(cols, rows int) {
+	t.frameCols, t.frameRows = cols, rows
+	if cap(t.frame) < cols*rows {
+		t.frame = make([]frameCell, cols*rows)
+		return
+	}
+	t.frame = t.frame[:cols*rows]
 }
 
 // setPaused stops drawing while the terminal is hidden and catches the view up
@@ -413,26 +409,6 @@ func (t *termWidget) setPaused(paused bool) {
 		t.stale = false
 		t.render()
 	}
-}
-
-func (t *termWidget) style(fg, bg int32) widget.TextGridStyle {
-	key := uint32(fg+2)<<16 | uint32(bg+2)
-	if style, known := t.styles[key]; known {
-		return style
-	}
-	style := &widget.CustomTextGridStyle{
-		TextStyle: fyne.TextStyle{Monospace: true},
-		FGColor:   paletteColor(fg),
-	}
-	// A cell on the default background gets no background at all: the window
-	// already paints it, and Fyne draws one GL rectangle per styled background,
-	// so a full 80x24 screen cost 1920 rectangle draws per repaint (measured at
-	// about 8 ms of CPU for each full-screen update).
-	if bg != terminal.DefaultBG {
-		style.BGColor = paletteColor(bg)
-	}
-	t.styles[key] = style
-	return style
 }
 
 // paletteColor resolves xterm palette indices and the two defaults.

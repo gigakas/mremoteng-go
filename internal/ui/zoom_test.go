@@ -10,14 +10,10 @@ import (
 	sshclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/ssh"
 )
 
-// rowHeight reports the height the grid renders one text row at, which is what
-// the theme's text size ultimately controls.
+// rowHeight reports the height one text row is drawn at, which is what the
+// theme's text size ultimately controls.
 func rowHeight(term *termWidget) float32 {
-	rows := len(term.grid.Rows)
-	if rows == 0 {
-		return 0
-	}
-	return term.grid.MinSize().Height / float32(rows)
+	return term.cellSize().Height
 }
 
 // TestZoomFocusedTerminal_ShortcutPath_ChangesTextSize covers the path the

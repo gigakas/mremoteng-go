@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
-	"github.com/mRemoteNG/mremoteng-go/internal/terminal"
 
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/test"
@@ -37,15 +36,11 @@ func TestTermWidget_Write_PaintsScreen(t *testing.T) {
 	term := newTermWidget(40, 5, nil, nil)
 	term.CreateRenderer()
 	term.write([]byte("hello"))
-	if len(term.grid.Rows) == 0 || len(term.grid.Rows[0].Cells) < 5 {
-		t.Fatalf("grid rows = %d", len(term.grid.Rows))
+	if term.frameRows == 0 || term.frameCols < 5 {
+		t.Fatalf("frame = %dx%d", term.frameCols, term.frameRows)
 	}
-	var row strings.Builder
-	for _, cell := range term.grid.Rows[0].Cells {
-		row.WriteRune(cell.Rune)
-	}
-	if !strings.HasPrefix(row.String(), "hello") {
-		t.Errorf("row 0 = %q, want it to start with hello", row.String())
+	if got := frameRowText(term, 0); !strings.HasPrefix(got, "hello") {
+		t.Errorf("row 0 = %q, want it to start with hello", got)
 	}
 }
 
@@ -255,11 +250,11 @@ func TestTermWidget_Zoom_ScalesBothAxesWithoutRebuildingTheWidget(t *testing.T) 
 	term := newTermWidget(20, 4, nil, nil)
 	// test.WidgetRenderer goes through Fyne's own renderer cache, like the
 	// real driver does; calling term.CreateRenderer() directly here would
-	// bypass that cache, so the t.Refresh() inside rebuildGrid would find
-	// nothing cached and build yet another renderer (and grid) itself,
+	// bypass that cache, so the t.Refresh() inside applyFontSize would find
+	// nothing cached and build yet another renderer (and raster) itself,
 	// masking whether the zoom step did.
 	test.WidgetRenderer(term)
-	before := term.grid
+	before := term.raster
 	term.Resize(fyne.NewSize(400, 200))
 	oldCols, oldRows := term.cols, term.rows
 
@@ -267,12 +262,11 @@ func TestTermWidget_Zoom_ScalesBothAxesWithoutRebuildingTheWidget(t *testing.T) 
 	term.fit(fyne.NewSize(400, 200))
 	term.renderer.Layout(fyne.NewSize(400, 200))
 
-	// Fyne's TextGrid re-measures its cell size from the theme on every
-	// Refresh, so a zoom step reuses the same grid instance instead of
-	// tearing down and rebuilding the widget (which is what made each zoom
-	// step visibly stall on the GPU painter).
-	if term.grid != before {
-		t.Fatal("zoom replaced the grid instance instead of refreshing it in place")
+	// The cell size follows the text size on its own, so a zoom step reuses
+	// the same raster instead of tearing down and rebuilding the widget (which
+	// is what made each zoom step visibly stall on the GPU painter).
+	if term.raster != before {
+		t.Fatal("zoom replaced the raster instead of redrawing it in place")
 	}
 	if term.cols >= oldCols || term.rows >= oldRows {
 		t.Errorf("grid = %dx%d, want fewer columns and rows at a larger font (%dx%d)", term.cols, term.rows, oldCols, oldRows)
@@ -441,30 +435,14 @@ func TestSendKeySequenceToFocused_ReachesTheShell(t *testing.T) {
 	}
 }
 
-func TestStyle_DefaultBackground_HasNoBackgroundRectangle(t *testing.T) {
-	term := newTermWidget(80, 24, func([]byte) {}, nil)
-	plain := term.style(terminal.DefaultFG, terminal.DefaultBG)
-	if bg := plain.BackgroundColor(); bg != nil {
-		t.Errorf("default background resolved to %v, want nil so Fyne draws no rectangle", bg)
-	}
-	inverse := term.style(terminal.DefaultBG, terminal.DefaultFG)
-	if inverse.BackgroundColor() == nil {
-		t.Error("an inverted cell lost its background, so selection and cursor would vanish")
-	}
-	coloured := term.style(terminal.DefaultFG, 1)
-	if coloured.BackgroundColor() == nil {
-		t.Error("an explicit background colour was dropped")
-	}
-}
-
-// firstRowText is what the text grid currently shows on its first row.
-func firstRowText(term *termWidget) string {
-	if len(term.grid.Rows) == 0 {
+// frameRowText is the text of one row of the frame the terminal last built.
+func frameRowText(term *termWidget, row int) string {
+	if row >= term.frameRows {
 		return ""
 	}
 	var text []rune
-	for _, cell := range term.grid.Rows[0].Cells {
-		text = append(text, cell.Rune)
+	for _, cell := range term.frame[row*term.frameCols : (row+1)*term.frameCols] {
+		text = append(text, cell.r)
 	}
 	return strings.TrimSpace(string(text))
 }
@@ -476,16 +454,16 @@ func TestTermWidget_Paused_KeepsTheEmulatorButSkipsTheDraw(t *testing.T) {
 	term.setPaused(true)
 	term.write([]byte("hidden"))
 
-	if got := firstRowText(term); got == "hidden" {
-		t.Fatal("a paused terminal redrew its grid")
+	if got := frameRowText(term, 0); got == "hidden" {
+		t.Fatal("a paused terminal built a frame")
 	}
 	if got := term.screenText(); !strings.Contains(got, "hidden") {
 		t.Fatalf("emulator text = %q, want the output kept while paused", got)
 	}
 
 	term.setPaused(false)
-	if got := firstRowText(term); got != "hidden" {
-		t.Fatalf("grid = %q after showing the terminal, want it caught up", got)
+	if got := frameRowText(term, 0); got != "hidden" {
+		t.Fatalf("frame = %q after showing the terminal, want it caught up", got)
 	}
 }
 
@@ -493,12 +471,12 @@ func TestTermWidget_ShownWithNothingMissed_DoesNotRedraw(t *testing.T) {
 	term := newTermWidget(20, 3, func([]byte) {}, nil)
 	term.CreateRenderer()
 	term.write([]byte("a"))
-	rows := term.grid.Rows
+	frames := term.frames
 
 	term.setPaused(true)
 	term.setPaused(false)
 
-	if len(rows) == 0 || &term.grid.Rows[0] != &rows[0] {
-		t.Error("an untouched terminal was rebuilt when its tab came back")
+	if term.frames != frames {
+		t.Error("an untouched terminal was redrawn when its tab came back")
 	}
 }
