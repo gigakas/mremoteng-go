@@ -81,6 +81,16 @@ func (t *termWidget) MouseDown(event *desktop.MouseEvent) {
 	t.render()
 }
 
+// MouseUp ends the press. Its real job is to make termWidget a desktop.Mouseable:
+// Fyne only calls MouseDown on widgets that implement both halves, so without it
+// the terminal took the keyboard solely from Tapped, which never fires when the
+// pointer moves a pixel during the click (it becomes a drag) and which Fyne
+// delays for a double-tap. A click like that left the terminal unfocused.
+func (t *termWidget) MouseUp(*desktop.MouseEvent) {
+	t.selecting = false
+	t.dragX, t.dragY = 0, 0
+}
+
 // TappedSecondary copies the current selection, like a Linux terminal, and
 // clears the highlight so the copied block is obvious.
 func (t *termWidget) TappedSecondary(*fyne.PointEvent) {

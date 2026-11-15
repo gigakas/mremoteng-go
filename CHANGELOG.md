@@ -25,6 +25,10 @@
   - `go.mod`
   - `go.sum`
   - _2026-11-15 00:00:50 UTC — claude-code_
+- Give the terminal the keyboard on mouse press so a click that is not a clean tap no longer leaves it unfocused
+  - `internal/ui/terminal_input.go`
+  - `internal/ui/terminal_focus_test.go`
+  - _2026-11-15 09:17:36 UTC — claude-code_
 
 ## 2026-11-14
 
