@@ -2,6 +2,7 @@ package ui
 
 import (
 	"io"
+	"sync"
 
 	"fyne.io/fyne/v2"
 )
@@ -53,15 +54,40 @@ func (p *sessionPanel) installSlot(content fyne.CanvasObject) {
 
 // pumpBytes copies r into apply until it ends, then calls closed once.
 //
-// Each chunk is copied because the read buffer is reused across iterations, and
-// both callbacks run on the Fyne goroutine: the readers run off the UI thread.
+// Both callbacks run on the Fyne goroutine: the readers run off the UI thread.
+// Output that arrives while a delivery is already queued is appended to it, so
+// a burst of reads between two frames reaches apply as one write and costs one
+// repaint instead of one per read. Order is kept, and closed is queued after
+// the last delivery.
 func pumpBytes(r io.Reader, apply func([]byte), closed func()) {
+	var (
+		mu        sync.Mutex
+		pending   []byte
+		scheduled bool
+	)
+	deliver := func() {
+		mu.Lock()
+		data := pending
+		pending = nil
+		scheduled = false
+		mu.Unlock()
+		if len(data) > 0 {
+			apply(data)
+		}
+	}
 	buffer := make([]byte, 32*1024)
 	for {
 		n, err := r.Read(buffer)
 		if n > 0 {
-			chunk := append([]byte(nil), buffer[:n]...)
-			runOnUI(func() { apply(chunk) })
+			// The read buffer is reused across iterations, so it is copied.
+			mu.Lock()
+			pending = append(pending, buffer[:n]...)
+			queue := !scheduled
+			scheduled = true
+			mu.Unlock()
+			if queue {
+				runOnUI(deliver)
+			}
 		}
 		if err != nil {
 			runOnUI(closed)

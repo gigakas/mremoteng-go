@@ -4,6 +4,7 @@ import (
 	"fyne.io/fyne/v2"
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
 	telnetclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/telnet"
+	"io"
 	"strings"
 	"testing"
 )
@@ -124,5 +125,52 @@ func TestCheckBrowserURL_Scheme_OnlyWebURLsPass(t *testing.T) {
 		if got := checkBrowserURL(target) == nil; got != want {
 			t.Errorf("checkBrowserURL(%q) accepted = %v, want %v", target, got, want)
 		}
+	}
+}
+
+// burstReader hands out its chunks one per Read, then ends.
+type burstReader struct{ chunks []string }
+
+func (b *burstReader) Read(p []byte) (int, error) {
+	if len(b.chunks) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(p, b.chunks[0])
+	b.chunks = b.chunks[1:]
+	return n, nil
+}
+
+func TestPumpBytes_BurstBeforeTheUIRuns_IsDeliveredOnceInOrder(t *testing.T) {
+	var deliveries []string
+	closed := 0
+	pumpBytes(&burstReader{chunks: []string{"one ", "two ", "three"}},
+		func(data []byte) { deliveries = append(deliveries, string(data)) },
+		func() { closed++ })
+	// Nothing ran yet: the test queue stands in for a UI that has not drawn.
+	if len(deliveries) != 0 {
+		t.Fatalf("apply ran %d times before the UI turn", len(deliveries))
+	}
+
+	drainUI()
+
+	if len(deliveries) != 1 || deliveries[0] != "one two three" {
+		t.Fatalf("deliveries = %q, want one write of the whole burst", deliveries)
+	}
+	if closed != 1 {
+		t.Fatalf("closed ran %d times, want once and after the output", closed)
+	}
+}
+
+func TestPumpBytes_OutputAfterADelivery_StartsANewOne(t *testing.T) {
+	var deliveries []string
+	reader := &burstReader{chunks: []string{"a"}}
+	pumpBytes(reader, func(data []byte) { deliveries = append(deliveries, string(data)) }, func() {})
+	drainUI()
+	reader.chunks = []string{"b"}
+	pumpBytes(reader, func(data []byte) { deliveries = append(deliveries, string(data)) }, func() {})
+	drainUI()
+
+	if strings.Join(deliveries, "|") != "a|b" {
+		t.Fatalf("deliveries = %q, want a then b", deliveries)
 	}
 }
