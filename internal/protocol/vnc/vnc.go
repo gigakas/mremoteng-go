@@ -204,7 +204,10 @@ func (c *Client) setFormatAndEncodings() error {
 	if err := c.writeMessage(append([]byte{0, 0, 0, 0}, pixelFormat...)); err != nil {
 		return err
 	}
-	encodings := []byte{2, 0, 0, 0, 0} // one encoding: Raw
+	// SetEncodings: type, one padding byte, a 16-bit count and one 32-bit entry per
+	// encoding. The count is what lets the server find the next message; a short
+	// message left it reading the stray bytes as commands and dropping the session.
+	encodings := []byte{2, 0, 0, 1, 0, 0, 0, byte(encodingRaw)}
 	return c.writeMessage(encodings)
 }
 

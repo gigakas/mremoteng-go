@@ -84,8 +84,17 @@ func (s *fakeServer) serve(conn net.Conn, requireAuth bool, password string) {
 	if _, err := io.ReadFull(reader, pixelFormat); err != nil {
 		return
 	}
-	encodings := make([]byte, 5)
-	if _, err := io.ReadFull(reader, encodings); err != nil {
+	// SetEncodings must carry its count and exactly that many 32-bit entries, as a
+	// real server reads it; anything else desynchronises the stream.
+	encodingsHeader := make([]byte, 4)
+	if _, err := io.ReadFull(reader, encodingsHeader); err != nil || encodingsHeader[0] != 2 {
+		return
+	}
+	count := int(binary.BigEndian.Uint16(encodingsHeader[2:4]))
+	if count != 1 {
+		return
+	}
+	if _, err := io.ReadFull(reader, make([]byte, 4*count)); err != nil {
 		return
 	}
 	request := make([]byte, 10)
