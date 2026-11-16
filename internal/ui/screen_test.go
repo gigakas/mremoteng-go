@@ -158,6 +158,15 @@ func (f *fakeVNC) Pointer(x, y int, mask byte) error {
 	return nil
 }
 
+func (f *fakeVNC) Key(keysym uint32, down bool) error {
+	pressed := uint32(0)
+	if down {
+		pressed = 1
+	}
+	f.keys = append(f.keys, [2]uint32{keysym, pressed})
+	return nil
+}
+
 func (f *fakeVNC) Close() error { f.closed = true; return nil }
 
 func (f *fakeStream) Read([]byte) (int, error) { return f.gate.reader().Read(nil) }

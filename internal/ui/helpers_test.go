@@ -84,6 +84,7 @@ type fakeShell struct {
 type fakeVNC struct {
 	pixels  *image.RGBA
 	pointer [][3]int
+	keys    [][2]uint32
 	closed  bool
 	err     error
 }

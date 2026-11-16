@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 	vncclient "github.com/mRemoteNG/mremoteng-go/internal/protocol/vnc"
 	"image"
 	"image/color"
@@ -21,7 +22,9 @@ func TestSessionPanel_VNCConnect_ShowsFramebufferAndForwardsClicks(t *testing.T)
 		t.Fatal("VNC view was not installed")
 	}
 	panel.vncView.Resize(fyne.NewSize(200, 100))
-	panel.vncView.Tapped(&fyne.PointEvent{Position: fyne.NewPos(100, 50)})
+	click := &desktop.MouseEvent{PointEvent: fyne.PointEvent{Position: fyne.NewPos(100, 50)}, Button: desktop.MouseButtonPrimary}
+	panel.vncView.MouseDown(click)
+	panel.vncView.MouseUp(click)
 	if len(session.pointer) < 2 {
 		t.Fatalf("pointer events = %v, want press and release", session.pointer)
 	}

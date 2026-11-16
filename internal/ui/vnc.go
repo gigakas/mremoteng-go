@@ -9,7 +9,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/mRemoteNG/mremoteng-go/internal/profiles"
@@ -23,6 +22,7 @@ type vncSession interface {
 	Image() *image.RGBA
 	ReadMessage() error
 	Pointer(x, y int, mask byte) error
+	Key(keysym uint32, down bool) error
 	Close() error
 }
 
@@ -37,17 +37,28 @@ func defaultVNCDialer(address string, config vncclient.Config) (vncSession, erro
 	return client, nil
 }
 
-// vncView renders the remote framebuffer and forwards pointer clicks.
+// vncView renders the remote framebuffer and forwards the pointer and keyboard to
+// the server (see vnc_input.go).
 type vncView struct {
 	widget.BaseWidget
 
 	image  *canvas.Image
 	source vncSession
 	pixels *image.RGBA
+
+	// buttons is the pointer button mask the server last heard; a move reports it
+	// again so a drag keeps its buttons down.
+	buttons byte
+	// held lists the keysyms sent down and not yet up, so losing focus can release
+	// them instead of leaving a modifier stuck on the remote machine.
+	held map[uint32]bool
+	// modifiers counts the Ctrl, Alt and Super keys down: a letter pressed with one
+	// of them goes out as a key, not as typed text.
+	modifiers int
 }
 
 func newVNCView(session vncSession) *vncView {
-	view := &vncView{source: session, pixels: session.Image()}
+	view := &vncView{source: session, pixels: session.Image(), held: map[uint32]bool{}}
 	view.image = canvas.NewImageFromImage(view.pixels)
 	view.image.FillMode = canvas.ImageFillContain
 	view.image.ScaleMode = canvas.ImageScaleFastest
@@ -64,36 +75,13 @@ func (v *vncView) refresh() {
 	v.image.Refresh()
 }
 
-// Tapped sends a left click at the mapped remote position.
-func (v *vncView) Tapped(event *fyne.PointEvent) {
-	width, height := v.source.Size()
-	if width == 0 || height == 0 || v.Size().Width == 0 || v.Size().Height == 0 {
-		return
-	}
-	x := int(event.Position.X / v.Size().Width * float32(width))
-	y := int(event.Position.Y / v.Size().Height * float32(height))
-	_ = v.source.Pointer(x, y, 1)
-	_ = v.source.Pointer(x, y, 0)
-}
-
-// MouseMoved keeps the remote pointer in sync without pressing a button.
-func (v *vncView) MouseMoved(event *desktop.MouseEvent) {
-	width, height := v.source.Size()
-	if width == 0 || height == 0 {
-		return
-	}
-	x := int(event.Position.X / v.Size().Width * float32(width))
-	y := int(event.Position.Y / v.Size().Height * float32(height))
-	_ = v.source.Pointer(x, y, 0)
-}
-
 // startVNC installs the view and starts reading framebuffer updates.
 func (p *sessionPanel) startVNC(session vncSession) {
 	p.vnc = session
 	p.vncView = newVNCView(session)
 	p.installSlot(container.NewStack(p.vncView))
 	p.setConnected(true)
-	p.setStatus("VNC session with " + p.profile.Host + " connected. Click the view to send a left click.")
+	p.setStatus("VNC session with " + p.profile.Host + " connected. Click the view to control it with the mouse and keyboard.")
 	go p.readVNC(session)
 }
 

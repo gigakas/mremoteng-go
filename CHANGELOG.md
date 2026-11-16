@@ -4,6 +4,22 @@
 <!-- Source: fragments in changelog.d/*.md -->
 <!-- Regenerate: make changelog  (or: go run ./cmd/changelog compile) -->
 
+## 2026-11-16
+
+- Send a well-formed VNC SetEncodings message so real servers keep the session open
+  - `internal/protocol/vnc/vnc.go`
+  - `internal/protocol/vnc/vnc_test.go`
+  - _2026-11-16 17:17:00 UTC — claude-code_
+- Forward mouse buttons, drag, wheel and keyboard from the VNC view to the remote desktop
+  - `internal/ui/vnc.go`
+  - `internal/ui/vnc_input.go`
+  - `internal/ui/vnc_keys.go`
+  - `internal/ui/vnc_input_test.go`
+  - `internal/ui/vnc_test.go`
+  - `internal/ui/helpers_test.go`
+  - `internal/ui/screen_test.go`
+  - _2026-11-16 17:30:26 UTC — claude-code_
+
 ## 2026-11-15
 
 - Deliver bursts of terminal output as one write
