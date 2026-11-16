@@ -19,6 +19,30 @@
   - `internal/ui/helpers_test.go`
   - `internal/ui/screen_test.go`
   - _2026-11-16 17:30:26 UTC — claude-code_
+- Add GitHub Actions verification and Linux packaging workflows
+
+  Stage 4.2 of blueprint/phase-4-packaging.md. ci.yml runs scripts/check.sh and scripts/smoke.sh on every pull request and push to main, calling the same scripts as a developer instead of duplicating the build. package-linux.yml builds the release tarball and the .deb on every push to main and keeps them as run artifacts (amd64, 30-day retention); it verifies the package payload (both binaries, desktop entry, icon, -version) before uploading and refuses to publish a tag whose name disagrees with VERSION. Only a v* tag creates a GitHub Release, using the runner's gh CLI with GITHUB_TOKEN so no third-party release action is needed. Actions are pinned by commit SHA, the workflow default permission is contents: read, and only the release job can write. arm64, rpm, Flatpak and installation acceptance stay pending (4.3/4.5); the audit records them.
+
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/package-linux.yml`
+  - `blueprint/phase-4-packaging.md`
+  - `auditory/phase-4.2-ci-20261116-opencode.md`
+  - _2026-11-16 20:03:58 UTC — opencode_
+- Add README screenshots and refresh the project status text
+
+  The README had no images and its status paragraph still claimed that SSH and RDP sessions were unimplemented (stage L1), which stopped being true when the L2 session work landed. docs/screenshots now holds three screenshots taken from a development build driven by a throwaway demo profile store, so no personal data appears: the main window with the start page and the connection tree, a selected connection with the Connection details panel, and the activity log. The new Screenshots section shows them, the status paragraph now describes what works (profiles, folders, import/export, vault, SSH/RDP/VNC/Telnet/RAW/HTTP and the packaging scripts), the Go requirement is corrected to 1.25 to match go.mod, and the Development section documents the two GitHub Actions workflows.
+
+  - `README.md`
+  - `docs/screenshots/main-window.png`
+  - `docs/screenshots/connection-details.png`
+  - `docs/screenshots/activity-log.png`
+  - _2026-11-16 20:04:19 UTC — opencode_
+- Expand the README into a full user and developer guide
+
+  The README grew from a feature dump into a document someone can install from: badges for the two workflows, a table of contents, the three screenshots, features grouped by area (tree, details, sessions, workspace), a protocol support table stating what each backend actually does today, runtime and build requirements with apt/dnf/pacman commands, install instructions for the .deb, rpm, Flatpak, tarball and per-user prefix, the configuration and data layout (profiles.json, secrets.json, Fyne preferences, XDG handling, -profiles/-version), keyboard and mouse reference, security notes, the CI and release behaviour, an updated package layout, the development workflow and an accurate limitations list. The stale claims that HTTP opens in the system browser, that serial ports are unimplemented and that VNC ignores the keyboard were removed; the text now matches internal/ui/{webview,serial,vnc_input}.go, and the VNC clipboard gap is stated instead.
+
+  - `README.md`
+  - _2026-11-16 20:33:57 UTC — opencode_
 
 ## 2026-11-15
 

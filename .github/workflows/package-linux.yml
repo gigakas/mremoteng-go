@@ -1,0 +1,117 @@
+name: Linux package
+
+# Builds the Linux installer assets on every push to main (downloadable from the
+# run) and publishes them as a GitHub Release when a version tag is pushed.
+#
+# The version comes from the VERSION file, so an untagged push produces
+# artifacts that all share that version; they are named after the commit to stay
+# distinguishable. Only a tag creates a Release.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: build .deb + tarball (ubuntu-24.04, amd64)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config dpkg-dev \
+            libgl1-mesa-dev xorg-dev libxkbcommon-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      # release.sh builds with -tags x11 (required for RDP window embedding) and
+      # writes the tarball, its sha256 and the desktop files; package-deb.sh stages
+      # the same binaries into a .deb and refuses to guess dependencies.
+      - name: Build release tarball
+        run: ./scripts/release.sh
+
+      - name: Build .deb
+        run: ./scripts/package-deb.sh
+
+      # A package that lost one of its two binaries would still build, so check the
+      # payload instead of trusting the scripts.
+      - name: Verify package payload
+        run: |
+          deb=$(ls dist/*.deb)
+          dpkg-deb --info "$deb"
+          for f in usr/bin/mremoteng usr/bin/mremoteng-webview \
+                   usr/share/applications/mremoteng-go.desktop \
+                   usr/share/icons/hicolor/scalable/apps/mremoteng-go.svg; do
+            dpkg-deb --contents "$deb" | awk '{print $6}' | sed 's|^\./||' | grep -qx "$f" \
+              || { echo "::error::missing $f in $deb"; exit 1; }
+          done
+          dist/mremoteng-go-*/mremoteng -version
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mremoteng-linux-amd64-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            dist/*.deb
+            dist/*.tar.gz
+            dist/*.sha256
+
+  release:
+    name: publish release
+    # Only a tag publishes: a push to main keeps its artifacts in the run.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # A tag that disagrees with VERSION would publish a file whose name lies about
+      # its content, so refuse it instead of renaming anything.
+      - name: Check tag against VERSION
+        run: |
+          version=$(cat VERSION)
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ] && [ "${GITHUB_REF_NAME}" != "${version}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION (${version})"
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/*.deb dist/*.tar.gz dist/*.sha256 \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes

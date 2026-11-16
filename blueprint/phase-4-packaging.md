@@ -10,8 +10,8 @@
 | # | Stage | Status | Agent |
 |---|---|---|---|
 | 4.1 | Cross-compilation matrix (linux/windows × amd64/arm64) | pending | opencode |
-| 4.2 | CI: build + check + smoke on every PR | pending | opencode |
-| 4.3 | Linux packaging (.deb/.rpm/Flatpak) with xfreerdp dependency | pending | claude-code |
+| 4.2 | CI: build + check + smoke on every PR | done (`.github/workflows/ci.yml`: check.sh + smoke.sh on PR and push; `package-linux.yml`: tarball + `.deb` artifact on main, GitHub Release on a `v*` tag) | opencode |
+| 4.3 | Linux packaging (.deb/.rpm/Flatpak) with xfreerdp dependency | in progress (claude-code; the `.deb` and tarball are built on every push in CI, rpm/Flatpak and install acceptance still pending) | claude-code |
 | 4.4 | Windows packaging (portable zip + FreeRDP binary alongside) | pending | claude-code |
 | 4.5 | Release channels (stable/preview/nightly) | pending | human + claude-code |
 
