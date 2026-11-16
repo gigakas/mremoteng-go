@@ -111,7 +111,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            dist/*.deb dist/*.tar.gz dist/*.sha256 \
+          # The version is part of every file name, which makes
+          # releases/latest/download/<name> change on each version. Publish
+          # stable aliases next to the versioned files so the README can offer a
+          # permanent download link, and give the alias its own checksum because
+          # the generated one names the versioned tarball.
+          mkdir -p release
+          cp dist/*.deb dist/*.tar.gz dist/*.sha256 release/
+          cp dist/*.deb release/mremoteng-go-linux-amd64.deb
+          cp dist/*.tar.gz release/mremoteng-go-linux-amd64.tar.gz
+          (cd release && sha256sum mremoteng-go-linux-amd64.tar.gz \
+            > mremoteng-go-linux-amd64.tar.gz.sha256)
+          gh release create "${GITHUB_REF_NAME}" release/* \
             --title "${GITHUB_REF_NAME}" \
             --generate-notes

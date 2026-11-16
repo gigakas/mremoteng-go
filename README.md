@@ -188,9 +188,29 @@ sudo pacman -S --needed base-devel pkgconf mesa libx11 libxcursor libxrandr \
 
 ## Install
 
-The CI publishes the tarball and the `.deb` for `amd64` on every push to `main`
-(download them from the workflow run) and attaches them to a GitHub Release when
-a version tag is pushed.
+### Download
+
+| File | Permanent link |
+|---|---|
+| Latest release (all files) | <https://github.com/gigakas/mremoteng-go/releases/latest> |
+| Debian package, amd64 | <https://github.com/gigakas/mremoteng-go/releases/latest/download/mremoteng-go-linux-amd64.deb> |
+| Portable tarball, amd64 | <https://github.com/gigakas/mremoteng-go/releases/latest/download/mremoteng-go-linux-amd64.tar.gz> |
+| Tarball checksum | <https://github.com/gigakas/mremoteng-go/releases/latest/download/mremoteng-go-linux-amd64.tar.gz.sha256> |
+
+The `latest` links always resolve to the most recent tagged version. Each
+release also keeps the versioned copies
+(`mremoteng-go_0.6.4~linux~preview_amd64.deb`,
+`mremoteng-go-0.6.4-linux-preview-linux-amd64.tar.gz`, plus its `.sha256`), so a
+pinned version keeps working.
+
+Builds from a push to `main` stay attached to the workflow run instead: they need
+a GitHub session to download and expire after 30 days, so a tagged release is the
+distribution path.
+
+```bash
+curl -fsSLO https://github.com/gigakas/mremoteng-go/releases/latest/download/mremoteng-go-linux-amd64.deb
+sudo apt install ./mremoteng-go-linux-amd64.deb
+```
 
 ### Debian and Ubuntu
 
@@ -296,7 +316,20 @@ GitHub Actions runs the same scripts a developer runs:
 - [`package-linux.yml`](.github/workflows/package-linux.yml) — builds the tarball
   and the `.deb`, checks the package payload (both binaries, desktop entry,
   icon, `-version`), and keeps them as run artifacts for 30 days. A tag matching
-  `VERSION` (`v0.6.4-linux-preview` today) publishes them as a GitHub Release.
+  `VERSION` publishes them as a GitHub Release.
+
+To cut a version, bump `VERSION`, commit, and tag that commit — the workflow
+refuses a tag whose name disagrees with the file:
+
+```bash
+git tag "v$(cat VERSION)"
+git push origin "v$(cat VERSION)"
+```
+
+The release carries the versioned files and the stable aliases the download
+table uses (`mremoteng-go-linux-amd64.deb`, `mremoteng-go-linux-amd64.tar.gz`
+and its `.sha256`), which is what keeps the `releases/latest/download/...` links
+valid across versions.
 
 Release builds use `-tags x11 -trimpath -ldflags "-s -w"` and stamp version,
 commit and build time from the `VERSION` file.
