@@ -161,7 +161,7 @@ var welcomeHelp = []welcomeHelpRow{
 	{theme.ContentAddIcon, "Quick connect", "Connect once without saving."},
 	{theme.MediaPlayIcon, "Connect", "Open the selected session."},
 	{theme.CancelIcon, "Disconnect", "End the session and a split pane; asks for the last one."},
-	{theme.FolderIcon, "SFTP", "Browse and transfer files on an SSH session."},
+	{SFTPIcon, "SFTP", "Browse and transfer files on an SSH session."},
 	{theme.SearchIcon, "Test", "Check RDP credentials only."},
 	{theme.ComputerIcon, "Special keys", "Send Ctrl+Alt+Del to the remote desktop."},
 	{theme.CheckButtonCheckedIcon, "Ignore cert", "Accept a self-signed certificate."},

@@ -89,7 +89,7 @@ func (s *screen) newSessionPanel(profile profiles.Profile) *sessionPanel {
 	// The X closes the connection; the words "Disconnect" spent bar width the
 	// terminal needs, and the tooltip says what it does.
 	panel.disconnect = newHintButton(theme.CancelIcon(), "End the session and a split pane; asks for the last one", panel.requestDisconnect, s.hint)
-	panel.sftp = newHintButton(theme.FolderIcon(), "Browse and transfer files over SFTP", panel.openSFTP, s.hint)
+	panel.sftp = newHintButton(SFTPIcon(), "Browse and transfer files over SFTP", panel.openSFTP, s.hint)
 	panel.disconnect.Importance = widget.LowImportance
 	panel.sftp.Importance = widget.LowImportance
 	panel.disconnect.Disable()
