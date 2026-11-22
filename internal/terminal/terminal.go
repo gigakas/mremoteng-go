@@ -37,6 +37,36 @@ type Snapshot struct {
 	Title    string
 }
 
+// Modes is the terminal state that changes how input is translated: whether the
+// program wants pointer events, and whether it owns the view through the
+// alternate screen.
+type Modes struct {
+	// MouseReporting is set by DECSET 9, 1000, 1002 or 1003: the program asks
+	// for pointer events, wheel included.
+	MouseReporting bool
+	// MouseSGR selects the SGR encoding (DECSET 1006) over the legacy one, which
+	// has no codes for the wheel.
+	MouseSGR bool
+	// AltScreen is set by DECSET 47, 1047 or 1049: a full-screen program draws
+	// on its own screen, so its frames are not scrollback.
+	AltScreen bool
+	// AppCursor is set by DECSET 1: arrow keys must go out as SS3 sequences.
+	AppCursor bool
+}
+
+// Modes reports the input-related terminal modes.
+func (e *Emulator) Modes() Modes {
+	e.term.Lock()
+	defer e.term.Unlock()
+	mode := e.term.Mode()
+	return Modes{
+		MouseReporting: mode&vt10x.ModeMouseMask != 0,
+		MouseSGR:       mode&vt10x.ModeMouseSgr != 0,
+		AltScreen:      mode&vt10x.ModeAltScreen != 0,
+		AppCursor:      mode&vt10x.ModeAppCursor != 0,
+	}
+}
+
 // historyLimit bounds the scrollback so a long session cannot grow without
 // limit.
 const historyLimit = 2000
@@ -138,6 +168,13 @@ var eraseScrollback = []byte("\x1b[3J")
 func (e *Emulator) trackScroll() {
 	snapshot := e.Snapshot()
 	current := linesOf(snapshot)
+	// A program on the alternate screen redraws its whole view on every change;
+	// those frames are its interface, not shell output, so recording them would
+	// fill the scrollback with pieces of it.
+	if e.Modes().AltScreen {
+		e.last, e.lastCells = current, snapshot.Cells
+		return
+	}
 	if e.last == nil {
 		e.last, e.lastCells = current, snapshot.Cells
 		return

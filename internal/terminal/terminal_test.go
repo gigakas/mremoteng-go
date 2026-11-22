@@ -253,3 +253,41 @@ func TestEmulator_EraseScrollback_DropsHistory(t *testing.T) {
 		t.Errorf("history = %d lines, %d cells, want none after ESC[3J", emulator.HistoryLen(), len(emulator.HistoryCells()))
 	}
 }
+
+func TestEmulator_Modes_FollowDecsetAndDecrst(t *testing.T) {
+	emulator := New(20, 4)
+	if modes := emulator.Modes(); modes.MouseReporting || modes.MouseSGR || modes.AltScreen || modes.AppCursor {
+		t.Fatalf("initial modes = %+v, want everything off", modes)
+	}
+
+	_, _ = emulator.Write([]byte("\x1b[?1000h\x1b[?1006h\x1b[?1049h\x1b[?1h"))
+	modes := emulator.Modes()
+	if !modes.MouseReporting || !modes.MouseSGR || !modes.AltScreen || !modes.AppCursor {
+		t.Fatalf("modes after DECSET = %+v, want everything set", modes)
+	}
+
+	_, _ = emulator.Write([]byte("\x1b[?1000l\x1b[?1006l\x1b[?1049l\x1b[?1l"))
+	modes = emulator.Modes()
+	if modes.MouseReporting || modes.MouseSGR || modes.AltScreen || modes.AppCursor {
+		t.Fatalf("modes after DECRST = %+v, want everything off", modes)
+	}
+}
+
+func TestEmulator_AltScreen_DoesNotFillScrollback(t *testing.T) {
+	emulator := New(20, 3)
+	_, _ = emulator.Write([]byte("\x1b[?1049h"))
+	for i := 0; i < 10; i++ {
+		_, _ = emulator.Write([]byte("full-screen row\r\n"))
+	}
+	if got := emulator.HistoryLen(); got != 0 {
+		t.Fatalf("history = %d lines, want none while the alternate screen is active", got)
+	}
+
+	_, _ = emulator.Write([]byte("\x1b[?1049l"))
+	for i := 0; i < 10; i++ {
+		_, _ = emulator.Write([]byte(fmt.Sprintf("shell %d\r\n", i)))
+	}
+	if emulator.HistoryLen() == 0 {
+		t.Fatal("history stayed empty after returning to the normal screen")
+	}
+}

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strconv"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -52,20 +53,126 @@ func (t *termWidget) viewStart() int {
 	return start
 }
 
-// Scrolled moves the view through the scrollback.
+// Wheel codes and the conversion from Fyne scroll units to wheel notches. SGR
+// reports the wheel as buttons 64 and 65; the legacy X10 encoding has no room
+// for those and uses buttons 4 and 5 instead.
+const (
+	wheelUpButton   = 64
+	wheelDownButton = 65
+	legacyWheelBase = 60
+	// scrollUnitsPerNotch is what the desktop driver sends for one wheel click
+	// on Linux (a touchpad sends less, including fractions), so a program must
+	// receive one event per notch rather than one per unit.
+	scrollUnitsPerNotch = 25
+	maxWheelNotches     = 10
+)
+
+// Scrolled hands the wheel to the program when it enabled mouse reporting,
+// turns it into arrow keys while a full-screen program owns the alternate
+// screen, and moves through the local scrollback otherwise.
+//
+// Without the first two cases a TUI client (a chat client, an editor, a
+// multiplexer) never receives the wheel: the emulator consumed it for a
+// scrollback that its alternate screen does not fill.
 func (t *termWidget) Scrolled(event *fyne.ScrollEvent) {
 	if event.Scrolled.DY == 0 {
 		return
 	}
-	maxOffset := t.emulator.HistoryLen()
-	t.scrollOffset += int(event.Scrolled.DY)
-	if t.scrollOffset < 0 {
-		t.scrollOffset = 0
+	modes := t.emulator.Modes()
+	switch {
+	case modes.MouseReporting:
+		t.sendWheel(t.screenCellAt(event.Position), wheelNotches(event.Scrolled.DY), modes.MouseSGR)
+	case modes.AltScreen:
+		t.sendArrowScroll(wheelNotches(event.Scrolled.DY), modes.AppCursor)
+	default:
+		// The local scrollback keeps using Fyne's units: a notch moves a
+		// visible block, which is the behaviour its users already know.
+		t.scrollBack(int(event.Scrolled.DY))
 	}
-	if t.scrollOffset > maxOffset {
-		t.scrollOffset = maxOffset
+}
+
+// wheelNotches converts a Fyne scroll delta into whole wheel notches. A
+// fractional delta (a touchpad) still counts as one notch, because otherwise a
+// slow gesture would never reach the program.
+func wheelNotches(delta float32) int {
+	notches := int(delta / scrollUnitsPerNotch)
+	if notches == 0 {
+		if delta > 0 {
+			notches = 1
+		} else {
+			notches = -1
+		}
 	}
+	return clampInt(notches, -maxWheelNotches, maxWheelNotches)
+}
+
+// scrollBack moves the view through the scrollback and keeps it inside it.
+func (t *termWidget) scrollBack(notches int) {
+	t.scrollOffset = clampInt(t.scrollOffset+notches, 0, t.emulator.HistoryLen())
 	t.render()
+}
+
+// screenCellAt maps a widget position to a cell of the visible screen. Unlike
+// cellAt it ignores the scroll offset: a program that receives mouse or arrow
+// events works with what is on screen, not with the buffer above it.
+func (t *termWidget) screenCellAt(position fyne.Position) cellPos {
+	cell := t.cellSize()
+	if cell.Width <= 0 || cell.Height <= 0 {
+		return cellPos{}
+	}
+	col := int(position.X / cell.Width)
+	row := int(position.Y / cell.Height)
+	return cellPos{col: clampInt(col, 0, t.cols-1), row: clampInt(row, 0, t.rows-1)}
+}
+
+// sendWheel reports one wheel notch per line at the cell under the pointer.
+func (t *termWidget) sendWheel(at cellPos, notches int, sgr bool) {
+	if t.send == nil {
+		return
+	}
+	code := wheelUpButton
+	if notches < 0 {
+		code = wheelDownButton
+	}
+	for i := 0; i < wheelCount(notches); i++ {
+		if sgr {
+			t.send([]byte("\x1b[<" + strconv.Itoa(code) + ";" +
+				strconv.Itoa(at.col+1) + ";" + strconv.Itoa(at.row+1) + "M"))
+			continue
+		}
+		t.send([]byte{0x1b, '[', 'M',
+			byte(32 + code - legacyWheelBase),
+			byte(32 + at.col + 1),
+			byte(32 + at.row + 1)})
+	}
+}
+
+// sendArrowScroll turns a wheel notch into an arrow key, the alternate-scroll
+// behaviour terminals have: a full-screen program without mouse reporting still
+// receives the intent to move.
+func (t *termWidget) sendArrowScroll(notches int, appCursor bool) {
+	if t.send == nil {
+		return
+	}
+	up, down := "\x1b[A", "\x1b[B"
+	if appCursor {
+		up, down = "\x1bOA", "\x1bOB"
+	}
+	key := up
+	if notches < 0 {
+		key = down
+	}
+	for i := 0; i < wheelCount(notches); i++ {
+		t.send([]byte(key))
+	}
+}
+
+// wheelCount is the number of notches, without its direction.
+func wheelCount(notches int) int {
+	if notches < 0 {
+		return -notches
+	}
+	return notches
 }
 
 // MouseDown starts a selection with the primary button.

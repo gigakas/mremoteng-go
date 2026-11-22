@@ -101,8 +101,11 @@ status bar has already replaced is still there.
   session that never writes a profile; the status bar says it is temporary.
 - **Terminal**: a VT100/xterm emulator with 256 colours, a 2000-line scrollback,
   mouse-wheel scrolling, drag-to-select, double-click for a line, right-click
-  copy and per-tab zoom (8-28 pt) with Ctrl+=, Ctrl+- and Ctrl+0. The window
-  resize reaches the remote PTY.
+  copy and per-tab zoom (8-28 pt) with Ctrl+=, Ctrl+- and Ctrl+0. The wheel is
+  forwarded to the program when it enables mouse reporting (SGR or legacy
+  encoding), becomes arrow keys while a full-screen program owns the alternate
+  screen, and scrolls the scrollback otherwise. The window resize reaches the
+  remote PTY.
 - **Remote files (SFTP)**: a two-pane transfer window, local on the left and the
   remote host on the right, each pane listing a directory with folder and file
   icons, a name filter, sortable headers, upload/download with progress, rename,
@@ -281,8 +284,12 @@ exits.
   in the shell instead of moving focus, and Shift-Tab arrives as Tab.
 - **Terminal zoom**: Ctrl+=, Ctrl+- and Ctrl+0 (or the View menu) change the font
   size of the focused tab only.
-- **Scrollback**: the wheel scrolls the history; PageUp/PageDown and the arrows
-  scroll once the view is scrolled up, and Home/End jump in the history.
+- **Scrollback**: the wheel scrolls the history. When the program enables mouse
+  reporting — TUI clients, editors, multiplexers — the wheel is sent to it
+  instead, one event per notch; on the alternate screen without mouse reporting
+  the wheel is sent as arrow keys, so a full-screen program still moves. PageUp/
+  PageDown and the arrows scroll once the view is scrolled up, and Home/End jump
+  in the history.
 - **Selection**: drag to select, double-click selects a line, right-click copies
   the selection; the copy icon copies the whole buffer when nothing is selected.
 - **Sessions**: the bar's X ends the session (and closes the split pane); View >
@@ -398,6 +405,9 @@ make changelog        # regenerate CHANGELOG.md from changelog.d/
 - **Keyboard fidelity**: Fyne does not report every modifier combination, so the
   terminal has dedicated Ctrl-C and Ctrl-D buttons, Shift-Tab arrives as Tab and
   the desktop's own chords are sent from the *Send keys* menu.
+- **Terminal mouse**: the wheel reaches a program that asks for mouse reporting,
+  but clicks and drags stay local for selection, so a full-screen program never
+  receives button presses; selection inside it needs no modifier.
 - **Drag and drop** has no ghost or drop highlight; the row moves without a
   preview.
 - **Packaging**: the `.deb` is built in CI for `amd64` only; rpm and Flatpak

@@ -480,3 +480,90 @@ func TestTermWidget_ShownWithNothingMissed_DoesNotRedraw(t *testing.T) {
 		t.Error("an untouched terminal was redrawn when its tab came back")
 	}
 }
+
+// mouseScrollEvent builds a wheel event at the top-left cell, which maps to
+// column 1, row 1 in both mouse encodings. The delta uses the Linux driver's
+// units, where one wheel click is 25.
+func mouseScrollEvent(dy float32) *fyne.ScrollEvent {
+	return &fyne.ScrollEvent{
+		PointEvent: fyne.PointEvent{Position: fyne.NewPos(0, 0)},
+		Scrolled:   fyne.Delta{DY: dy},
+	}
+}
+
+func TestTermWidget_Scrolled_MouseReporting_SendsOneEventPerNotch(t *testing.T) {
+	var sent []byte
+	term := newTermWidget(20, 5, func(data []byte) { sent = append(sent, data...) }, nil)
+	term.CreateRenderer()
+	term.write([]byte("\x1b[?1000h\x1b[?1006h"))
+
+	// One wheel click is 25 units, so two clicks must produce two events, not
+	// one event per unit.
+	term.Scrolled(mouseScrollEvent(50))
+
+	if got, want := string(sent), "\x1b[<64;1;1M\x1b[<64;1;1M"; got != want {
+		t.Fatalf("sent = %q, want %q", got, want)
+	}
+	if term.scrollOffset != 0 {
+		t.Errorf("scroll offset = %d, want the program to keep the view", term.scrollOffset)
+	}
+}
+
+func TestTermWidget_Scrolled_FractionalDelta_StillSendsOneNotch(t *testing.T) {
+	var sent []byte
+	term := newTermWidget(20, 5, func(data []byte) { sent = append(sent, data...) }, nil)
+	term.CreateRenderer()
+	term.write([]byte("\x1b[?1000h\x1b[?1006h"))
+
+	term.Scrolled(mouseScrollEvent(2))
+
+	if got, want := string(sent), "\x1b[<64;1;1M"; got != want {
+		t.Fatalf("sent = %q, want %q", got, want)
+	}
+}
+
+func TestTermWidget_Scrolled_MouseReportingWithoutSGR_SendsLegacyWheel(t *testing.T) {
+	var sent []byte
+	term := newTermWidget(20, 5, func(data []byte) { sent = append(sent, data...) }, nil)
+	term.CreateRenderer()
+	term.write([]byte("\x1b[?1000h"))
+
+	term.Scrolled(mouseScrollEvent(-25))
+
+	want := []byte{0x1b, '[', 'M', 32 + 5, 32 + 1, 32 + 1}
+	if string(sent) != string(want) {
+		t.Fatalf("sent = %v, want %v", sent, want)
+	}
+}
+
+func TestTermWidget_Scrolled_AltScreenWithoutMouse_SendsArrowKeys(t *testing.T) {
+	var sent []byte
+	term := newTermWidget(20, 5, func(data []byte) { sent = append(sent, data...) }, nil)
+	term.CreateRenderer()
+	term.write([]byte("\x1b[?1049h"))
+
+	term.Scrolled(mouseScrollEvent(50))
+	if got, want := string(sent), "\x1b[A\x1b[A"; got != want {
+		t.Fatalf("sent = %q, want %q", got, want)
+	}
+
+	sent = nil
+	term.write([]byte("\x1b[?1h"))
+	term.Scrolled(mouseScrollEvent(-25))
+	if got, want := string(sent), "\x1bOB"; got != want {
+		t.Fatalf("application cursor sent = %q, want %q", got, want)
+	}
+}
+
+func TestTermWidget_Scrolled_CapsOneEventAtTenNotches(t *testing.T) {
+	var sent []byte
+	term := newTermWidget(20, 5, func(data []byte) { sent = append(sent, data...) }, nil)
+	term.CreateRenderer()
+	term.write([]byte("\x1b[?1000h\x1b[?1006h"))
+
+	term.Scrolled(mouseScrollEvent(25 * 40))
+
+	if got, want := strings.Count(string(sent), "\x1b[<64;1;1M"), 10; got != want {
+		t.Fatalf("notches = %d, want %d", got, want)
+	}
+}
